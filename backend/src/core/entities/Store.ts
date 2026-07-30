@@ -1,0 +1,79 @@
+import { z } from 'zod';
+import { ValidationError } from '../errors/ValidationError.js';
+
+// ── Zod Schema ──────────────────────────────────────────
+export const StoreSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string().min(1).max(255),
+  address: z.string().nullish(),
+  phone: z.string().max(20).nullish(),
+  email: z.string().email().max(255).nullish(),
+  taxCode: z.string().max(50).nullish(),
+  subscriptionPlan: z.enum(['basic', 'professional']),
+  subscriptionStatus: z.enum(['active', 'expired', 'trial']),
+  subscriptionExpiresAt: z.coerce.date().nullish(),
+  createdAt: z.coerce.date(),
+  updatedAt: z.coerce.date(),
+});
+
+export type StoreProps = z.infer<typeof StoreSchema>;
+
+// ── Entity ──────────────────────────────────────────────
+export class Store {
+  readonly id: string;
+  readonly name: string;
+  readonly address: string | null;
+  readonly phone: string | null;
+  readonly email: string | null;
+  readonly taxCode: string | null;
+  readonly subscriptionPlan: 'basic' | 'professional';
+  readonly subscriptionStatus: 'active' | 'expired' | 'trial';
+  readonly subscriptionExpiresAt: Date | null;
+  readonly createdAt: Date;
+  readonly updatedAt: Date;
+
+  private constructor(props: StoreProps) {
+    this.id = props.id;
+    this.name = props.name;
+    this.address = props.address ?? null;
+    this.phone = props.phone ?? null;
+    this.email = props.email ?? null;
+    this.taxCode = props.taxCode ?? null;
+    this.subscriptionPlan = props.subscriptionPlan;
+    this.subscriptionStatus = props.subscriptionStatus;
+    this.subscriptionExpiresAt = props.subscriptionExpiresAt ?? null;
+    this.createdAt = props.createdAt;
+    this.updatedAt = props.updatedAt;
+  }
+
+  /** Create a brand-new Store (auto-generate timestamps). */
+  static create(props: Omit<StoreProps, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }): Store {
+    const now = new Date();
+    return Store.fromPersistence({
+      id: props.id ?? crypto.randomUUID(),
+      ...props,
+      createdAt: now,
+      updatedAt: now,
+    });
+  }
+
+  /** Reconstruct a Store entity from a DB row. */
+  static fromPersistence(data: unknown): Store {
+    const result = StoreSchema.safeParse(data);
+    if (!result.success) {
+      const fields = result.error.issues.map((issue) => ({
+        field: issue.path.join('.'),
+        message: issue.message,
+      }));
+      throw new ValidationError('Store validation failed', fields);
+    }
+    return new Store(result.data);
+  }
+
+  /** Check if subscription is currently active. */
+  isSubscriptionActive(): boolean {
+    if (this.subscriptionStatus !== 'active') return false;
+    if (this.subscriptionExpiresAt && this.subscriptionExpiresAt < new Date()) return false;
+    return true;
+  }
+}
