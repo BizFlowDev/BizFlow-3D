@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { ValidationError } from '../errors/ValidationError.js';
+import { OrderItem } from './OrderItem.js';
 
 // ── Zod Schema ──────────────────────────────────────────
 export const OrderSchema = z.object({
@@ -9,10 +10,10 @@ export const OrderSchema = z.object({
   userId: z.string().uuid().nullish(),
   orderType: z.enum(['counter', 'ai_generated']),
   status: z.enum(['draft', 'confirmed', 'cancelled']),
-  totalAmount: z.number().min(0),
-  discountAmount: z.number().min(0),
-  finalAmount: z.number().min(0),
-  debtAmount: z.number().min(0),
+  totalAmount: z.coerce.number().min(0),
+  discountAmount: z.coerce.number().min(0),
+  finalAmount: z.coerce.number().min(0),
+  debtAmount: z.coerce.number().min(0),
   note: z.string().nullish(),
   createdByAi: z.boolean(),
   aiRawInput: z.string().nullish(),
@@ -43,6 +44,7 @@ export class Order {
   readonly confirmedAt: Date | null;
   readonly createdAt: Date;
   readonly updatedAt: Date;
+  items?: OrderItem[];
 
   private constructor(props: OrderProps) {
     this.id = props.id;

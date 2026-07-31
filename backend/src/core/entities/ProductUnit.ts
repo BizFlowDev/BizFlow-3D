@@ -6,8 +6,8 @@ export const ProductUnitSchema = z.object({
   id: z.string().uuid(),
   productId: z.string().uuid(),
   unitName: z.string().min(1).max(50),
-  conversionFactor: z.number().positive(),
-  price: z.number().min(0),
+  conversionFactor: z.coerce.number().positive(),
+  price: z.coerce.number().min(0),
   isDefault: z.boolean(),
   createdAt: z.coerce.date(),
 });

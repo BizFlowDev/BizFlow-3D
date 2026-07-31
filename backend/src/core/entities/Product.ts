@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { ValidationError } from '../errors/ValidationError.js';
+import { ProductUnit } from './ProductUnit.js';
 
 // ── Zod Schema ──────────────────────────────────────────
 export const ProductSchema = z.object({
@@ -31,6 +32,7 @@ export class Product {
   readonly isActive: boolean;
   readonly createdAt: Date;
   readonly updatedAt: Date;
+  units?: ProductUnit[];
 
   private constructor(props: ProductProps) {
     this.id = props.id;

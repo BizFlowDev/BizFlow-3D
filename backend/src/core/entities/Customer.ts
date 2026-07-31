@@ -9,7 +9,7 @@ export const CustomerSchema = z.object({
   phone: z.string().max(20).nullish(),
   email: z.string().email().max(255).nullish(),
   address: z.string().nullish(),
-  debtBalance: z.number(),
+  debtBalance: z.coerce.number(),
   note: z.string().nullish(),
   isActive: z.boolean(),
   createdAt: z.coerce.date(),

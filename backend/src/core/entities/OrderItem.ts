@@ -7,9 +7,9 @@ export const OrderItemSchema = z.object({
   orderId: z.string().uuid(),
   productId: z.string().uuid(),
   productUnitId: z.string().uuid().nullish(),
-  quantity: z.number().positive(),
-  unitPrice: z.number().min(0),
-  totalPrice: z.number().min(0),
+  quantity: z.coerce.number().positive(),
+  unitPrice: z.coerce.number().min(0),
+  totalPrice: z.coerce.number().min(0),
   createdAt: z.coerce.date(),
 });
 

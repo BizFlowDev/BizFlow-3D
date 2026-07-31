@@ -7,7 +7,7 @@ export const DebtPaymentSchema = z.object({
   storeId: z.string().uuid(),
   customerId: z.string().uuid(),
   orderId: z.string().uuid().nullish(),
-  amount: z.number().positive(),
+  amount: z.coerce.number().positive(),
   paymentMethod: z.enum(['cash', 'transfer']),
   note: z.string().nullish(),
   createdBy: z.string().uuid().nullish(),

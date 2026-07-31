@@ -8,7 +8,7 @@ export const InventoryTransactionSchema = z.object({
   productId: z.string().uuid(),
   productUnitId: z.string().uuid().nullish(),
   type: z.enum(['import', 'export', 'adjustment']),
-  quantity: z.number(),
+  quantity: z.coerce.number(),
   referenceType: z.enum(['order', 'purchase', 'adjustment']).nullish(),
   referenceId: z.string().uuid().nullish(),
   note: z.string().nullish(),
