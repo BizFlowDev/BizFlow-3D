@@ -35,6 +35,19 @@ export const changePasswordSchema = z
     path: ['confirmPassword'],
   });
 
+// ── Refresh Token ──
+export const refreshTokenSchema = z.object({
+  refreshToken: z.string().min(1, 'Refresh token không được để trống'),
+});
+
+// ── Logout ──
+export const logoutSchema = z.object({
+  refreshToken: z.string().min(1, 'Refresh token không được để trống'),
+});
+
+// ── Inferred types ──
 export type LoginInput = z.infer<typeof loginSchema>;
 export type RegisterStoreInput = z.infer<typeof registerStoreSchema>;
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
+export type RefreshTokenInput = z.infer<typeof refreshTokenSchema>;
+export type LogoutInput = z.infer<typeof logoutSchema>;

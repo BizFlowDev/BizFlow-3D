@@ -1,4 +1,6 @@
 import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import env from './index.js';
 
 // Import Repositories
 import { PostgresStoreRepository } from '../frameworks/database/repositories/PostgresStoreRepository.js';
@@ -10,17 +12,22 @@ import { PostgresInventoryRepository } from '../frameworks/database/repositories
 import { PostgresDebtPaymentRepository } from '../frameworks/database/repositories/PostgresDebtPaymentRepository.js';
 import { PostgresAuditLogRepository } from '../frameworks/database/repositories/PostgresAuditLogRepository.js';
 
-// Import Interfaces for Mock/Services
-import { IPasswordService } from '../adapters/controllers/AuthController.js';
-import { ITokenService } from '../core/usecases/auth/LoginUseCase.js';
-import { IAIService, ParsedOrderItem } from '../core/usecases/ai/ProcessNaturalLanguageOrderUseCase.js';
-import jwt from 'jsonwebtoken';
-import env from './index.js';
+// Import Redis Token Store
+import { RedisRefreshTokenStore } from '../frameworks/redis/RedisRefreshTokenStore.js';
 
-// Import Use Cases
+// Import Auth Interfaces
+import { IPasswordService } from '../adapters/controllers/AuthController.js';
+import { ITokenService, IRefreshTokenStore } from '../core/usecases/auth/LoginUseCase.js';
+import { ITokenVerifier } from '../core/usecases/auth/RefreshTokenUseCase.js';
+import { IAIService, ParsedOrderItem } from '../core/usecases/ai/ProcessNaturalLanguageOrderUseCase.js';
+
+// Import Auth Use Cases
 import { LoginUseCase } from '../core/usecases/auth/LoginUseCase.js';
 import { RegisterStoreUseCase } from '../core/usecases/auth/RegisterStoreUseCase.js';
+import { RefreshTokenUseCase } from '../core/usecases/auth/RefreshTokenUseCase.js';
+import { LogoutUseCase } from '../core/usecases/auth/LogoutUseCase.js';
 
+// Import Other Use Cases
 import { CreateProductUseCase } from '../core/usecases/product/CreateProductUseCase.js';
 import { UpdateProductUseCase } from '../core/usecases/product/UpdateProductUseCase.js';
 import { ListProductsUseCase } from '../core/usecases/product/ListProductsUseCase.js';
@@ -65,7 +72,8 @@ import { AiOrderController } from '../adapters/controllers/AiOrderController.js'
 import { AccountingController } from '../adapters/controllers/AccountingController.js';
 import { AdminController } from '../adapters/controllers/AdminController.js';
 
-// --- Services Implementation ---
+// ── Service Implementations ──────────────────────────────────────────────────
+
 class BcryptPasswordService implements IPasswordService {
   async hash(plain: string): Promise<string> {
     const salt = await bcrypt.genSalt(10);
@@ -79,23 +87,49 @@ class BcryptPasswordService implements IPasswordService {
 class MockAIService implements IAIService {
   async parseOrderFromText(text: string): Promise<ParsedOrderItem[]> {
     console.log('[MockAIService] Parsing text:', text);
-    // Dummy implementation
-    return [
-      { productNameOrCode: 'SP-1', quantity: 1 }
-    ];
+    return [{ productNameOrCode: 'SP-1', quantity: 1 }];
   }
 }
 
-class JwtTokenService implements ITokenService {
+/**
+ * JWT token service.
+ * Implements both ITokenService (generate) and ITokenVerifier (verify).
+ *
+ * - Access token:  signed with JWT_SECRET,         expires in JWT_ACCESS_EXPIRES_IN (15m)
+ * - Refresh token: signed with JWT_REFRESH_SECRET, expires in JWT_REFRESH_EXPIRES_IN (7d)
+ */
+class JwtTokenService implements ITokenService, ITokenVerifier {
   generateAccessToken(payload: { userId: string; storeId: string | null; role: string }): string {
-    return jwt.sign(payload, env.JWT_SECRET as string, { expiresIn: env.JWT_ACCESS_EXPIRES_IN as string } as jwt.SignOptions);
+    return jwt.sign(
+      { userId: payload.userId, storeId: payload.storeId, role: payload.role },
+      env.JWT_SECRET as string,
+      { expiresIn: env.JWT_ACCESS_EXPIRES_IN as string } as jwt.SignOptions,
+    );
   }
-  generateRefreshToken(payload: { userId: string }): string {
-    return jwt.sign(payload, env.JWT_REFRESH_SECRET as string, { expiresIn: env.JWT_REFRESH_EXPIRES_IN as string } as jwt.SignOptions);
+
+  generateRefreshToken(payload: { userId: string; storeId: string | null; role: string }): string {
+    return jwt.sign(
+      { userId: payload.userId, storeId: payload.storeId, role: payload.role },
+      env.JWT_REFRESH_SECRET as string,
+      { expiresIn: env.JWT_REFRESH_EXPIRES_IN as string } as jwt.SignOptions,
+    );
+  }
+
+  verifyRefreshToken(token: string): { userId: string; storeId: string | null; role: string } {
+    const decoded = jwt.verify(token, env.JWT_REFRESH_SECRET as string) as {
+      userId: string;
+      storeId: string | null;
+      role: string;
+    };
+    return {
+      userId: decoded.userId,
+      storeId: decoded.storeId ?? null,
+      role: decoded.role,
+    };
   }
 }
 
-// --- Initialize Repositories ---
+// ── Initialize Repositories ──────────────────────────────────────────────────
 const storeRepo = new PostgresStoreRepository();
 const userRepo = new PostgresUserRepository();
 const productRepo = new PostgresProductRepository();
@@ -105,15 +139,27 @@ const inventoryRepo = new PostgresInventoryRepository();
 const debtPaymentRepo = new PostgresDebtPaymentRepository();
 const auditLogRepo = new PostgresAuditLogRepository();
 
-// --- Initialize Services ---
+// ── Initialize Services ──────────────────────────────────────────────────────
 const passwordService = new BcryptPasswordService();
 const aiService = new MockAIService();
 const tokenService = new JwtTokenService();
 
-// --- Initialize Use Cases ---
-const loginUseCase = new LoginUseCase(userRepo, passwordService, tokenService);
-const registerStoreUseCase = new RegisterStoreUseCase(storeRepo, userRepo, passwordService);
+// Redis-backed refresh token store
+const refreshTokenStore = new RedisRefreshTokenStore();
 
+// ── Initialize Auth Use Cases ────────────────────────────────────────────────
+const loginUseCase = new LoginUseCase(
+  userRepo,
+  storeRepo,
+  passwordService,
+  tokenService,
+  refreshTokenStore,
+);
+const registerStoreUseCase = new RegisterStoreUseCase(storeRepo, userRepo, passwordService);
+const refreshTokenUseCase = new RefreshTokenUseCase(tokenService, tokenService, refreshTokenStore);
+const logoutUseCase = new LogoutUseCase(tokenService, refreshTokenStore);
+
+// ── Initialize Other Use Cases ───────────────────────────────────────────────
 const createProductUseCase = new CreateProductUseCase(productRepo);
 const updateProductUseCase = new UpdateProductUseCase(productRepo);
 const listProductsUseCase = new ListProductsUseCase(productRepo);
@@ -141,23 +187,63 @@ const getDebtSummaryUseCase = new GetDebtSummaryUseCase(debtPaymentRepo);
 const processNLOrderUseCase = new ProcessNaturalLanguageOrderUseCase(aiService, productRepo);
 const generateDraftOrderUseCase = new GenerateDraftOrderUseCase(orderRepo, productRepo);
 
-const generateFinancialReportUseCase = new GenerateFinancialReportUseCase(orderRepo, debtPaymentRepo);
+const generateFinancialReportUseCase = new GenerateFinancialReportUseCase(
+  orderRepo,
+  debtPaymentRepo,
+);
 
 const manageStoreSubscriptionUseCase = new ManageStoreSubscriptionUseCase(storeRepo);
 const getSystemAnalyticsUseCase = new GetSystemAnalyticsUseCase(storeRepo, userRepo, orderRepo);
 
-// --- Initialize Controllers ---
+// ── Initialize Controllers ───────────────────────────────────────────────────
 export const controllers = {
-  authController: new AuthController(loginUseCase, registerStoreUseCase, userRepo, passwordService),
-  productController: new ProductController(createProductUseCase, updateProductUseCase, listProductsUseCase, toggleProductStatusUseCase),
-  customerController: new CustomerController(createCustomerUseCase, updateCustomerUseCase, listCustomersUseCase, getCustomerDebtUseCase, customerRepo),
-  orderController: new OrderController(createOrderUseCase, listOrdersUseCase, getOrderDetailUseCase, confirmOrderUseCase, orderRepo),
-  inventoryController: new InventoryController(importStockUseCase, getInventoryLevelUseCase, inventoryRepo),
+  authController: new AuthController(
+    loginUseCase,
+    registerStoreUseCase,
+    refreshTokenUseCase,
+    logoutUseCase,
+    userRepo,
+    passwordService,
+  ),
+  productController: new ProductController(
+    createProductUseCase,
+    updateProductUseCase,
+    listProductsUseCase,
+    toggleProductStatusUseCase,
+  ),
+  customerController: new CustomerController(
+    createCustomerUseCase,
+    updateCustomerUseCase,
+    listCustomersUseCase,
+    getCustomerDebtUseCase,
+    customerRepo,
+  ),
+  orderController: new OrderController(
+    createOrderUseCase,
+    listOrdersUseCase,
+    getOrderDetailUseCase,
+    confirmOrderUseCase,
+    orderRepo,
+  ),
+  inventoryController: new InventoryController(
+    importStockUseCase,
+    getInventoryLevelUseCase,
+    inventoryRepo,
+  ),
   debtController: new DebtController(recordDebtPaymentUseCase, getDebtSummaryUseCase),
-  reportController: new ReportController(getDailyRevenueUseCase, getTopProductsUseCase, getDebtSummaryUseCase),
-  aiOrderController: new AiOrderController(processNLOrderUseCase, generateDraftOrderUseCase, confirmOrderUseCase, orderRepo),
+  reportController: new ReportController(
+    getDailyRevenueUseCase,
+    getTopProductsUseCase,
+    getDebtSummaryUseCase,
+  ),
+  aiOrderController: new AiOrderController(
+    processNLOrderUseCase,
+    generateDraftOrderUseCase,
+    confirmOrderUseCase,
+    orderRepo,
+  ),
   accountingController: new AccountingController(generateFinancialReportUseCase),
   adminController: new AdminController(manageStoreSubscriptionUseCase, getSystemAnalyticsUseCase),
   // Also export auditLogRepo to be used by the requestLogger middleware
-  auditLogRepo
+  auditLogRepo,
 };

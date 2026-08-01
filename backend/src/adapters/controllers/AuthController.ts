@@ -1,6 +1,8 @@
 import type { Request, Response, NextFunction } from 'express';
 import { LoginUseCase } from '../../core/usecases/auth/LoginUseCase.js';
 import { RegisterStoreUseCase } from '../../core/usecases/auth/RegisterStoreUseCase.js';
+import { RefreshTokenUseCase } from '../../core/usecases/auth/RefreshTokenUseCase.js';
+import { LogoutUseCase } from '../../core/usecases/auth/LogoutUseCase.js';
 import type { IUserRepository } from '../../core/repositories/IUserRepository.js';
 import type { IPasswordHasher as IPasswordComparer } from '../../core/usecases/auth/LoginUseCase.js';
 import type { IPasswordHasher as IPasswordHasherFull } from '../../core/usecases/auth/RegisterStoreUseCase.js';
@@ -13,18 +15,20 @@ export interface IPasswordService extends IPasswordComparer, IPasswordHasherFull
 
 /**
  * Authentication controller.
- * Handles login, store registration, and password change.
+ * Handles login, refresh token, logout, store registration, and password change.
  */
 export class AuthController {
   constructor(
     private readonly loginUseCase: LoginUseCase,
     private readonly registerStoreUseCase: RegisterStoreUseCase,
+    private readonly refreshTokenUseCase: RefreshTokenUseCase,
+    private readonly logoutUseCase: LogoutUseCase,
     private readonly userRepo: IUserRepository,
     private readonly passwordService: IPasswordService,
   ) {}
 
   /**
-   * POST /api/auth/login
+   * POST /api/v1/auth/login
    * Body: { email, password }
    */
   login = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -42,7 +46,7 @@ export class AuthController {
   };
 
   /**
-   * POST /api/auth/register
+   * POST /api/v1/auth/register
    * Body: { storeName, ownerFullName, ownerEmail, ownerPassword, ... }
    */
   registerStore = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -68,7 +72,43 @@ export class AuthController {
   };
 
   /**
-   * PUT /api/auth/change-password
+   * POST /api/v1/auth/refresh
+   * Body: { refreshToken }
+   * Issues a new access token + refresh token pair (token rotation).
+   */
+  refresh = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const result = await this.refreshTokenUseCase.execute({
+        refreshToken: req.body.refreshToken,
+      });
+
+      const response = ApiResponse.success(result, 'Làm mới token thành công');
+      res.status(response.statusCode).json(response.toJSON());
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * POST /api/v1/auth/logout
+   * Body: { refreshToken }
+   * Invalidates the refresh token in Redis.
+   */
+  logout = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      await this.logoutUseCase.execute({
+        refreshToken: req.body.refreshToken,
+      });
+
+      const response = ApiResponse.success(null, 'Đăng xuất thành công');
+      res.status(response.statusCode).json(response.toJSON());
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * POST /api/v1/auth/change-password
    * Body: { currentPassword, newPassword, confirmPassword }
    * Requires: authMiddleware
    */

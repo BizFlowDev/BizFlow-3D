@@ -5,8 +5,10 @@ import { AuthorizationError } from '../../core/errors/AuthorizationError.js';
  * Role-based access control middleware factory.
  * Returns a middleware that checks if `req.user.role` is in the allowed list.
  *
+ * Must be placed AFTER `authMiddleware` in the route chain.
+ *
  * @example
- * router.get('/admin', authMiddleware, allowRoles('admin'), handler);
+ * router.get('/dashboard', authMiddleware, allowRoles('owner', 'admin'), handler);
  * router.post('/products', authMiddleware, allowRoles('owner', 'employee'), handler);
  */
 export function allowRoles(...roles: string[]) {
@@ -14,12 +16,14 @@ export function allowRoles(...roles: string[]) {
     const user = req.user;
 
     if (!user) {
-      throw new AuthorizationError('Yêu cầu xác thực trước khi kiểm tra quyền');
+      return next(new AuthorizationError('Yêu cầu xác thực trước khi kiểm tra quyền'));
     }
 
     if (!roles.includes(user.role)) {
-      throw new AuthorizationError(
-        `Vai trò "${user.role}" không có quyền truy cập. Yêu cầu: ${roles.join(', ')}`,
+      return next(
+        new AuthorizationError(
+          `Vai trò "${user.role}" không có quyền truy cập. Yêu cầu: ${roles.join(', ')}`,
+        ),
       );
     }
 

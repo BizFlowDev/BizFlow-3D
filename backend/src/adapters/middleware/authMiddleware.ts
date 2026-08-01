@@ -20,29 +20,36 @@ declare global {
 
 /**
  * Authentication middleware.
- * Verifies JWT from `Authorization: Bearer <token>` header
- * and attaches decoded payload to `req.user`.
+ *
+ * - Reads token from `Authorization: Bearer <token>` header.
+ * - Verifies JWT signature using `JWT_SECRET`.
+ * - Decodes and attaches `{ userId, storeId, role }` to `req.user`.
+ * - Returns 401 if token is missing, expired, or invalid.
  */
 export function authMiddleware(req: Request, _res: Response, next: NextFunction): void {
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    throw new AuthenticationError('Token xác thực không được cung cấp');
+    return next(new AuthenticationError('Token xác thực không được cung cấp'));
   }
 
   const token = authHeader.substring(7); // Remove "Bearer " prefix
 
   try {
     const decoded = jwt.verify(token, env.JWT_SECRET) as JwtPayload;
-    req.user = decoded;
+    req.user = {
+      userId: decoded.userId,
+      storeId: decoded.storeId ?? null,
+      role: decoded.role,
+    };
     next();
   } catch (error) {
     if (error instanceof jwt.TokenExpiredError) {
-      throw new AuthenticationError('Token đã hết hạn');
+      return next(new AuthenticationError('Token đã hết hạn'));
     }
     if (error instanceof jwt.JsonWebTokenError) {
-      throw new AuthenticationError('Token không hợp lệ');
+      return next(new AuthenticationError('Token không hợp lệ'));
     }
-    throw new AuthenticationError('Xác thực thất bại');
+    return next(new AuthenticationError('Xác thực thất bại'));
   }
 }
