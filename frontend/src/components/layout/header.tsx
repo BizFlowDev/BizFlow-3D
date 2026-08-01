@@ -17,6 +17,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import { MobileSidebar } from "@/components/layout/mobile-sidebar";
+import { useAuth } from "@/hooks/useAuth";
+import { useAuthStore } from "@/stores/auth-store";
 
 interface HeaderProps {
   role: UserRole;
@@ -24,8 +26,24 @@ interface HeaderProps {
 
 export function Header({ role }: HeaderProps) {
   const [notificationCount] = useState(3);
+  const { logout } = useAuth();
+  const { user } = useAuthStore();
+
   const roleLabel =
     role === "admin" ? "Quản trị viên" : role === "owner" ? "Chủ cửa hàng" : "Nhân viên";
+
+  // Tạo initials từ tên user (VD: "Nguyễn Văn A" → "NA")
+  const initials = user?.fullName
+    ? user.fullName
+        .split(" ")
+        .filter(Boolean)
+        .map((w) => w[0])
+        .slice(0, 2)
+        .join("")
+        .toUpperCase()
+    : "NV";
+
+  const displayName = user?.fullName || "Người dùng";
 
   return (
     <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center gap-3 border-b bg-background/95 px-4 backdrop-blur">
@@ -57,13 +75,13 @@ export function Header({ role }: HeaderProps) {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="ml-1 flex items-center gap-2 px-2">
               <Avatar className="h-8 w-8">
-                <AvatarFallback className="text-xs">NV</AvatarFallback>
+                <AvatarFallback className="text-xs">{initials}</AvatarFallback>
               </Avatar>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
             <DropdownMenuLabel>
-              <div className="text-sm font-medium">Người dùng</div>
+              <div className="text-sm font-medium">{displayName}</div>
               <div className="text-xs font-normal text-muted-foreground">{roleLabel}</div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
@@ -71,7 +89,10 @@ export function Header({ role }: HeaderProps) {
               <User />
               Hồ sơ
             </DropdownMenuItem>
-            <DropdownMenuItem className="text-destructive focus:text-destructive">
+            <DropdownMenuItem
+              className="text-destructive focus:text-destructive"
+              onClick={() => void logout()}
+            >
               <LogOut />
               Đăng xuất
             </DropdownMenuItem>

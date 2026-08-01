@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { getStoredRole } from "@/lib/session";
+import { useAuthStore } from "@/stores/auth-store";
 import type { UserRole } from "@/config/navigation";
+import { Loader2 } from "lucide-react";
 
 export default function DashboardLayout({
   children,
@@ -13,11 +14,19 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }>) {
   const [collapsed, setCollapsed] = useState(false);
-  const [role, setRole] = useState<UserRole>("owner");
+  const { user, _hasHydrated } = useAuthStore();
 
-  useEffect(() => {
-    setRole(getStoredRole());
-  }, []);
+  // Lấy role từ auth store, fallback "owner" khi chưa hydrate
+  const role: UserRole = user?.role ?? "owner";
+
+  // Loading state khi Zustand chưa hydrate từ localStorage
+  if (!_hasHydrated) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <TooltipProvider delayDuration={300}>
