@@ -1,12 +1,18 @@
 "use client";
 
-import { useState } from "react";
-import { Bell, LogOut, Search, User } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Bell, Boxes, LogOut, Search, User } from "lucide-react";
 import type { UserRole } from "@/config/navigation";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Switch } from "@/components/ui/switch";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,6 +25,7 @@ import { ThemeSwitcher } from "@/components/theme-switcher";
 import { MobileSidebar } from "@/components/layout/mobile-sidebar";
 import { useAuth } from "@/hooks/useAuth";
 import { useAuthStore } from "@/stores/auth-store";
+import { useUiPreferencesStore } from "@/lib/stores/uiPreferences";
 
 interface HeaderProps {
   role: UserRole;
@@ -26,8 +33,16 @@ interface HeaderProps {
 
 export function Header({ role }: HeaderProps) {
   const [notificationCount] = useState(3);
+  // Chỉ render Switch sau khi mount để tránh hydration mismatch
+  // (store detect thiết bị ở client, mặc định SSR là true)
+  const [mounted, setMounted] = useState(false);
   const { logout } = useAuth();
   const { user } = useAuthStore();
+  const { is3DEnabled, toggle3D } = useUiPreferencesStore();
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const roleLabel =
     role === "admin" ? "Quản trị viên" : role === "owner" ? "Chủ cửa hàng" : "Nhân viên";
@@ -55,6 +70,32 @@ export function Header({ role }: HeaderProps) {
       </div>
 
       <div className="ml-auto flex items-center gap-1">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div
+              className="flex items-center gap-2 rounded-md border bg-muted/50 px-2 py-1.5"
+              aria-label="Chế độ 3D"
+            >
+              <Boxes className="hidden h-4 w-4 shrink-0 text-muted-foreground md:block" />
+              <span className="hidden text-xs font-medium md:block">Chế độ 3D</span>
+              {mounted ? (
+                <Switch
+                  checked={is3DEnabled}
+                  onCheckedChange={toggle3D}
+                  aria-label="Bật hoặc tắt chế độ 3D"
+                />
+              ) : (
+                <div className="h-5 w-9" aria-hidden="true" />
+              )}
+            </div>
+          </TooltipTrigger>
+          <TooltipContent>
+            {is3DEnabled
+              ? "Chế độ 3D đang bật — chọn để chuyển sang giao diện 2D nhanh"
+              : "Chế độ 3D đang tắt — giao diện 2D thuần (nhanh, tiết kiệm pin)"}
+          </TooltipContent>
+        </Tooltip>
+
         <ThemeSwitcher />
 
         <Button
