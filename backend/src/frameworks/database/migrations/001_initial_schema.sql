@@ -340,9 +340,9 @@ VALUES (
     true
 ) ON CONFLICT DO NOTHING;
 
--- Insert sample store
+-- Insert sample store (idempotent by name)
 INSERT INTO stores (id, name, address, phone, email, tax_code, subscription_plan, subscription_status, subscription_expires_at)
-VALUES (
+SELECT
     gen_random_uuid(),
     'Cửa hàng mẫu BizFlow',
     '123 Nguyễn Huệ, Quận 1, TP. Hồ Chí Minh',
@@ -352,7 +352,7 @@ VALUES (
     'professional',
     'active',
     NOW() + INTERVAL '1 year'
-) ON CONFLICT DO NOTHING;
+WHERE NOT EXISTS (SELECT 1 FROM stores WHERE name = 'Cửa hàng mẫu BizFlow');
 
 -- Insert owner account for the sample store
 INSERT INTO users (id, store_id, full_name, email, phone, password_hash, role, is_active)
@@ -369,7 +369,7 @@ FROM stores s
 WHERE s.name = 'Cửa hàng mẫu BizFlow'
 ON CONFLICT DO NOTHING;
 
--- Insert sample product categories for the sample store
+-- Insert sample product categories for the sample store (idempotent per store + name)
 INSERT INTO product_categories (id, store_id, name, description)
 SELECT
     gen_random_uuid(),
@@ -385,7 +385,10 @@ CROSS JOIN (VALUES
     ('Mỹ phẩm', 'Mỹ phẩm, chăm sóc da, nước hoa')
 ) AS c(name, description)
 WHERE s.name = 'Cửa hàng mẫu BizFlow'
-ON CONFLICT DO NOTHING;
+  AND NOT EXISTS (
+      SELECT 1 FROM product_categories pc
+      WHERE pc.store_id = s.id AND pc.name = c.name
+  );
 
 -- Update timestamps trigger helper
 CREATE OR REPLACE FUNCTION update_updated_at_column()

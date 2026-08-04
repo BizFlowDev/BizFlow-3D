@@ -2,6 +2,7 @@ import type { Request, Response, NextFunction } from 'express';
 import { CreateProductUseCase } from '../../core/usecases/product/CreateProductUseCase.js';
 import { UpdateProductUseCase } from '../../core/usecases/product/UpdateProductUseCase.js';
 import { ListProductsUseCase } from '../../core/usecases/product/ListProductsUseCase.js';
+import { ListCategoriesUseCase } from '../../core/usecases/product/ListCategoriesUseCase.js';
 import { ToggleProductStatusUseCase } from '../../core/usecases/product/ToggleProductStatusUseCase.js';
 import { ApiResponse } from '../presenters/ApiResponse.js';
 import { AuthenticationError } from '../../core/errors/AuthenticationError.js';
@@ -16,6 +17,7 @@ export class ProductController {
     private readonly updateProductUseCase: UpdateProductUseCase,
     private readonly listProductsUseCase: ListProductsUseCase,
     private readonly toggleProductStatusUseCase: ToggleProductStatusUseCase,
+    private readonly listCategoriesUseCase: ListCategoriesUseCase,
   ) {}
 
   /**
@@ -95,6 +97,24 @@ export class ProductController {
       const result = await this.toggleProductStatusUseCase.execute(req.params.id as string);
 
       const response = ApiResponse.success(result, 'Cập nhật trạng thái sản phẩm thành công');
+      res.status(response.statusCode).json(response.toJSON());
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * GET /api/products/categories
+   * List active product categories for the current store.
+   */
+  listCategories = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const storeId = req.user?.storeId;
+      if (!storeId) throw new AuthenticationError('Store không xác định');
+
+      const result = await this.listCategoriesUseCase.execute(storeId);
+
+      const response = ApiResponse.success(result, 'Lấy danh sách danh mục thành công');
       res.status(response.statusCode).json(response.toJSON());
     } catch (error) {
       next(error);

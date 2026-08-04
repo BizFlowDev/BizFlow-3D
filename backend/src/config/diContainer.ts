@@ -31,6 +31,7 @@ import { LogoutUseCase } from '../core/usecases/auth/LogoutUseCase.js';
 import { CreateProductUseCase } from '../core/usecases/product/CreateProductUseCase.js';
 import { UpdateProductUseCase } from '../core/usecases/product/UpdateProductUseCase.js';
 import { ListProductsUseCase } from '../core/usecases/product/ListProductsUseCase.js';
+import { ListCategoriesUseCase } from '../core/usecases/product/ListCategoriesUseCase.js';
 import { ToggleProductStatusUseCase } from '../core/usecases/product/ToggleProductStatusUseCase.js';
 
 import { CreateCustomerUseCase } from '../core/usecases/customer/CreateCustomerUseCase.js';
@@ -163,6 +164,7 @@ const logoutUseCase = new LogoutUseCase(tokenService, refreshTokenStore);
 const createProductUseCase = new CreateProductUseCase(productRepo);
 const updateProductUseCase = new UpdateProductUseCase(productRepo);
 const listProductsUseCase = new ListProductsUseCase(productRepo);
+const listCategoriesUseCase = new ListCategoriesUseCase(productRepo);
 const toggleProductStatusUseCase = new ToggleProductStatusUseCase(productRepo);
 
 const createCustomerUseCase = new CreateCustomerUseCase(customerRepo);
@@ -210,6 +212,7 @@ export const controllers = {
     updateProductUseCase,
     listProductsUseCase,
     toggleProductStatusUseCase,
+    listCategoriesUseCase,
   ),
   customerController: new CustomerController(
     createCustomerUseCase,

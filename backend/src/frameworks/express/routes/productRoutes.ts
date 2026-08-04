@@ -13,6 +13,7 @@ router.use(authMiddleware);
 
 router.post('/', allowRoles('owner', 'manager'), validate(createProductSchema), productController.create);
 router.get('/', productController.list);
+router.get('/categories', productController.listCategories);
 router.put('/:id', allowRoles('owner', 'manager'), validate(updateProductSchema), productController.update);
 router.patch('/:id/toggle', allowRoles('owner', 'manager'), productController.toggleStatus);
 router.get('/category/:categoryId', productController.getByCategory);
