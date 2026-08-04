@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { motion } from "motion/react";
 import { useQueryClient, useIsFetching } from "@tanstack/react-query";
@@ -7,8 +9,6 @@ import {
   DollarSign,
   ShoppingCart,
   Bot,
-  Banknote,
-  AlertTriangle,
   RefreshCcw,
   CalendarDays,
   Receipt,
@@ -36,10 +36,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { StatCard, type StatColor } from "@/components/shared/StatCard";
+import { StatCard } from "@/components/shared/StatCard";
 import { ChartWrapper } from "@/components/shared/ChartWrapper";
 import { ChartTooltip } from "@/components/shared/ChartTooltip";
 import { dashboardKeys } from "@/lib/dashboard-keys";
+import { useUiPreferencesStore } from "@/lib/stores/uiPreferences";
+import TotalDebtWidget from "./TotalDebtWidget";
+import LowStockWidget from "./LowStockWidget";
 import {
   useRevenueData,
   useTopProducts,
@@ -48,6 +51,16 @@ import {
   useTotalDebt,
   usePendingDrafts,
 } from "@/hooks/useDashboard";
+
+// Lazy-load scene 3D (three.js) — chỉ tải khi bật chế độ 3D (nguyên tắc hiệu suất)
+const RevenueChart3D = dynamic(
+  () => import("@/components/dashboard3d/RevenueChart3D"),
+  { ssr: false, loading: () => <Skeleton className="h-full w-full" /> },
+);
+const TopProducts3D = dynamic(
+  () => import("@/components/dashboard3d/TopProducts3D"),
+  { ssr: false, loading: () => <Skeleton className="h-full w-full" /> },
+);
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -145,6 +158,15 @@ export default function DashboardPage() {
   const queryClient = useQueryClient();
   const isFetching = useIsFetching({ queryKey: dashboardKeys.all }) > 0;
 
+  // ── Chế độ 3D ──
+  const is3DEnabled = useUiPreferencesStore((state) => state.is3DEnabled);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+  // SSR render mặc định 2D (tránh hydration mismatch); sau mount mới bật 3D
+  const is3D = mounted && is3DEnabled;
+
   // ── Queries ──
   const revenue = useRevenueData();
   const topProducts = useTopProducts();
@@ -181,8 +203,6 @@ export default function DashboardPage() {
     displayName: shortName(p.name),
   }));
 
-  const lowStockCount = lowStock.data?.length ?? 0;
-  const debtSummary = totalDebt.data;
   const draftCount = pendingDrafts.data ?? 0;
 
   // ── Handlers ──
@@ -261,24 +281,13 @@ export default function DashboardPage() {
           href="/ai-orders"
           loading={pendingDrafts.isLoading}
         />
-        <StatCard
-          index={3}
-          title="Tổng nợ chưa thu"
-          value={formatCurrency(debtSummary?.totalRemaining ?? 0)}
-          icon={Banknote}
-          color="red"
-          sub={`${debtSummary?.customerCount ?? 0} khách hàng còn nợ`}
-          loading={totalDebt.isLoading}
+        <TotalDebtWidget
+          debtSummary={totalDebt.data}
+          isLoading={totalDebt.isLoading}
         />
-        <StatCard
-          index={4}
-          title="Sản phẩm sắp hết hàng"
-          value={`${lowStockCount}`}
-          icon={AlertTriangle}
-          color="violet"
-          sub="cần nhập thêm"
-          href="/inventory"
-          loading={lowStock.isLoading}
+        <LowStockWidget
+          lowStock={lowStock.data}
+          isLoading={lowStock.isLoading}
         />
       </div>
 
@@ -295,6 +304,7 @@ export default function DashboardPage() {
             height={300}
             isLoading={revenue.isLoading}
             isEmpty={!revenue.isLoading && points.length === 0}
+            render3D={is3D ? <RevenueChart3D data={points} /> : undefined}
             action={
               <Badge variant="secondary" className="gap-1 bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
                 <TrendingUp className="h-3 w-3" />
@@ -358,6 +368,7 @@ export default function DashboardPage() {
             height={300}
             isLoading={topProducts.isLoading}
             isEmpty={!topProducts.isLoading && topProductsData.length === 0}
+            render3D={is3D ? <TopProducts3D data={topProducts.data ?? []} /> : undefined}
           >
             <BarChart
               layout="vertical"

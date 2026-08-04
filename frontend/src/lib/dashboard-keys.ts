@@ -47,6 +47,12 @@ export interface DebtSummary {
 /** Số lượng tồn tối đa để được coi là "sắp hết hàng" */
 export const LOW_STOCK_THRESHOLD = 10;
 
+/**
+ * Ngưỡng nợ cảnh báo (đơn vị VND) — khối 3D "chồng thùng nợ" chuyển màu đỏ
+ * khi tổng nợ vượt ngưỡng. Giá trị cấu hình hệ thống, mặc định 20 triệu.
+ */
+export const DEBT_ALERT_THRESHOLD = 20_000_000;
+
 /** Query keys cho toàn bộ widget dashboard — dùng chung server & client */
 export const dashboardKeys = {
   all: ["dashboard"] as const,
