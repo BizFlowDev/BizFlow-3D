@@ -1,0 +1,617 @@
+"use client";
+
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import apiClient from "@/lib/api-client";
+import type { ApiResponseData } from "@/lib/api-client";
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+export type OrderStatus = "draft" | "confirmed" | "cancelled";
+export type OrderType = "counter" | "ai_generated";
+
+export interface OrderItem {
+  id: string;
+  orderId: string;
+  productId: string;
+  productUnitId: string | null;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+  createdAt: string;
+  productName?: string | null;
+  unitName?: string | null;
+}
+
+export interface Order {
+  id: string;
+  storeId: string;
+  customerId: string | null;
+  userId: string | null;
+  orderType: OrderType;
+  status: OrderStatus;
+  totalAmount: number;
+  discountAmount: number;
+  finalAmount: number;
+  debtAmount: number;
+  note: string | null;
+  createdByAi: boolean;
+  aiRawInput: string | null;
+  confirmedBy: string | null;
+  confirmedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  items?: OrderItem[];
+  /** Enriched client-side: tên khách hàng để hiển thị */
+  customerName?: string | null;
+}
+
+export interface CreateOrderData {
+  customerId?: string;
+  orderType?: OrderType;
+  note?: string;
+  discountAmount?: number;
+  debtAmount?: number;
+  items: {
+    productId: string;
+    productUnitId?: string;
+    quantity: number;
+    unitPrice: number;
+  }[];
+}
+
+export interface OrderListParams {
+  status?: OrderStatus | "all";
+  customerId?: string;
+  fromDate?: string;
+  toDate?: string;
+  page?: number;
+  limit?: number;
+}
+
+interface PaginatedResponse<T> {
+  items: T[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+// ── Name lookups (fallback khi API chưa join tên) ─────────────────────────────
+
+const MOCK_CUSTOMER_NAMES: Record<string, string> = {
+  c1: "Nguyễn Văn An",
+  c2: "Trần Thị Bình",
+  c3: "Lê Hoàng Cường",
+  c4: "Phạm Minh Đức",
+  c5: "Hoàng Thị Nga",
+  c6: "Võ Thanh Hải",
+  c7: "Đỗ Quang Khải",
+  c8: "Bùi Thị Mai Linh",
+};
+
+const MOCK_PRODUCT_NAMES: Record<string, string> = {
+  p1: "Bàn phím cơ Keychron K8",
+  p2: "Áo thun cotton",
+  p3: "Quần jean slim",
+  p4: "Kem chống nắng SPF50",
+  p5: "Ấm siêu tốc 1.8L",
+  p6: "Cà phê sạch rang xay",
+  p7: "Giày sneaker trắng",
+  p8: "Tất cotton trắng",
+};
+
+const MOCK_PRODUCT_UNITS: Record<string, string> = {
+  u1: "Cái",
+  u2: "Cái",
+  u3: "Lố (10 cái)",
+  u4: "Cái",
+  u5: "Chai",
+  u6: "Cái",
+  u7: "Gói 500g",
+  u8: "Thùng (10 gói)",
+  u9: "Đôi",
+  u10: "Đôi",
+};
+
+// ── Mock Data (fallback khi API chưa sẵn sàng) ────────────────────────────────
+
+const MOCK_ORDERS: Order[] = [
+  {
+    id: "ord-20260805-1",
+    storeId: "s1",
+    customerId: "c1",
+    userId: "u1",
+    orderType: "counter",
+    status: "confirmed",
+    totalAmount: 970000,
+    discountAmount: 20000,
+    finalAmount: 950000,
+    debtAmount: 0,
+    note: "Giao buổi chiều",
+    createdByAi: false,
+    aiRawInput: null,
+    confirmedBy: "u1",
+    confirmedAt: "2026-08-05T10:15:00Z",
+    createdAt: "2026-08-05T10:15:00Z",
+    updatedAt: "2026-08-05T10:15:00Z",
+    items: [
+      { id: "it-1", orderId: "ord-20260805-1", productId: "p2", productUnitId: "u2", quantity: 2, unitPrice: 150000, totalPrice: 300000, createdAt: "2026-08-05T10:15:00Z", productName: "Áo thun cotton", unitName: "Cái" },
+      { id: "it-2", orderId: "ord-20260805-1", productId: "p3", productUnitId: "u4", quantity: 1, unitPrice: 420000, totalPrice: 420000, createdAt: "2026-08-05T10:15:00Z", productName: "Quần jean slim", unitName: "Cái" },
+      { id: "it-3", orderId: "ord-20260805-1", productId: "p4", productUnitId: "u5", quantity: 1, unitPrice: 250000, totalPrice: 250000, createdAt: "2026-08-05T10:15:00Z", productName: "Kem chống nắng SPF50", unitName: "Chai" },
+    ],
+  },
+  {
+    id: "ord-20260804-2",
+    storeId: "s1",
+    customerId: null,
+    userId: "u1",
+    orderType: "counter",
+    status: "draft",
+    totalAmount: 925000,
+    discountAmount: 25000,
+    finalAmount: 900000,
+    debtAmount: 0,
+    note: "Chờ khách xác nhận",
+    createdByAi: false,
+    aiRawInput: null,
+    confirmedBy: null,
+    confirmedAt: null,
+    createdAt: "2026-08-04T17:40:00Z",
+    updatedAt: "2026-08-04T17:40:00Z",
+    items: [
+      { id: "it-4", orderId: "ord-20260804-2", productId: "p7", productUnitId: "u9", quantity: 1, unitPrice: 850000, totalPrice: 850000, createdAt: "2026-08-04T17:40:00Z", productName: "Giày sneaker trắng", unitName: "Đôi" },
+      { id: "it-5", orderId: "ord-20260804-2", productId: "p8", productUnitId: "u10", quantity: 3, unitPrice: 25000, totalPrice: 75000, createdAt: "2026-08-04T17:40:00Z", productName: "Tất cotton trắng", unitName: "Đôi" },
+    ],
+  },
+  {
+    id: "ord-20260803-3",
+    storeId: "s1",
+    customerId: "c3",
+    userId: "u1",
+    orderType: "counter",
+    status: "confirmed",
+    totalAmount: 1700000,
+    discountAmount: 0,
+    finalAmount: 1700000,
+    debtAmount: 500000,
+    note: "Khách nợ 500k, hẹn trả cuối tuần",
+    createdByAi: false,
+    aiRawInput: null,
+    confirmedBy: "u1",
+    confirmedAt: "2026-08-03T14:00:00Z",
+    createdAt: "2026-08-03T14:00:00Z",
+    updatedAt: "2026-08-03T14:00:00Z",
+    items: [
+      { id: "it-6", orderId: "ord-20260803-3", productId: "p6", productUnitId: "u8", quantity: 1, unitPrice: 1700000, totalPrice: 1700000, createdAt: "2026-08-03T14:00:00Z", productName: "Cà phê sạch rang xay", unitName: "Thùng (10 gói)" },
+    ],
+  },
+  {
+    id: "ord-20260802-4",
+    storeId: "s1",
+    customerId: "c8",
+    userId: "u1",
+    orderType: "counter",
+    status: "confirmed",
+    totalAmount: 1640000,
+    discountAmount: 40000,
+    finalAmount: 1600000,
+    debtAmount: 0,
+    note: null,
+    createdByAi: false,
+    aiRawInput: null,
+    confirmedBy: "u1",
+    confirmedAt: "2026-08-02T11:05:00Z",
+    createdAt: "2026-08-02T11:05:00Z",
+    updatedAt: "2026-08-02T11:05:00Z",
+    items: [
+      { id: "it-7", orderId: "ord-20260802-4", productId: "p5", productUnitId: "u6", quantity: 1, unitPrice: 350000, totalPrice: 350000, createdAt: "2026-08-02T11:05:00Z", productName: "Ấm siêu tốc 1.8L", unitName: "Cái" },
+      { id: "it-8", orderId: "ord-20260802-4", productId: "p3", productUnitId: "u4", quantity: 2, unitPrice: 420000, totalPrice: 840000, createdAt: "2026-08-02T11:05:00Z", productName: "Quần jean slim", unitName: "Cái" },
+      { id: "it-9", orderId: "ord-20260802-4", productId: "p2", productUnitId: "u2", quantity: 3, unitPrice: 150000, totalPrice: 450000, createdAt: "2026-08-02T11:05:00Z", productName: "Áo thun cotton", unitName: "Cái" },
+    ],
+  },
+  {
+    id: "ord-20260801-5",
+    storeId: "s1",
+    customerId: null,
+    userId: "u1",
+    orderType: "counter",
+    status: "cancelled",
+    totalAmount: 400000,
+    discountAmount: 0,
+    finalAmount: 400000,
+    debtAmount: 0,
+    note: "Khách hủy vì hết size",
+    createdByAi: false,
+    aiRawInput: null,
+    confirmedBy: null,
+    confirmedAt: null,
+    createdAt: "2026-08-01T09:30:00Z",
+    updatedAt: "2026-08-01T10:00:00Z",
+    items: [
+      { id: "it-10", orderId: "ord-20260801-5", productId: "p4", productUnitId: "u5", quantity: 1, unitPrice: 250000, totalPrice: 250000, createdAt: "2026-08-01T09:30:00Z", productName: "Kem chống nắng SPF50", unitName: "Chai" },
+      { id: "it-11", orderId: "ord-20260801-5", productId: "p2", productUnitId: "u2", quantity: 1, unitPrice: 150000, totalPrice: 150000, createdAt: "2026-08-01T09:30:00Z", productName: "Áo thun cotton", unitName: "Cái" },
+    ],
+  },
+  {
+    id: "ord-20260729-6",
+    storeId: "s1",
+    customerId: "c2",
+    userId: "u1",
+    orderType: "counter",
+    status: "confirmed",
+    totalAmount: 1850000,
+    discountAmount: 0,
+    finalAmount: 1850000,
+    debtAmount: 0,
+    note: null,
+    createdByAi: false,
+    aiRawInput: null,
+    confirmedBy: "u1",
+    confirmedAt: "2026-07-29T16:20:00Z",
+    createdAt: "2026-07-29T16:20:00Z",
+    updatedAt: "2026-07-29T16:20:00Z",
+    items: [
+      { id: "it-12", orderId: "ord-20260729-6", productId: "p1", productUnitId: "u1", quantity: 1, unitPrice: 1850000, totalPrice: 1850000, createdAt: "2026-07-29T16:20:00Z", productName: "Bàn phím cơ Keychron K8", unitName: "Cái" },
+    ],
+  },
+  {
+    id: "ord-20260728-7",
+    storeId: "s1",
+    customerId: "c4",
+    userId: "u1",
+    orderType: "counter",
+    status: "draft",
+    totalAmount: 1700000,
+    discountAmount: 100000,
+    finalAmount: 1600000,
+    debtAmount: 0,
+    note: "Đang chờ duyệt chiết khấu",
+    createdByAi: false,
+    aiRawInput: null,
+    confirmedBy: null,
+    confirmedAt: null,
+    createdAt: "2026-07-28T15:10:00Z",
+    updatedAt: "2026-07-28T15:10:00Z",
+    items: [
+      { id: "it-13", orderId: "ord-20260728-7", productId: "p7", productUnitId: "u9", quantity: 2, unitPrice: 850000, totalPrice: 1700000, createdAt: "2026-07-28T15:10:00Z", productName: "Giày sneaker trắng", unitName: "Đôi" },
+    ],
+  },
+  {
+    id: "ord-20260725-8",
+    storeId: "s1",
+    customerId: "c5",
+    userId: "u1",
+    orderType: "counter",
+    status: "confirmed",
+    totalAmount: 875000,
+    discountAmount: 0,
+    finalAmount: 875000,
+    debtAmount: 875000,
+    note: "Ghi sổ, thanh toán cuối tháng",
+    createdByAi: false,
+    aiRawInput: null,
+    confirmedBy: "u1",
+    confirmedAt: "2026-07-25T10:40:00Z",
+    createdAt: "2026-07-25T10:40:00Z",
+    updatedAt: "2026-07-25T10:40:00Z",
+    items: [
+      { id: "it-14", orderId: "ord-20260725-8", productId: "p2", productUnitId: "u2", quantity: 5, unitPrice: 150000, totalPrice: 750000, createdAt: "2026-07-25T10:40:00Z", productName: "Áo thun cotton", unitName: "Cái" },
+      { id: "it-15", orderId: "ord-20260725-8", productId: "p8", productUnitId: "u10", quantity: 5, unitPrice: 25000, totalPrice: 125000, createdAt: "2026-07-25T10:40:00Z", productName: "Tất cotton trắng", unitName: "Đôi" },
+    ],
+  },
+  {
+    id: "ord-20260722-9",
+    storeId: "s1",
+    customerId: null,
+    userId: "u1",
+    orderType: "counter",
+    status: "confirmed",
+    totalAmount: 720000,
+    discountAmount: 20000,
+    finalAmount: 700000,
+    debtAmount: 0,
+    note: null,
+    createdByAi: false,
+    aiRawInput: null,
+    confirmedBy: "u1",
+    confirmedAt: "2026-07-22T08:50:00Z",
+    createdAt: "2026-07-22T08:50:00Z",
+    updatedAt: "2026-07-22T08:50:00Z",
+    items: [
+      { id: "it-16", orderId: "ord-20260722-9", productId: "p6", productUnitId: "u7", quantity: 4, unitPrice: 180000, totalPrice: 720000, createdAt: "2026-07-22T08:50:00Z", productName: "Cà phê sạch rang xay", unitName: "Gói 500g" },
+    ],
+  },
+  {
+    id: "ord-20260720-10",
+    storeId: "s1",
+    customerId: "c6",
+    userId: "u1",
+    orderType: "counter",
+    status: "cancelled",
+    totalAmount: 350000,
+    discountAmount: 0,
+    finalAmount: 350000,
+    debtAmount: 0,
+    note: "Khách đổi ý",
+    createdByAi: false,
+    aiRawInput: null,
+    confirmedBy: null,
+    confirmedAt: null,
+    createdAt: "2026-07-20T13:25:00Z",
+    updatedAt: "2026-07-20T14:05:00Z",
+    items: [
+      { id: "it-17", orderId: "ord-20260720-10", productId: "p5", productUnitId: "u6", quantity: 1, unitPrice: 350000, totalPrice: 350000, createdAt: "2026-07-20T13:25:00Z", productName: "Ấm siêu tốc 1.8L", unitName: "Cái" },
+    ],
+  },
+];
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** Tạo mã đơn dạng DH-YYYYMMDD-SEQ từ id & createdAt */
+export function getOrderCode(order: Pick<Order, "id" | "createdAt">): string {
+  const d = new Date(order.createdAt);
+  const dateStr = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(
+    d.getDate(),
+  ).padStart(2, "0")}`;
+  const match = order.id.match(/(\d+)$/);
+  const seq = match ? match[1].padStart(3, "0") : order.id.slice(-4).toUpperCase();
+  return `DH-${dateStr}-${seq}`;
+}
+
+function enrichOrder(order: Order): Order {
+  const customerName = order.customerId
+    ? order.customerName ?? MOCK_CUSTOMER_NAMES[order.customerId] ?? null
+    : null;
+  const items = (order.items ?? []).map((item) => ({
+    ...item,
+    productName:
+      item.productName ??
+      MOCK_PRODUCT_NAMES[item.productId] ??
+      `Sản phẩm ${item.productId.slice(0, 8)}`,
+    unitName: item.unitName ?? MOCK_PRODUCT_UNITS[item.productUnitId ?? ""] ?? "Cái",
+  }));
+  return { ...order, customerName, items };
+}
+
+/** Xử lý shape { order, items } mà backend trả cho create/detail */
+function unwrapOrder(data: unknown): Order | null {
+  if (!data || typeof data !== "object") return null;
+  const rec = data as { order?: Order; items?: OrderItem[] };
+  if (rec.order) {
+    const order = { ...rec.order, items: rec.items ?? rec.order.items ?? [] };
+    return enrichOrder(order);
+  }
+  return enrichOrder(rec as Order);
+}
+
+// ── Hooks ─────────────────────────────────────────────────────────────────────
+
+/** Tạo đơn hàng (quầy). `status: "confirmed"` → tạo + xác nhận ngay. */
+export function useCreateOrder() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (
+      input: CreateOrderData & { status?: OrderStatus },
+    ): Promise<Order> => {
+      const { status, ...body } = input;
+      try {
+        const { data: res } = await apiClient.post<
+          ApiResponseData<{ order: Order; items: OrderItem[] }>
+        >("/orders", body);
+        const created = unwrapOrder(res.data);
+        if (created) {
+          if (status === "confirmed") {
+            const { data: confirmRes } = await apiClient.patch<
+              ApiResponseData<Order>
+            >(`/orders/${created.id}/confirm`);
+            if (confirmRes.data) return unwrapOrder(confirmRes.data) ?? created;
+          }
+          return created;
+        }
+      } catch {
+        // Fallback mock
+      }
+
+      await delay(700);
+      const now = new Date().toISOString();
+      const today = `${now.slice(0, 10).replace(/-/g, "")}`;
+      const seq = String(MOCK_ORDERS.length + 1).padStart(3, "0");
+      const orderId = `ord-${today}-${seq}`;
+      const items: OrderItem[] = body.items.map((it, i) => ({
+        id: `${orderId}-it${i + 1}`,
+        orderId,
+        productId: it.productId,
+        productUnitId: it.productUnitId ?? null,
+        quantity: it.quantity,
+        unitPrice: it.unitPrice,
+        totalPrice: it.quantity * it.unitPrice,
+        createdAt: now,
+        productName: MOCK_PRODUCT_NAMES[it.productId] ?? null,
+        unitName: it.productUnitId ? MOCK_PRODUCT_UNITS[it.productUnitId] : "Cái",
+      }));
+      const totalAmount = items.reduce((s, it) => s + it.totalPrice, 0);
+      const discountAmount = body.discountAmount ?? 0;
+      const finalAmount = Math.max(0, totalAmount - discountAmount);
+      const order: Order = {
+        id: orderId,
+        storeId: "s1",
+        customerId: body.customerId ?? null,
+        userId: "u1",
+        orderType: body.orderType ?? "counter",
+        status: status === "confirmed" ? "confirmed" : "draft",
+        totalAmount,
+        discountAmount,
+        finalAmount,
+        debtAmount: body.debtAmount ?? 0,
+        note: body.note ?? null,
+        createdByAi: false,
+        aiRawInput: null,
+        confirmedBy: status === "confirmed" ? "u1" : null,
+        confirmedAt: status === "confirmed" ? now : null,
+        createdAt: now,
+        updatedAt: now,
+        items,
+      };
+      MOCK_ORDERS.unshift(order);
+      return enrichOrder(order);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+    },
+  });
+}
+
+/** Lấy danh sách đơn hàng với status/date + pagination */
+export function useOrderList(params: OrderListParams = {}) {
+  return useQuery({
+    queryKey: ["orders", params],
+    queryFn: async (): Promise<PaginatedResponse<Order>> => {
+      try {
+        const { data } = await apiClient.get<
+          ApiResponseData<PaginatedResponse<Order>>
+        >("/orders", {
+          params: {
+            status: params.status === "all" || !params.status ? undefined : params.status,
+            fromDate: params.fromDate || undefined,
+            toDate: params.toDate || undefined,
+            page: params.page,
+            limit: params.limit,
+          },
+        });
+        if (data.data) {
+          return {
+            ...data.data,
+            items: data.data.items.map(enrichOrder),
+          };
+        }
+      } catch {
+        // Fallback mock
+      }
+
+      await delay(500);
+      let filtered = [...MOCK_ORDERS];
+      if (params.status && params.status !== "all") {
+        filtered = filtered.filter((o) => o.status === params.status);
+      }
+      if (params.fromDate) {
+        const from = new Date(`${params.fromDate}T00:00:00`).getTime();
+        filtered = filtered.filter(
+          (o) => new Date(o.createdAt).getTime() >= from,
+        );
+      }
+      if (params.toDate) {
+        const to = new Date(`${params.toDate}T23:59:59`).getTime();
+        filtered = filtered.filter(
+          (o) => new Date(o.createdAt).getTime() <= to,
+        );
+      }
+
+      const page = params.page ?? 1;
+      const limit = params.limit ?? 10;
+      const start = (page - 1) * limit;
+      const items = filtered
+        .slice(start, start + limit)
+        .map(enrichOrder);
+
+      return {
+        items,
+        total: filtered.length,
+        page,
+        limit,
+        totalPages: Math.max(1, Math.ceil(filtered.length / limit)),
+      };
+    },
+    staleTime: 30_000,
+  });
+}
+
+/** Lấy chi tiết đơn hàng (gồm items) */
+export function useOrderDetail(id: string) {
+  return useQuery({
+    queryKey: ["order", id],
+    queryFn: async (): Promise<Order> => {
+      try {
+        const { data } = await apiClient.get<ApiResponseData<unknown>>(
+          `/orders/${id}`,
+        );
+        const order = unwrapOrder(data.data);
+        if (order) return order;
+      } catch {
+        // Fallback mock
+      }
+
+      await delay(400);
+      const order = MOCK_ORDERS.find((o) => o.id === id);
+      if (!order) throw new Error("Đơn hàng không tồn tại");
+      return enrichOrder(order);
+    },
+    enabled: !!id,
+  });
+}
+
+/** Xác nhận đơn nháp (trừ kho + ghi nợ) */
+export function useConfirmOrder() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string): Promise<Order> => {
+      try {
+        const { data } = await apiClient.patch<ApiResponseData<Order>>(
+          `/orders/${id}/confirm`,
+        );
+        if (data.data) return unwrapOrder(data.data) ?? data.data;
+      } catch {
+        // Fallback mock
+      }
+
+      await delay(500);
+      const order = MOCK_ORDERS.find((o) => o.id === id);
+      if (!order) throw new Error("Đơn hàng không tồn tại");
+      order.status = "confirmed";
+      order.confirmedBy = "u1";
+      order.confirmedAt = new Date().toISOString();
+      order.updatedAt = order.confirmedAt;
+      return enrichOrder(order);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      queryClient.invalidateQueries({ queryKey: ["order"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+    },
+  });
+}
+
+/** Hủy đơn nháp */
+export function useCancelOrder() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string): Promise<Order> => {
+      try {
+        const { data } = await apiClient.patch<ApiResponseData<Order>>(
+          `/orders/${id}/cancel`,
+        );
+        if (data.data) return unwrapOrder(data.data) ?? data.data;
+      } catch {
+        // Fallback mock
+      }
+
+      await delay(500);
+      const order = MOCK_ORDERS.find((o) => o.id === id);
+      if (!order) throw new Error("Đơn hàng không tồn tại");
+      order.status = "cancelled";
+      order.updatedAt = new Date().toISOString();
+      return enrichOrder(order);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      queryClient.invalidateQueries({ queryKey: ["order"] });
+    },
+  });
+}
