@@ -1,0 +1,60 @@
+# Nhật ký phiên AI (BizFlow-3D)
+
+1. Công cụ: opencode (deepseek-v4-flash-free)
+
+2. Ngày: 05/08/2026
+   Mục tiêu: Xây dựng module bán hàng — trang tạo đơn quầy (POS), trang danh sách đơn hàng, hooks dữ liệu (useOrders) và hỗ trợ phím tắt.
+   Ngữ cảnh: Dự án BizFlow-3D (frontend Next.js 16 + App Router, TanStack Query, shadcn/ui, motion; backend Express + PostgreSQL). Các module Dashboard, Sản phẩm, Kho, Khách hàng, Báo cáo đã hoàn thiện theo mô hình "thử API → fallback mock data". Phía backend đã có sẵn các endpoint /orders (POST, GET, GET/:id, PATCH confirm/cancel) và navigation đã khai báo sẵn /orders/new, /orders.
+
+3. Prompt gốc:
+   Mục tiêu: Trang tạo đơn quầy + danh sách đơn + hooks + phím tắt
+   Thực hiện các công việc sau:
+   1. Tạo frontend/src/app/(dashboard)/orders/new/page.tsx:
+      - Layout chia 2 cột: left (product grid + search), right (cart + checkout)
+      - Left panel: Search bar (auto-filter theo từng ký tự), Category tabs/lọc nhanh, Product grid (card: name, price, image, click thêm vào giỏ)
+      - Right panel (cart): danh sách sản phẩm đã chọn (name, unit, quantity tăng/giảm, price, total, remove), Customer selector (search + chọn hoặc để trống), Discount input, Tổng tiền, checkbox "Ghi nợ" (nếu có customer), input ghi chú, buttons "Create Order" (xác nhận) & "Save as Draft" (lưu nháp)
+   2. Tạo frontend/src/hooks/useOrders.ts: useCreateOrder (useMutation), useOrderList (useQuery), useOrderDetail (useQuery)
+   3. Hỗ trợ phím tắt: Ctrl+F focus search; Enter khi focus vào product thêm vào cart; Ctrl+Enter submit order; Escape đóng dialog
+   4. Sau khi tạo đơn thành công: toast thông báo; tùy chọn in hóa đơn (mở print dialog); redirect về danh sách đơn hàng
+   5. Tạo frontend/src/app/(dashboard)/orders/page.tsx: danh sách đơn table (Order ID, Customer, Items, Total, Status, Created At, Actions); Filter theo status (all/draft/confirmed/cancelled) và date range; click order xem chi tiết (modal hoặc trang riêng)
+   6. Ghi log vào file log.txt với đầy đủ 9 mục theo quy định
+
+4. Tệp liên quan:
+   - Tạo mới: frontend/src/hooks/useOrders.ts
+   - Tạo mới: frontend/src/app/(dashboard)/orders/new/page.tsx
+   - Tạo mới: frontend/src/app/(dashboard)/orders/page.tsx
+   - Tạo mới: frontend/src/app/(dashboard)/orders/_components/OrderDetailDialog.tsx
+   - Tạo mới: frontend/src/components/ui/toast.tsx (toast nhẹ — repo chưa có thư viện toast)
+   - Tạo mới: frontend/src/lib/invoice.ts (in hóa đơn PDF + print dialog)
+   - Tham chiếu (không sửa): backend/src/adapters/controllers/OrderController.ts, core/usecases/order/*, frameworks/database/repositories/PostgresOrderRepository.ts, frontend/src/hooks/useProducts.ts, useCustomers.ts, api-client.ts
+
+5. Kết quả AI:
+   - Hoàn thành cả 5 đầu việc theo đúng yêu cầu. Build Next.js thành công (route /orders, /orders/new được sinh), TypeScript kiểm tra không lỗi.
+   - useOrders.ts: cung cấp 3 hook bắt buộc (useCreateOrder, useOrderList, useOrderDetail) + 2 hook bổ trợ (useConfirmOrder, useCancelOrder); xử lý shape { order, items } backend trả về; enrich tên khách hàng/sản phẩm/đơn vị khi API chưa join; fallback mock data 10 đơn.
+   - orders/new/page.tsx: POS 2 cột đầy đủ (search auto-filter từng ký tự, category tabs, product grid card có image/name/price, cart có qty tăng-giảm/remove, customer selector có search, discount, ghi nợ có điều kiện customer, ghi chú, 2 nút Create Order / Save as Draft); phím tắt Ctrl+F / Enter / Ctrl+Enter / Escape; sau khi tạo: toast + dialog In hóa đơn / Xem danh sách / Tạo đơn mới.
+   - orders/page.tsx: bảng đơn hàng (Mã đơn, Khách hàng, Sản phẩm, Tổng tiền, Trạng thái, Ngày tạo, Thao tác), filter status + date range, pagination, click hàng mở OrderDetailDialog.
+   - OrderDetailDialog: thông tin đơn + bảng items + tổng tiền; đơn nháp có nút Xác nhận/Hủy; đơn đã xác nhận có nút In hóa đơn.
+   - Toast: component self-contained (useToast + ToastViewport), chưa từng tồn tại trong repo.
+   - In hóa đơn: lib/invoice.ts dùng jsPDF + jspdf-autotable (đã khai báo trong package.json), gọi doc.autoPrint() để mở print dialog.
+
+6. Phần được chấp nhận/chỉnh sửa/loại bỏ:
+   - Chấp nhận: Toàn bộ 5 đầu việc; cấu trúc 2 cột POS; 3 hook theo đúng tên yêu cầu; phím tắt 4 phím; toast + in hóa đơn + redirect sau khi tạo; bảng danh sách + filter status/date + xem chi tiết modal; ghi log 9 mục.
+   - Chỉnh sửa:
+     * Backend "Create Order" tạo đơn ở trạng thái draft → frontend gọi POST /orders rồi PATCH /orders/:id/confirm khi chọn "Create Order" (còn "Save as Draft" chỉ POST). Xử lý trong useCreateOrder.
+     * Nút "In hóa đơn" mở print dialog bằng jsPDF autoPrint (repo đã có sẵn jspdf + jspdf-autotable nhưng chưa cài → chạy npm install để cài đủ dependency đã khai báo; không sửa package.json).
+     * Phím Enter "thêm sản phẩm vào giỏ" triển khai qua global keydown + data-product-id thay vì chỉ dựa vào onClick native của button (đảm bảo phím tắt hoạt động rõ ràng khi focus vào card).
+     * Escape: dialog do Radix xử lý sẵn; bổ sung đóng menu khách hàng.
+   - Loại bỏ: không dùng react-hook-form/zod (nhập liệu POS đơn giản, state trực tiếp); không tạo thêm thư viện toast bên ngoài (tự dựng Toast nhẹ); không tạo trang chi tiết riêng (dùng modal theo option "modal hoặc trang riêng").
+
+7. Lý do chỉnh sửa:
+   - Backend chưa có luồng tạo+confirm trong 1 lần gọi, nên ghép 2 API để thoả yêu cầu "Create Order (xác nhận)" mà không đụng backend.
+   - jspdf/xlsx đã khai báo trong package.json nhưng node_modules chưa có (ExportButton cũng đang lỗi tương tự) → npm install để TypeScript/build không lỗi.
+   - Giữ phong cách repo: "thử API trước, fallback mock", dùng ui components sẵn có, animate bằng motion, formatting tiếng Việt.
+
+8. Kiểm thử:
+   - TypeScript: `npx tsc --noEmit -p frontend/tsconfig.json` — 0 lỗi.
+   - Build: `npm run build` — compiled successfully, có route /orders và /orders/new.
+   - Lint: `npm run lint` (next lint) và ESLint trực tiếp bị lỗi môi trường có sẵn của repo (typescript-eslint chưa hỗ trợ TypeScript 7.0.2) — không liên quan đến thay đổi này.
+   - Kiểm thử thủ công đề xuất: npm run dev → mở /orders/new; gõ Ctrl+F (focus search), nhập tên sản phẩm (lọc từng ký tự), click/Enter thêm vào giỏ, chỉnh số lượng, chọn khách, nhập discount, bật Ghi nợ, bấm Ctrl+Enter → toast + dialog In hóa đơn (mở print) / Xem danh sách. Vào /orders lọc theo status/ngày, click 1 đơn xem modal, thử Xác nhận/Hủy với đơn nháp, Esc đóng.
+
+9. Commit: cc31138
