@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { getNavSections, type UserRole } from "@/config/navigation";
 import { cn } from "@/lib/utils";
+import { InventoryAlertBadge } from "@/components/layout/inventory-alert-badge";
 import {
   Tooltip,
   TooltipContent,
@@ -45,7 +46,12 @@ export function SidebarNav({ role, collapsed = false, onNavigate }: SidebarNavPr
                   )}
                 >
                   <item.icon className="h-5 w-5 shrink-0" />
-                  {!collapsed && <span>{item.title}</span>}
+                  {!collapsed && (
+                    <span className="flex min-w-0 flex-1 items-center gap-1">
+                      <span className="truncate">{item.title}</span>
+                      {item.href === "/inventory" && <InventoryAlertBadge />}
+                    </span>
+                  )}
                 </Link>
               );
               return (
