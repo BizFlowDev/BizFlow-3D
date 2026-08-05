@@ -18,6 +18,7 @@ import {
   ReceiptText,
   Save,
   Search,
+  ShoppingCart,
   Trash2,
   X,
 } from "lucide-react";
@@ -28,6 +29,13 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Dialog,
@@ -140,6 +148,7 @@ export default function NewOrderPage() {
   // ── State: sau khi tạo đơn ──
   const [lastOrder, setLastOrder] = useState<Order | null>(null);
   const [successOpen, setSuccessOpen] = useState(false);
+  const [cartOpen, setCartOpen] = useState(false);
 
   // ── Queries ──
   const { data: productData, isLoading: productsLoading } = useProductList({
@@ -436,7 +445,7 @@ export default function NewOrderPage() {
 
         {/* ══ Right: giỏ hàng ══ */}
         <motion.div variants={itemVariants}>
-          <div className="flex flex-col gap-4 rounded-2xl border bg-card/50 p-4 shadow-sm backdrop-blur-sm lg:sticky lg:top-0 lg:max-h-[calc(100vh-7rem)]">
+          <div className="flex flex-col gap-4 rounded-2xl border bg-card/50 p-4 shadow-sm backdrop-blur-sm lg:sticky lg:top-0 lg:max-h-[calc(100vh+6.5rem)] lg:overflow-hidden">
             {/* Cart header */}
             <div className="flex items-center justify-between">
               <h2 className="flex items-center gap-2 text-base font-semibold">
@@ -470,7 +479,7 @@ export default function NewOrderPage() {
                 </p>
               </div>
             ) : (
-              <div className="max-h-56 space-y-2 overflow-y-auto pr-1 lg:max-h-64">
+              <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
                 {cart.map((line) => (
                   <div
                     key={line.productId}
@@ -782,6 +791,145 @@ export default function NewOrderPage() {
         </DialogContent>
       </Dialog>
 
+      {/* ── Nút giỏ hàng nổi (mobile/tablet — panel chỉ hiện ở lg+) ── */}
+      <div className="fixed bottom-6 right-6 z-50 lg:hidden">
+        <Button
+          onClick={() => setCartOpen(true)}
+          className="relative h-14 w-14 rounded-full bg-gradient-to-br from-blue-600 to-blue-500 shadow-xl shadow-blue-500/30 transition-transform hover:scale-105 active:scale-95"
+          aria-label="Mở giỏ hàng"
+        >
+          <ShoppingCart className="h-6 w-6 text-white" />
+          {totalQty > 0 && (
+            <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white ring-2 ring-background">
+              {totalQty}
+            </span>
+          )}
+        </Button>
+      </div>
+
+      {/* ── Giỏ hàng nhanh (mobile/tablet) ── */}
+      <Sheet open={cartOpen} onOpenChange={setCartOpen}>
+        <SheetContent side="bottom" className="max-h-[85vh] overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-2">
+              <ShoppingCart className="h-5 w-5 text-blue-600" />
+              Giỏ hàng
+              {totalQty > 0 && (
+                <span className="rounded-full bg-blue-600 px-2 py-0.5 text-xs font-bold text-white">
+                  {totalQty}
+                </span>
+              )}
+            </SheetTitle>
+            <SheetDescription>
+              Xem sản phẩm đã chọn và tạo đơn hàng.
+            </SheetDescription>
+          </SheetHeader>
+
+          {cart.length === 0 ? (
+            <div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-10">
+              <Package className="h-8 w-8 text-muted-foreground/60" />
+              <p className="mt-2 text-sm text-muted-foreground">
+                Chưa có sản phẩm trong giỏ
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {cart.map((line) => (
+                <div
+                  key={line.productId}
+                  className="flex items-start gap-2 rounded-xl border bg-background/40 p-2.5"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">
+                      {line.productName}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {line.unitName} · {formatCurrency(line.price)}
+                    </p>
+                    <div className="mt-2 flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={() => changeQty(line.productId, -1)}
+                        aria-label="Giảm số lượng"
+                      >
+                        <Minus className="h-3 w-3" />
+                      </Button>
+                      <span className="w-6 text-center text-sm font-semibold tabular-nums">
+                        {line.quantity}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={() => changeQty(line.productId, 1)}
+                        aria-label="Tăng số lượng"
+                      >
+                        <Plus className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end gap-1.5">
+                    <p className="text-sm font-semibold tabular-nums">
+                      {formatCurrency(line.price * line.quantity)}
+                    </p>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 text-muted-foreground hover:text-red-500"
+                      onClick={() => removeLine(line.productId)}
+                      aria-label="Xóa sản phẩm"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+
+              <div className="space-y-1.5 rounded-xl border bg-muted/30 p-3 text-sm">
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Tạm tính</span>
+                  <span className="tabular-nums">
+                    {formatCurrency(subtotal)}
+                  </span>
+                </div>
+                {discount > 0 && (
+                  <div className="flex justify-between text-muted-foreground">
+                    <span>Giảm giá</span>
+                    <span className="tabular-nums">
+                      −{formatCurrency(discount)}
+                    </span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between border-t pt-2">
+                  <span className="font-semibold">Tổng cộng</span>
+                  <span className="text-lg font-bold tabular-nums text-blue-600">
+                    {formatCurrency(finalAmount)}
+                  </span>
+                </div>
+              </div>
+
+              <Button
+                onClick={() => {
+                  setCartOpen(false);
+                  handleSubmit("confirmed");
+                }}
+                disabled={createMutation.isPending}
+                className="bg-gradient-to-r from-blue-600 to-blue-500 font-semibold text-white"
+              >
+                {createMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Check className="h-4 w-4" />
+                )}
+                Tạo đơn hàng
+              </Button>
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
+
       <ToastViewport toasts={toasts} onDismiss={dismiss} />
     </motion.div>
   );
@@ -843,7 +991,7 @@ function ProductCard({
       className={cn(
         "group flex flex-col overflow-hidden rounded-xl border bg-card/60 text-left transition-all hover:border-blue-400 hover:shadow-md hover:shadow-blue-500/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         focused &&
-          "border-blue-400 ring-2 ring-blue-400/30 hover:shadow-blue-500/20",
+        "border-blue-400 ring-2 ring-blue-400/30 hover:shadow-blue-500/20",
       )}
     >
       <div className="relative aspect-[4/3] w-full overflow-hidden bg-muted">

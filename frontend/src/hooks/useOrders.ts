@@ -351,6 +351,43 @@ function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// ── Product catalog (để gắn tên sản phẩm/đơn vị cho order items) ─────────────
+
+interface CatalogProduct {
+  id: string;
+  name: string;
+  units: { id: string; unitName: string }[];
+}
+
+let catalogPromise: Promise<Map<string, CatalogProduct>> | null = null;
+
+/** Fetch danh mục sản phẩm một lần, cache lại. Giới hạn 2s nếu backend không phản hồi. */
+function getProductCatalog(): Promise<Map<string, CatalogProduct>> {
+  if (!catalogPromise) {
+    const fetchCatalog = (async () => {
+      const map = new Map<string, CatalogProduct>();
+      try {
+        const { data } = await apiClient.get<
+          ApiResponseData<PaginatedResponse<CatalogProduct>>
+        >("/products", { params: { page: 1, limit: 100 } });
+        for (const p of data.data?.items ?? []) {
+          map.set(p.id, { id: p.id, name: p.name, units: p.units ?? [] });
+        }
+      } catch {
+        // Catalog unavailable → fall back to mock names
+      }
+      return map;
+    })();
+    catalogPromise = Promise.race([
+      fetchCatalog,
+      new Promise<Map<string, CatalogProduct>>((resolve) =>
+        setTimeout(() => resolve(new Map()), 2000),
+      ),
+    ]);
+  }
+  return catalogPromise;
+}
+
 /** Tạo mã đơn dạng DH-YYYYMMDD-SEQ từ id & createdAt */
 export function getOrderCode(order: Pick<Order, "id" | "createdAt">): string {
   const d = new Date(order.createdAt);
@@ -362,23 +399,39 @@ export function getOrderCode(order: Pick<Order, "id" | "createdAt">): string {
   return `DH-${dateStr}-${seq}`;
 }
 
-function enrichOrder(order: Order): Order {
+async function enrichOrder(order: Order): Promise<Order> {
   const customerName = order.customerId
     ? order.customerName ?? MOCK_CUSTOMER_NAMES[order.customerId] ?? null
     : null;
-  const items = (order.items ?? []).map((item) => ({
-    ...item,
-    productName:
-      item.productName ??
-      MOCK_PRODUCT_NAMES[item.productId] ??
-      `Sản phẩm ${item.productId.slice(0, 8)}`,
-    unitName: item.unitName ?? MOCK_PRODUCT_UNITS[item.productUnitId ?? ""] ?? "Cái",
-  }));
+  const rawItems = order.items ?? [];
+  const needsCatalog = rawItems.some(
+    (item) => !item.productName || !item.unitName,
+  );
+  const catalog = needsCatalog
+    ? await getProductCatalog()
+    : new Map<string, CatalogProduct>();
+  const items = rawItems.map((item) => {
+    const product = catalog.get(item.productId);
+    const unit = product?.units.find((u) => u.id === item.productUnitId);
+    return {
+      ...item,
+      productName:
+        item.productName ??
+        product?.name ??
+        MOCK_PRODUCT_NAMES[item.productId] ??
+        `Sản phẩm ${item.productId.slice(0, 8)}`,
+      unitName:
+        item.unitName ??
+        unit?.unitName ??
+        MOCK_PRODUCT_UNITS[item.productUnitId ?? ""] ??
+        "Cái",
+    };
+  });
   return { ...order, customerName, items };
 }
 
 /** Xử lý shape { order, items } mà backend trả cho create/detail */
-function unwrapOrder(data: unknown): Order | null {
+async function unwrapOrder(data: unknown): Promise<Order | null> {
   if (!data || typeof data !== "object") return null;
   const rec = data as { order?: Order; items?: OrderItem[] };
   if (rec.order) {
@@ -403,13 +456,14 @@ export function useCreateOrder() {
         const { data: res } = await apiClient.post<
           ApiResponseData<{ order: Order; items: OrderItem[] }>
         >("/orders", body);
-        const created = unwrapOrder(res.data);
+        const created = await unwrapOrder(res.data);
         if (created) {
           if (status === "confirmed") {
             const { data: confirmRes } = await apiClient.patch<
               ApiResponseData<Order>
             >(`/orders/${created.id}/confirm`);
-            if (confirmRes.data) return unwrapOrder(confirmRes.data) ?? created;
+            if (confirmRes.data)
+              return (await unwrapOrder(confirmRes.data)) ?? created;
           }
           return created;
         }
@@ -487,7 +541,7 @@ export function useOrderList(params: OrderListParams = {}) {
         if (data.data) {
           return {
             ...data.data,
-            items: data.data.items.map(enrichOrder),
+            items: await Promise.all(data.data.items.map(enrichOrder)),
           };
         }
       } catch {
@@ -515,9 +569,9 @@ export function useOrderList(params: OrderListParams = {}) {
       const page = params.page ?? 1;
       const limit = params.limit ?? 10;
       const start = (page - 1) * limit;
-      const items = filtered
-        .slice(start, start + limit)
-        .map(enrichOrder);
+      const items = await Promise.all(
+        filtered.slice(start, start + limit).map(enrichOrder),
+      );
 
       return {
         items,
@@ -540,7 +594,7 @@ export function useOrderDetail(id: string) {
         const { data } = await apiClient.get<ApiResponseData<unknown>>(
           `/orders/${id}`,
         );
-        const order = unwrapOrder(data.data);
+        const order = await unwrapOrder(data.data);
         if (order) return order;
       } catch {
         // Fallback mock
@@ -565,7 +619,7 @@ export function useConfirmOrder() {
         const { data } = await apiClient.patch<ApiResponseData<Order>>(
           `/orders/${id}/confirm`,
         );
-        if (data.data) return unwrapOrder(data.data) ?? data.data;
+        if (data.data) return (await unwrapOrder(data.data)) ?? data.data;
       } catch {
         // Fallback mock
       }
@@ -597,7 +651,7 @@ export function useCancelOrder() {
         const { data } = await apiClient.patch<ApiResponseData<Order>>(
           `/orders/${id}/cancel`,
         );
-        if (data.data) return unwrapOrder(data.data) ?? data.data;
+        if (data.data) return (await unwrapOrder(data.data)) ?? data.data;
       } catch {
         // Fallback mock
       }
