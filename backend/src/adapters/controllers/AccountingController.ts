@@ -1,8 +1,10 @@
 import type { Request, Response, NextFunction } from 'express';
-import { GenerateFinancialReportUseCase } from '../../core/usecases/accounting/GenerateFinancialReportUseCase.js';
+import { GenerateFinancialReportUseCase, ReportType } from '../../core/usecases/accounting/GenerateFinancialReportUseCase.js';
 import { ApiResponse } from '../presenters/ApiResponse.js';
 import { AuthenticationError } from '../../core/errors/AuthenticationError.js';
 import { ValidationError } from '../../core/errors/ValidationError.js';
+
+const REPORT_TYPES: ReportType[] = ['revenue_ledger', 'debt_report', 'business_result', 'trial_balance'];
 
 /**
  * Accounting controller.
@@ -15,23 +17,33 @@ export class AccountingController {
 
   /**
    * GET /api/accounting/financial-report
-   * Query: { fromDate, toDate }
-   * Generates a comprehensive financial report for the store.
+   * Query: { reportType, fromDate, toDate }
+   * Generates a financial report (revenue ledger, debt, business result, trial balance).
    */
   getFinancialReport = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const storeId = req.user?.storeId;
       if (!storeId) throw new AuthenticationError('Store không xác định');
 
+      const reportType = req.query.reportType as string | undefined;
       const fromDate = req.query.fromDate as string | undefined;
       const toDate = req.query.toDate as string | undefined;
 
+      if (!reportType) {
+        throw new ValidationError('reportType là bắt buộc');
+      }
+      if (!REPORT_TYPES.includes(reportType as ReportType)) {
+        throw new ValidationError(
+          `reportType không hợp lệ. Chấp nhận: ${REPORT_TYPES.join(', ')}`,
+        );
+      }
       if (!fromDate || !toDate) {
         throw new ValidationError('fromDate và toDate là bắt buộc');
       }
 
       const result = await this.generateFinancialReportUseCase.execute(
         storeId,
+        reportType as ReportType,
         new Date(fromDate),
         new Date(toDate),
       );

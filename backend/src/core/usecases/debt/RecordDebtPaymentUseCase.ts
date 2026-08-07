@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { DebtPayment } from '../../entities/DebtPayment.js';
 import { IDebtPaymentRepository } from '../../repositories/IDebtPaymentRepository.js';
 import { ICustomerRepository } from '../../repositories/ICustomerRepository.js';
+import { AutoPostingUseCase } from '../accounting/AutoPostingUseCase.js';
 import { NotFoundError } from '../../errors/NotFoundError.js';
 import { ValidationError } from '../../errors/ValidationError.js';
 
@@ -21,6 +22,7 @@ export class RecordDebtPaymentUseCase {
   constructor(
     private readonly debtPaymentRepo: IDebtPaymentRepository,
     private readonly customerRepo: ICustomerRepository,
+    private readonly autoPosting: AutoPostingUseCase,
   ) {}
 
   async execute(input: RecordDebtPaymentInput): Promise<DebtPayment> {
@@ -59,6 +61,11 @@ export class RecordDebtPaymentUseCase {
       createdBy: data.createdBy,
     });
 
-    return this.debtPaymentRepo.create(payment);
+    const created = await this.debtPaymentRepo.create(payment);
+
+    // 6. Hạch toán tự động: giảm phải thu, tăng tiền mặt (Dr 111/112 / Cr 131)
+    await this.autoPosting.postDebtPayment(created);
+
+    return created;
   }
 }

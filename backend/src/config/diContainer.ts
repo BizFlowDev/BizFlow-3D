@@ -10,6 +10,7 @@ import { PostgresCustomerRepository } from '../frameworks/database/repositories/
 import { PostgresOrderRepository } from '../frameworks/database/repositories/PostgresOrderRepository.js';
 import { PostgresInventoryRepository } from '../frameworks/database/repositories/PostgresInventoryRepository.js';
 import { PostgresDebtPaymentRepository } from '../frameworks/database/repositories/PostgresDebtPaymentRepository.js';
+import { PostgresAccountingRepository } from '../frameworks/database/repositories/PostgresAccountingRepository.js';
 import { PostgresAuditLogRepository } from '../frameworks/database/repositories/PostgresAuditLogRepository.js';
 
 // Import Redis Token Store
@@ -49,14 +50,15 @@ import { GetInventoryLevelUseCase } from '../core/usecases/inventory/GetInventor
 
 import { RecordDebtPaymentUseCase } from '../core/usecases/debt/RecordDebtPaymentUseCase.js';
 
+import { AutoPostingUseCase } from '../core/usecases/accounting/AutoPostingUseCase.js';
+import { GenerateFinancialReportUseCase } from '../core/usecases/accounting/GenerateFinancialReportUseCase.js';
+
 import { GetDailyRevenueUseCase } from '../core/usecases/report/GetDailyRevenueUseCase.js';
 import { GetTopProductsUseCase } from '../core/usecases/report/GetTopProductsUseCase.js';
 import { GetDebtSummaryUseCase } from '../core/usecases/report/GetDebtSummaryUseCase.js';
 
 import { ProcessNaturalLanguageOrderUseCase } from '../core/usecases/ai/ProcessNaturalLanguageOrderUseCase.js';
 import { GenerateDraftOrderUseCase } from '../core/usecases/ai/GenerateDraftOrderUseCase.js';
-
-import { GenerateFinancialReportUseCase } from '../core/usecases/accounting/GenerateFinancialReportUseCase.js';
 
 import { ManageStoreSubscriptionUseCase } from '../core/usecases/admin/ManageStoreSubscriptionUseCase.js';
 import { GetSystemAnalyticsUseCase } from '../core/usecases/admin/GetSystemAnalyticsUseCase.js';
@@ -138,6 +140,7 @@ const customerRepo = new PostgresCustomerRepository();
 const orderRepo = new PostgresOrderRepository();
 const inventoryRepo = new PostgresInventoryRepository();
 const debtPaymentRepo = new PostgresDebtPaymentRepository();
+const accountingRepo = new PostgresAccountingRepository();
 const auditLogRepo = new PostgresAuditLogRepository();
 
 // ── Initialize Services ──────────────────────────────────────────────────────
@@ -173,14 +176,15 @@ const listCustomersUseCase = new ListCustomersUseCase(customerRepo);
 const getCustomerDebtUseCase = new GetCustomerDebtUseCase(customerRepo, debtPaymentRepo);
 
 const createOrderUseCase = new CreateOrderUseCase(orderRepo, productRepo, inventoryRepo);
-const confirmOrderUseCase = new ConfirmOrderUseCase(orderRepo, inventoryRepo, customerRepo);
+const autoPostingUseCase = new AutoPostingUseCase(accountingRepo);
+const confirmOrderUseCase = new ConfirmOrderUseCase(orderRepo, inventoryRepo, customerRepo, autoPostingUseCase);
 const listOrdersUseCase = new ListOrdersUseCase(orderRepo);
 const getOrderDetailUseCase = new GetOrderDetailUseCase(orderRepo);
 
-const importStockUseCase = new ImportStockUseCase(inventoryRepo, productRepo);
+const importStockUseCase = new ImportStockUseCase(inventoryRepo, productRepo, autoPostingUseCase);
 const getInventoryLevelUseCase = new GetInventoryLevelUseCase(inventoryRepo);
 
-const recordDebtPaymentUseCase = new RecordDebtPaymentUseCase(debtPaymentRepo, customerRepo);
+const recordDebtPaymentUseCase = new RecordDebtPaymentUseCase(debtPaymentRepo, customerRepo, autoPostingUseCase);
 
 const getDailyRevenueUseCase = new GetDailyRevenueUseCase(orderRepo);
 const getTopProductsUseCase = new GetTopProductsUseCase(orderRepo);
@@ -191,7 +195,7 @@ const generateDraftOrderUseCase = new GenerateDraftOrderUseCase(orderRepo, produ
 
 const generateFinancialReportUseCase = new GenerateFinancialReportUseCase(
   orderRepo,
-  debtPaymentRepo,
+  accountingRepo,
 );
 
 const manageStoreSubscriptionUseCase = new ManageStoreSubscriptionUseCase(storeRepo);

@@ -3,6 +3,7 @@ import { InventoryTransaction } from '../../entities/InventoryTransaction.js';
 import { IOrderRepository } from '../../repositories/IOrderRepository.js';
 import { IInventoryRepository } from '../../repositories/IInventoryRepository.js';
 import { ICustomerRepository } from '../../repositories/ICustomerRepository.js';
+import { AutoPostingUseCase } from '../accounting/AutoPostingUseCase.js';
 import { NotFoundError } from '../../errors/NotFoundError.js';
 import { ValidationError } from '../../errors/ValidationError.js';
 
@@ -11,6 +12,7 @@ export class ConfirmOrderUseCase {
     private readonly orderRepo: IOrderRepository,
     private readonly inventoryRepo: IInventoryRepository,
     private readonly customerRepo: ICustomerRepository,
+    private readonly autoPosting: AutoPostingUseCase,
   ) {}
 
   async execute(orderId: string, confirmedBy: string): Promise<Order> {
@@ -55,6 +57,10 @@ export class ConfirmOrderUseCase {
         );
       }
     }
+
+    // 6. Hạch toán tự động: ghi nhận doanh thu + giá vốn + phải thu
+    const postedItems = await this.orderRepo.findItemsByOrderId(orderId);
+    await this.autoPosting.postOrderConfirmed(confirmedOrder, postedItems);
 
     return confirmedOrder;
   }

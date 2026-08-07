@@ -19,7 +19,7 @@ import inventoryRoutes from './routes/inventoryRoutes.js';
 import debtRoutes from './routes/debtRoutes.js';
 import reportRoutes from './routes/reportRoutes.js';
 // import aiOrderRoutes from './routes/aiOrderRoutes.js';
-// import accountingRoutes from './routes/accountingRoutes.js';
+import accountingRoutes from './routes/accountingRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 
 export function createServer(): Express {
@@ -44,7 +44,7 @@ export function createServer(): Express {
   apiRouter.use('/debts', debtRoutes);
   apiRouter.use('/reports', reportRoutes);
   // apiRouter.use('/ai-orders', aiOrderRoutes);
-  // apiRouter.use('/accounting', accountingRoutes);
+  apiRouter.use('/accounting', accountingRoutes);
   apiRouter.use('/admin', adminRoutes);
 
   app.use('/api/v1', apiRouter);
