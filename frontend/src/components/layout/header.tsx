@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Bell, Boxes, LogOut, Search, User } from "lucide-react";
+import { Bell, Boxes, CheckCheck, LogOut, Search, User } from "lucide-react";
 import type { UserRole } from "@/config/navigation";
+import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +26,7 @@ import { ThemeSwitcher } from "@/components/theme-switcher";
 import { MobileSidebar } from "@/components/layout/mobile-sidebar";
 import { useAuth } from "@/hooks/useAuth";
 import { useAuthStore } from "@/stores/auth-store";
+import { useSocketStore } from "@/hooks/useSocket";
 import { useUiPreferencesStore } from "@/lib/stores/uiPreferences";
 
 interface HeaderProps {
@@ -32,13 +34,18 @@ interface HeaderProps {
 }
 
 export function Header({ role }: HeaderProps) {
-  const [notificationCount] = useState(3);
   // Chỉ render Switch sau khi mount để tránh hydration mismatch
   // (store detect thiết bị ở client, mặc định SSR là true)
   const [mounted, setMounted] = useState(false);
   const { logout } = useAuth();
   const { user } = useAuthStore();
   const { is3DEnabled, toggle3D } = useUiPreferencesStore();
+
+  // ── Notification bell (real-time qua socket) ──
+  const notifications = useSocketStore((s) => s.notifications);
+  const unreadCount = useSocketStore((s) => s.unreadCount);
+  const markNotificationsRead = useSocketStore((s) => s.markNotificationsRead);
+  const clearNotifications = useSocketStore((s) => s.clearNotifications);
 
   useEffect(() => {
     setMounted(true);
@@ -98,19 +105,81 @@ export function Header({ role }: HeaderProps) {
 
         <ThemeSwitcher />
 
-        <Button
-          variant="ghost"
-          size="icon"
-          className="relative"
-          aria-label="Thông báo"
-        >
-          <Bell className="h-5 w-5" />
-          {notificationCount > 0 && (
-            <Badge className="absolute -right-1 -top-1 h-5 min-w-5 justify-center rounded-full px-1.5 text-xs">
-              {notificationCount}
-            </Badge>
-          )}
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="relative"
+              aria-label="Thông báo"
+            >
+              <Bell className="h-5 w-5" />
+              {unreadCount > 0 && (
+                <Badge className="absolute -right-1 -top-1 h-5 min-w-5 justify-center rounded-full px-1.5 text-xs">
+                  {unreadCount}
+                </Badge>
+              )}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-80">
+            <DropdownMenuLabel className="flex items-center justify-between">
+              <span>Thông báo</span>
+              {notifications.length > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 text-xs font-medium text-muted-foreground"
+                  onClick={clearNotifications}
+                >
+                  Xóa tất cả
+                </Button>
+              )}
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {notifications.length === 0 ? (
+              <div className="px-3 py-6 text-center text-sm text-muted-foreground">
+                Chưa có thông báo
+              </div>
+            ) : (
+              <>
+                {notifications.slice(0, 8).map((n) => (
+                  <DropdownMenuItem
+                    key={n.id}
+                    className="flex-col items-start gap-0.5 py-2"
+                    onClick={markNotificationsRead}
+                  >
+                    <span className="flex w-full items-center gap-2">
+                      <span
+                        className={cn(
+                          "h-2 w-2 shrink-0 rounded-full",
+                          n.read ? "bg-muted-foreground/30" : "bg-primary",
+                        )}
+                      />
+                      <span className="truncate text-sm font-medium">
+                        {n.title}
+                      </span>
+                    </span>
+                    <span className="line-clamp-2 pl-4 text-xs text-muted-foreground">
+                      {n.message}
+                    </span>
+                  </DropdownMenuItem>
+                ))}
+              </>
+            )}
+            {notifications.length > 0 && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="justify-center text-xs font-medium"
+                  onClick={markNotificationsRead}
+                >
+                  <CheckCheck className="h-3.5 w-3.5" />
+                  Đánh dấu đã đọc
+                </DropdownMenuItem>
+              </>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
