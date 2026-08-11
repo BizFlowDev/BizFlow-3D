@@ -3,9 +3,12 @@ import { InventoryTransaction } from '../../entities/InventoryTransaction.js';
 import { IOrderRepository } from '../../repositories/IOrderRepository.js';
 import { IInventoryRepository } from '../../repositories/IInventoryRepository.js';
 import { ICustomerRepository } from '../../repositories/ICustomerRepository.js';
+import { IProductRepository } from '../../repositories/IProductRepository.js';
 import { AutoPostingUseCase } from '../accounting/AutoPostingUseCase.js';
 import { NotFoundError } from '../../errors/NotFoundError.js';
 import { ValidationError } from '../../errors/ValidationError.js';
+import { appEventEmitter } from '../../../frameworks/websocket/eventEmitter.js';
+import env from '../../../config/index.js';
 
 export class ConfirmOrderUseCase {
   constructor(
@@ -13,6 +16,7 @@ export class ConfirmOrderUseCase {
     private readonly inventoryRepo: IInventoryRepository,
     private readonly customerRepo: ICustomerRepository,
     private readonly autoPosting: AutoPostingUseCase,
+    private readonly productRepo?: IProductRepository,
   ) {}
 
   async execute(orderId: string, confirmedBy: string): Promise<Order> {
@@ -61,6 +65,33 @@ export class ConfirmOrderUseCase {
     // 6. Hạch toán tự động: ghi nhận doanh thu + giá vốn + phải thu
     const postedItems = await this.orderRepo.findItemsByOrderId(orderId);
     await this.autoPosting.postOrderConfirmed(confirmedOrder, postedItems);
+
+    // 7. Emit real-time event: order confirmed
+    appEventEmitter.emit('order:confirmed', {
+      storeId: order.storeId,
+      orderId: confirmedOrder.id,
+      orderCode: confirmedOrder.id.slice(0, 8).toUpperCase(),
+    });
+
+    // 8. Check low stock for each product after export
+    if (this.productRepo) {
+      for (const item of items) {
+        try {
+          const stockLevel = await this.inventoryRepo.getStockLevel(order.storeId, item.productId);
+          if (stockLevel.totalQuantity <= env.LOW_STOCK_THRESHOLD) {
+            const product = await this.productRepo.findById(item.productId);
+            appEventEmitter.emit('inventory:low_stock', {
+              storeId: order.storeId,
+              productId: item.productId,
+              productName: product?.name ?? 'Unknown',
+              currentStock: stockLevel.totalQuantity,
+            });
+          }
+        } catch {
+          // Non-critical: don't fail the confirm if stock check fails
+        }
+      }
+    }
 
     return confirmedOrder;
   }

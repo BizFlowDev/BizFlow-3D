@@ -20,6 +20,8 @@ const env = {
 
   CORS_ORIGIN: process.env.CORS_ORIGIN || 'http://localhost:3000',
 
+  LOW_STOCK_THRESHOLD: parseInt(process.env.LOW_STOCK_THRESHOLD || '10', 10),
+
   LOG_LEVEL: process.env.LOG_LEVEL || 'debug',
 
   get isDev() {
