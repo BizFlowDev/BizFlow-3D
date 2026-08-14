@@ -12,6 +12,9 @@ import { PostgresInventoryRepository } from '../frameworks/database/repositories
 import { PostgresDebtPaymentRepository } from '../frameworks/database/repositories/PostgresDebtPaymentRepository.js';
 import { PostgresAccountingRepository } from '../frameworks/database/repositories/PostgresAccountingRepository.js';
 import { PostgresAuditLogRepository } from '../frameworks/database/repositories/PostgresAuditLogRepository.js';
+import { PostgresSystemConfigRepository } from '../frameworks/database/repositories/PostgresSystemConfigRepository.js';
+import { PostgresAnnouncementRepository } from '../frameworks/database/repositories/PostgresAnnouncementRepository.js';
+import { PostgresTemplateRepository } from '../frameworks/database/repositories/PostgresTemplateRepository.js';
 
 // Import Redis Token Store
 import { RedisRefreshTokenStore } from '../frameworks/redis/RedisRefreshTokenStore.js';
@@ -61,7 +64,10 @@ import { ProcessNaturalLanguageOrderUseCase } from '../core/usecases/ai/ProcessN
 import { GenerateDraftOrderUseCase } from '../core/usecases/ai/GenerateDraftOrderUseCase.js';
 
 import { ManageStoreSubscriptionUseCase } from '../core/usecases/admin/ManageStoreSubscriptionUseCase.js';
+import { ToggleStoreStatusUseCase } from '../core/usecases/admin/ToggleStoreStatusUseCase.js';
 import { GetSystemAnalyticsUseCase } from '../core/usecases/admin/GetSystemAnalyticsUseCase.js';
+import { ListStoresUseCase } from '../core/usecases/admin/ListStoresUseCase.js';
+import { GetStoreDetailUseCase } from '../core/usecases/admin/GetStoreDetailUseCase.js';
 
 // Import Controllers
 import { AuthController } from '../adapters/controllers/AuthController.js';
@@ -142,6 +148,9 @@ const inventoryRepo = new PostgresInventoryRepository();
 const debtPaymentRepo = new PostgresDebtPaymentRepository();
 const accountingRepo = new PostgresAccountingRepository();
 const auditLogRepo = new PostgresAuditLogRepository();
+const systemConfigRepo = new PostgresSystemConfigRepository();
+const announcementRepo = new PostgresAnnouncementRepository();
+const templateRepo = new PostgresTemplateRepository();
 
 // ── Initialize Services ──────────────────────────────────────────────────────
 const passwordService = new BcryptPasswordService();
@@ -199,7 +208,15 @@ const generateFinancialReportUseCase = new GenerateFinancialReportUseCase(
 );
 
 const manageStoreSubscriptionUseCase = new ManageStoreSubscriptionUseCase(storeRepo);
-const getSystemAnalyticsUseCase = new GetSystemAnalyticsUseCase(storeRepo, userRepo, orderRepo);
+const toggleStoreStatusUseCase = new ToggleStoreStatusUseCase(storeRepo);
+const listStoresUseCase = new ListStoresUseCase(storeRepo);
+const getStoreDetailUseCase = new GetStoreDetailUseCase(storeRepo, orderRepo);
+const getSystemAnalyticsUseCase = new GetSystemAnalyticsUseCase(
+  storeRepo,
+  userRepo,
+  orderRepo,
+  systemConfigRepo,
+);
 
 // ── Initialize Controllers ───────────────────────────────────────────────────
 export const controllers = {
@@ -250,7 +267,16 @@ export const controllers = {
     orderRepo,
   ),
   accountingController: new AccountingController(generateFinancialReportUseCase),
-  adminController: new AdminController(manageStoreSubscriptionUseCase, getSystemAnalyticsUseCase),
+  adminController: new AdminController(
+    manageStoreSubscriptionUseCase,
+    toggleStoreStatusUseCase,
+    getSystemAnalyticsUseCase,
+    listStoresUseCase,
+    getStoreDetailUseCase,
+    systemConfigRepo,
+    announcementRepo,
+    templateRepo,
+  ),
   // Also export auditLogRepo to be used by the requestLogger middleware
   auditLogRepo,
 };

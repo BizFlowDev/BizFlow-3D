@@ -105,4 +105,11 @@ export class PostgresUserRepository implements IUserRepository {
   async updateLastLogin(id: string): Promise<void> {
     await query('UPDATE users SET last_login_at = $1 WHERE id = $2', [new Date(), id]);
   }
+
+  async countNonAdminUsers(): Promise<number> {
+    const res = await query(
+      `SELECT COUNT(*)::int AS total FROM users WHERE role IN ('owner', 'employee')`,
+    );
+    return parseInt(res.rows[0].total, 10) || 0;
+  }
 }

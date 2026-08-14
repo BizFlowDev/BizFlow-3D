@@ -61,4 +61,19 @@ export interface IOrderRepository {
   // ── Report queries (backed by DB views) ──
   getDailyRevenue(storeId: string, fromDate: Date, toDate: Date): Promise<DailyRevenueRow[]>;
   getTopProducts(storeId: string, limit: number): Promise<TopProductRow[]>;
+
+  // ── Admin queries ──
+  /** Most recent orders for a store (lightweight, no items). */
+  getRecentOrdersByStore(storeId: string, limit: number): Promise<{
+    id: string;
+    totalAmount: number;
+    status: string;
+    createdAt: string;
+  }[]>;
+
+  /** Confirmed-order revenue grouped by month. `storeId` null = all stores. */
+  getMonthlyRevenue(storeId: string | null, months: number): Promise<{
+    month: string;
+    revenue: number;
+  }[]>;
 }

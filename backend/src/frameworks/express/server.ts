@@ -1,4 +1,5 @@
 import express, { Express } from 'express';
+import path from 'path';
 import cors from 'cors';
 import helmet from 'helmet';
 import env from '../../config/index.js';
@@ -32,6 +33,9 @@ export function createServer(): Express {
 
   // 2. Request logging
   app.use(requestLogger(controllers.auditLogRepo));
+
+  // 2.5. Serve uploaded files (report templates)
+  app.use('/uploads', express.static(path.resolve(__dirname, '../../../uploads')));
 
   // 3. API Routes
   const apiRouter = express.Router();

@@ -6,18 +6,21 @@ import { ValidationError } from '../../errors/ValidationError.js';
 
 const ManageSubscriptionInputSchema = z.object({
   storeId: z.string().uuid(),
-  subscriptionPlan: z.enum(['basic', 'professional']),
-  subscriptionStatus: z.enum(['active', 'expired', 'trial']),
-  subscriptionExpiresAt: z.coerce.date().nullish(),
+  plan: z.enum(['basic', 'professional']),
+  price: z.number().min(0).optional(),
+  durationMonths: z.number().int().min(1).max(120),
 });
 
 export type ManageSubscriptionInput = z.infer<typeof ManageSubscriptionInputSchema>;
 
+/**
+ * Admin: change a store's subscription plan.
+ * Computes the new expiry date from the requested duration.
+ */
 export class ManageStoreSubscriptionUseCase {
   constructor(private readonly storeRepo: IStoreRepository) {}
 
   async execute(input: ManageSubscriptionInput): Promise<Store> {
-    // 1. Validate input
     const parsed = ManageSubscriptionInputSchema.safeParse(input);
     if (!parsed.success) {
       const fields = parsed.error.issues.map((issue) => ({
@@ -26,19 +29,20 @@ export class ManageStoreSubscriptionUseCase {
       }));
       throw new ValidationError('Dữ liệu gói dịch vụ không hợp lệ', fields);
     }
-    const data = parsed.data;
+    const { storeId, plan, durationMonths } = parsed.data;
 
-    // 2. Verify store exists
-    const store = await this.storeRepo.findById(data.storeId);
+    const store = await this.storeRepo.findById(storeId);
     if (!store) {
       throw new NotFoundError('Cửa hàng');
     }
 
-    // 3. Update subscription
-    return this.storeRepo.updateSubscription(data.storeId, {
-      subscriptionPlan: data.subscriptionPlan,
-      subscriptionStatus: data.subscriptionStatus,
-      subscriptionExpiresAt: data.subscriptionExpiresAt ?? null,
+    const expiresAt = new Date();
+    expiresAt.setMonth(expiresAt.getMonth() + durationMonths);
+
+    return this.storeRepo.updateSubscription(storeId, {
+      subscriptionPlan: plan,
+      subscriptionStatus: 'active',
+      subscriptionExpiresAt: expiresAt,
     });
   }
 }

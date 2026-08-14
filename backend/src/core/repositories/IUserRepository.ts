@@ -13,4 +13,7 @@ export interface IUserRepository {
 
   /** Update last login timestamp for a user. */
   updateLastLogin(id: string): Promise<void>;
+
+  /** Total platform users excluding system admins. */
+  countNonAdminUsers(): Promise<number>;
 }

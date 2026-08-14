@@ -39,8 +39,13 @@ import {
   useUpdateSystemConfig,
   useBroadcastAnnouncement,
   useUploadTemplate,
+  useAnnouncements,
+  useReportTemplates,
 } from "@/hooks/useAdmin";
-import type { SystemConfig, SystemConfigUpdateData } from "@/hooks/useAdmin";
+import type {
+  SystemConfig,
+  SystemConfigUpdateData,
+} from "@/hooks/useAdmin";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -254,6 +259,8 @@ function SystemConfigTab() {
 
 function TemplatesTab() {
   const { mutate: uploadTemplate, isPending } = useUploadTemplate();
+  const { data: templates, isLoading: isLoadingTemplates, refetch } =
+    useReportTemplates();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadSuccess, setUploadSuccess] = useState(false);
 
@@ -278,44 +285,23 @@ function TemplatesTab() {
     });
   };
 
-  const TEMPLATES = [
-    {
-      name: "S01-HKD: Sổ cái doanh thu chi tiết",
-      version: "v2.0",
-      lastUpdate: "01/08/2026",
-      status: "active",
-    },
-    {
-      name: "S02-HKD: Báo cáo nợ chưa thanh toán",
-      version: "v2.0",
-      lastUpdate: "01/08/2026",
-      status: "active",
-    },
-    {
-      name: "B02-HKD: Báo cáo kết quả HĐKD",
-      version: "v2.0",
-      lastUpdate: "01/08/2026",
-      status: "active",
-    },
-    {
-      name: "F01-HKD: Bảng cân đối phát sinh",
-      version: "v2.0",
-      lastUpdate: "01/08/2026",
-      status: "active",
-    },
-  ];
-
   return (
     <Card className="border bg-card/50 backdrop-blur-sm">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <FileText className="h-5 w-5 text-amber-500" />
-          Mẫu báo cáo tài chính (Thông tư 88)
-        </CardTitle>
-        <CardDescription>
-          Upload hoặc cập nhật mẫu báo cáo tài chính theo Thông tư
-          88/2021/TT-BTC
-        </CardDescription>
+      <CardHeader className="flex flex-row items-center justify-between">
+        <div>
+          <CardTitle className="flex items-center gap-2">
+            <FileText className="h-5 w-5 text-amber-500" />
+            Mẫu báo cáo tài chính (Thông tư 88)
+          </CardTitle>
+          <CardDescription>
+            Upload hoặc cập nhật mẫu báo cáo tài chính theo Thông tư
+            88/2021/TT-BTC
+          </CardDescription>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => refetch()}>
+          <RefreshCcw className="h-3.5 w-3.5" />
+          Tải lại
+        </Button>
       </CardHeader>
       <CardContent className="space-y-6">
         {/* Current Templates */}
@@ -330,28 +316,53 @@ function TemplatesTab() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {TEMPLATES.map((tpl, i) => (
-                <motion.tr
-                  key={i}
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: i * 0.05 }}
-                  className="border-b hover:bg-muted/40 transition-colors"
-                >
-                  <TableCell className="font-medium">{tpl.name}</TableCell>
-                  <TableCell className="text-center">
-                    <Badge variant="secondary">{tpl.version}</Badge>
+              {isLoadingTemplates ? (
+                <TableRow>
+                  <TableCell colSpan={4} className="p-6">
+                    <div className="space-y-3">
+                      {Array.from({ length: 3 }).map((_, i) => (
+                        <Skeleton key={i} className="h-4 w-full" />
+                      ))}
+                    </div>
                   </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {tpl.lastUpdate}
+                </TableRow>
+              ) : (templates ?? []).length === 0 ? (
+                <TableRow>
+                  <TableCell
+                    colSpan={4}
+                    className="py-10 text-center text-sm text-muted-foreground"
+                  >
+                    Chưa có mẫu báo cáo nào. Hãy upload mẫu đầu tiên bên dưới.
                   </TableCell>
-                  <TableCell className="text-center">
-                    <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
-                      Đang dùng
-                    </Badge>
-                  </TableCell>
-                </motion.tr>
-              ))}
+                </TableRow>
+              ) : (
+                (templates ?? []).map((tpl, i) => (
+                  <motion.tr
+                    key={tpl.id}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: i * 0.05 }}
+                    className="border-b hover:bg-muted/40 transition-colors"
+                  >
+                    <TableCell className="font-medium">{tpl.name}</TableCell>
+                    <TableCell className="text-center">
+                      <Badge variant="secondary">{tpl.version ?? "—"}</Badge>
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {formatDate(tpl.updatedAt)}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {tpl.isActive ? (
+                        <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
+                          Đang dùng
+                        </Badge>
+                      ) : (
+                        <Badge variant="secondary">Không dùng</Badge>
+                      )}
+                    </TableCell>
+                  </motion.tr>
+                ))
+              )}
             </TableBody>
           </Table>
         </div>
@@ -424,6 +435,8 @@ function TemplatesTab() {
 function AnnouncementTab() {
   const { mutate: broadcastAnnouncement, isPending } =
     useBroadcastAnnouncement();
+  const { data: announcements, isLoading: isLoadingAnnouncements, refetch } =
+    useAnnouncements();
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [sendSuccess, setSendSuccess] = useState(false);
@@ -443,40 +456,22 @@ function AnnouncementTab() {
     );
   };
 
-  const RECENT_ANNOUNCEMENTS = [
-    {
-      title: "Nâng cấp hệ thống phiên bản 2.0",
-      content:
-        "Hệ thống BizFlow 3D đã được nâng cấp lên phiên bản 2.0 với nhiều tính năng mới...",
-      createdAt: "2026-08-05T10:00:00Z",
-      sentTo: 8,
-    },
-    {
-      title: "Bảo trì định kỳ 10/08/2026",
-      content:
-        "Hệ thống sẽ bảo trì từ 00:00 - 04:00 ngày 10/08/2026. Xin lỗi vì sự bất tiện.",
-      createdAt: "2026-08-08T14:00:00Z",
-      sentTo: 8,
-    },
-    {
-      title: "Cập nhật mẫu Thông tư 88",
-      content:
-        "Mẫu báo cáo tài chính theo Thông tư 88 đã được cập nhật phiên bản mới nhất.",
-      createdAt: "2026-08-01T09:00:00Z",
-      sentTo: 8,
-    },
-  ];
-
   return (
     <Card className="border bg-card/50 backdrop-blur-sm">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Megaphone className="h-5 w-5 text-rose-500" />
-          Thông báo hệ thống
-        </CardTitle>
-        <CardDescription>
-          Tạo và broadcast thông báo đến tất cả cửa hàng trên nền tảng
-        </CardDescription>
+      <CardHeader className="flex flex-row items-center justify-between">
+        <div>
+          <CardTitle className="flex items-center gap-2">
+            <Megaphone className="h-5 w-5 text-rose-500" />
+            Thông báo hệ thống
+          </CardTitle>
+          <CardDescription>
+            Tạo và broadcast thông báo đến tất cả cửa hàng trên nền tảng
+          </CardDescription>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => refetch()}>
+          <RefreshCcw className="h-3.5 w-3.5" />
+          Tải lại
+        </Button>
       </CardHeader>
       <CardContent className="space-y-6">
         {/* Compose */}
@@ -547,32 +542,46 @@ function AnnouncementTab() {
           <h4 className="mb-3 text-sm font-semibold text-muted-foreground">
             Thông báo gần đây
           </h4>
-          <div className="space-y-3">
-            {RECENT_ANNOUNCEMENTS.map((ann, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.08 }}
-                className="rounded-xl border bg-background p-4 transition-colors hover:bg-muted/20"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex-1">
-                    <h5 className="font-semibold">{ann.title}</h5>
-                    <p className="mt-1 text-sm text-muted-foreground line-clamp-2">
-                      {ann.content}
-                    </p>
+          {isLoadingAnnouncements ? (
+            <div className="space-y-3">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <Skeleton key={i} className="h-20 rounded-xl" />
+              ))}
+            </div>
+          ) : (announcements ?? []).length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Chưa có thông báo nào được gửi.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {(announcements ?? []).map((ann, i) => (
+                <motion.div
+                  key={ann.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.08 }}
+                  className="rounded-xl border bg-background p-4 transition-colors hover:bg-muted/20"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1">
+                      <h5 className="font-semibold">{ann.title}</h5>
+                      <p className="mt-1 text-sm text-muted-foreground line-clamp-2">
+                        {ann.content}
+                      </p>
+                    </div>
+                    {ann.createdBy && (
+                      <Badge variant="secondary" className="shrink-0">
+                        {ann.createdBy}
+                      </Badge>
+                    )}
                   </div>
-                  <Badge variant="secondary" className="shrink-0">
-                    {ann.sentTo} stores
-                  </Badge>
-                </div>
-                <p className="mt-2 text-xs text-muted-foreground">
-                  {formatDate(ann.createdAt)}
-                </p>
-              </motion.div>
-            ))}
-          </div>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    {formatDate(ann.createdAt)}
+                  </p>
+                </motion.div>
+              ))}
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>

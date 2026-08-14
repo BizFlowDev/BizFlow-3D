@@ -272,4 +272,49 @@ export class PostgresOrderRepository implements IOrderRepository {
       orderCount: parseInt(row.orderCount, 10) || 0,
     }));
   }
+
+  // ── Admin queries ──
+
+  async getRecentOrdersByStore(storeId: string, limit: number): Promise<{
+    id: string;
+    totalAmount: number;
+    status: string;
+    createdAt: string;
+  }[]> {
+    const res = await query(
+      `SELECT id, final_amount AS "totalAmount", status, created_at AS "createdAt"
+       FROM orders
+       WHERE store_id = $1
+       ORDER BY created_at DESC
+       LIMIT $2`,
+      [storeId, limit],
+    );
+    return res.rows.map(row => ({
+      id: row.id,
+      totalAmount: parseFloat(row.totalAmount) || 0,
+      status: row.status,
+      createdAt: new Date(row.createdAt).toISOString(),
+    }));
+  }
+
+  async getMonthlyRevenue(storeId: string | null, months: number): Promise<{
+    month: string;
+    revenue: number;
+  }[]> {
+    const res = await query(
+      `SELECT to_char(DATE_TRUNC('month', created_at), 'YYYY-MM') AS month,
+              COALESCE(SUM(final_amount), 0)::float8 AS revenue
+       FROM orders
+       WHERE status = 'confirmed'
+         AND ($1::uuid IS NULL OR store_id = $1)
+         AND created_at >= DATE_TRUNC('month', NOW()) - ($2::int - 1) * INTERVAL '1 month'
+       GROUP BY DATE_TRUNC('month', created_at)
+       ORDER BY DATE_TRUNC('month', created_at)`,
+      [storeId, months],
+    );
+    return res.rows.map(row => ({
+      month: row.month,
+      revenue: parseFloat(row.revenue) || 0,
+    }));
+  }
 }
