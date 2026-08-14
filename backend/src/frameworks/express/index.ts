@@ -1,7 +1,10 @@
+import { createServer as createHttpServer } from 'http';
 import { createServer } from './server.js';
 import env from '../../config/index.js';
 import db from '../database/connection.js';
 import { getRedisClient } from '../redis/redisClient.js';
+import { initSocketServer } from '../websocket/socketServer.js';
+import { initEventListeners } from '../websocket/eventEmitter.js';
 
 async function startServer() {
   try {
@@ -12,10 +15,20 @@ async function startServer() {
     // 2. Init Redis Connection
     getRedisClient();
 
-    // 3. Start Express app
+    // 3. Create Express app + HTTP server
     const app = createServer();
-    app.listen(env.PORT, () => {
+    const httpServer = createHttpServer(app);
+
+    // 4. Initialize Socket.IO on the HTTP server
+    initSocketServer(httpServer);
+
+    // 5. Register domain event → socket broadcast listeners
+    initEventListeners();
+
+    // 6. Start listening
+    httpServer.listen(env.PORT, () => {
       console.log(`Server listening on port ${env.PORT} in ${env.NODE_ENV} mode`);
+      console.log(`WebSocket ready on port ${env.PORT}`);
     });
 
   } catch (error) {
@@ -30,3 +43,4 @@ if (require.main === module || process.argv[1].endsWith('index.ts') || process.a
 }
 
 export { startServer };
+

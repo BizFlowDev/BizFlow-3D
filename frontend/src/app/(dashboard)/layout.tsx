@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
+import { SocketProvider } from "@/components/layout/socket-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuthStore } from "@/stores/auth-store";
 import type { UserRole } from "@/config/navigation";
@@ -41,6 +42,7 @@ export default function DashboardLayout({
           <main className="flex-1 overflow-y-auto p-4 md:p-6">{children}</main>
         </div>
       </div>
+      <SocketProvider />
     </TooltipProvider>
   );
 }

@@ -6,6 +6,7 @@ import { IProductRepository } from '../../repositories/IProductRepository.js';
 import { IInventoryRepository } from '../../repositories/IInventoryRepository.js';
 import { NotFoundError } from '../../errors/NotFoundError.js';
 import { ValidationError } from '../../errors/ValidationError.js';
+import { appEventEmitter } from '../../../frameworks/websocket/eventEmitter.js';
 
 const OrderItemInput = z.object({
   productId: z.string().uuid(),
@@ -95,6 +96,14 @@ export class CreateOrderUseCase {
       }),
     );
     const createdItems = await this.orderRepo.createItems(orderItems);
+
+    // 6. Emit real-time event: new order created
+    appEventEmitter.emit('order:created', {
+      storeId: data.storeId,
+      orderId: createdOrder.id,
+      customerName: null, // Customer name resolved at controller level if needed
+      totalAmount: createdOrder.totalAmount,
+    });
 
     return { order: createdOrder, items: createdItems };
   }

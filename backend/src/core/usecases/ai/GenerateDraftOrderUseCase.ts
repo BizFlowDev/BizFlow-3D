@@ -4,6 +4,7 @@ import { IOrderRepository } from '../../repositories/IOrderRepository.js';
 import { IProductRepository } from '../../repositories/IProductRepository.js';
 import { ValidationError } from '../../errors/ValidationError.js';
 import type { MatchedOrderItem } from './ProcessNaturalLanguageOrderUseCase.js';
+import { appEventEmitter } from '../../../frameworks/websocket/eventEmitter.js';
 
 export interface GenerateDraftOrderInput {
   storeId: string;
@@ -59,6 +60,15 @@ export class GenerateDraftOrderUseCase {
       }),
     );
     const createdItems = await this.orderRepo.createItems(orderItems);
+
+    // 4. Emit real-time event: draft order created
+    appEventEmitter.emit('draft:created', {
+      storeId: input.storeId,
+      draftOrderId: createdOrder.id,
+      customerName: null, // Customer name resolved at controller level if available
+      itemCount: createdItems.length,
+      totalAmount: createdOrder.totalAmount,
+    });
 
     return { order: createdOrder, items: createdItems };
   }

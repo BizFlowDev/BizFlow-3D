@@ -186,7 +186,7 @@ const getCustomerDebtUseCase = new GetCustomerDebtUseCase(customerRepo, debtPaym
 
 const createOrderUseCase = new CreateOrderUseCase(orderRepo, productRepo, inventoryRepo);
 const autoPostingUseCase = new AutoPostingUseCase(accountingRepo);
-const confirmOrderUseCase = new ConfirmOrderUseCase(orderRepo, inventoryRepo, customerRepo, autoPostingUseCase);
+const confirmOrderUseCase = new ConfirmOrderUseCase(orderRepo, inventoryRepo, customerRepo, autoPostingUseCase, productRepo);
 const listOrdersUseCase = new ListOrdersUseCase(orderRepo);
 const getOrderDetailUseCase = new GetOrderDetailUseCase(orderRepo);
 
