@@ -15,6 +15,8 @@ import { PostgresAuditLogRepository } from '../frameworks/database/repositories/
 import { PostgresSystemConfigRepository } from '../frameworks/database/repositories/PostgresSystemConfigRepository.js';
 import { PostgresAnnouncementRepository } from '../frameworks/database/repositories/PostgresAnnouncementRepository.js';
 import { PostgresTemplateRepository } from '../frameworks/database/repositories/PostgresTemplateRepository.js';
+import { PostgresSubscriptionPlanRepository } from '../frameworks/database/repositories/PostgresSubscriptionPlanRepository.js';
+import { PostgresSubscriptionHistoryRepository } from '../frameworks/database/repositories/PostgresSubscriptionHistoryRepository.js';
 
 // Import Redis Token Store
 import { RedisRefreshTokenStore } from '../frameworks/redis/RedisRefreshTokenStore.js';
@@ -151,6 +153,8 @@ const auditLogRepo = new PostgresAuditLogRepository();
 const systemConfigRepo = new PostgresSystemConfigRepository();
 const announcementRepo = new PostgresAnnouncementRepository();
 const templateRepo = new PostgresTemplateRepository();
+const subscriptionPlanRepo = new PostgresSubscriptionPlanRepository();
+const subscriptionHistoryRepo = new PostgresSubscriptionHistoryRepository();
 
 // ── Initialize Services ──────────────────────────────────────────────────────
 const passwordService = new BcryptPasswordService();
@@ -276,6 +280,8 @@ export const controllers = {
     systemConfigRepo,
     announcementRepo,
     templateRepo,
+    subscriptionPlanRepo,
+    subscriptionHistoryRepo,
   ),
   // Also export auditLogRepo to be used by the requestLogger middleware
   auditLogRepo,

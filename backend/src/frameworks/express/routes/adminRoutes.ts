@@ -55,7 +55,17 @@ router.post('/announcements', adminController.createAnnouncement);
 router.get('/templates', adminController.listTemplates);
 router.post('/templates', upload.single('template'), adminController.uploadTemplate);
 
+// Subscription Plans
+router.get('/subscription-plans', adminController.listSubscriptionPlans);
+router.post('/subscription-plans', adminController.createSubscriptionPlan);
+router.put('/subscription-plans/:planId', adminController.updateSubscriptionPlan);
+router.delete('/subscription-plans/:planId', adminController.deleteSubscriptionPlan);
+
+// Subscription History
+router.get('/subscription-history', adminController.listSubscriptionHistory);
+
 // Analytics
 router.get('/analytics', adminController.getSystemAnalytics);
 
 export default router;
+

@@ -7,6 +7,8 @@ import { GetStoreDetailUseCase } from '../../core/usecases/admin/GetStoreDetailU
 import { ISystemConfigRepository } from '../../core/repositories/ISystemConfigRepository.js';
 import { IAnnouncementRepository } from '../../core/repositories/IAnnouncementRepository.js';
 import { ITemplateRepository } from '../../core/repositories/ITemplateRepository.js';
+import { ISubscriptionPlanRepository } from '../../core/repositories/ISubscriptionPlanRepository.js';
+import { ISubscriptionHistoryRepository } from '../../core/repositories/ISubscriptionHistoryRepository.js';
 import { ApiResponse } from '../presenters/ApiResponse.js';
 import { ValidationError } from '../../core/errors/ValidationError.js';
 
@@ -24,6 +26,8 @@ export class AdminController {
     private readonly systemConfigRepo: ISystemConfigRepository,
     private readonly announcementRepo: IAnnouncementRepository,
     private readonly templateRepo: ITemplateRepository,
+    private readonly subscriptionPlanRepo: ISubscriptionPlanRepository,
+    private readonly subscriptionHistoryRepo: ISubscriptionHistoryRepository,
   ) {}
 
   /**
@@ -228,6 +232,126 @@ export class AdminController {
       const result = await this.getSystemAnalyticsUseCase.execute();
 
       const response = ApiResponse.success(result, 'Lấy thống kê hệ thống thành công');
+      res.status(response.statusCode).json(response.toJSON());
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  // ── Subscription Plans CRUD ────────────────────────────────────────────────
+
+  /**
+   * GET /api/admin/subscription-plans
+   */
+  listSubscriptionPlans = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const result = await this.subscriptionPlanRepo.findAll();
+
+      const response = ApiResponse.success(result, 'Lấy danh sách gói đăng ký thành công');
+      res.status(response.statusCode).json(response.toJSON());
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * POST /api/admin/subscription-plans
+   * Body: { name, slug, description?, price, features, maxEmployees, ... }
+   */
+  createSubscriptionPlan = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { name, slug, description, price, features, maxEmployees, sortOrder, colorFrom, colorTo, icon } = req.body;
+
+      if (!name || !slug || price === undefined || !features || !maxEmployees) {
+        throw new ValidationError('name, slug, price, features, maxEmployees là bắt buộc');
+      }
+
+      // Check slug uniqueness
+      const existing = await this.subscriptionPlanRepo.findBySlug(slug);
+      if (existing) {
+        throw new ValidationError('Slug đã tồn tại');
+      }
+
+      const result = await this.subscriptionPlanRepo.create({
+        name,
+        slug,
+        description,
+        price: Number(price),
+        features: Array.isArray(features) ? features : [],
+        maxEmployees: Number(maxEmployees),
+        sortOrder: sortOrder ? Number(sortOrder) : undefined,
+        colorFrom,
+        colorTo,
+        icon,
+      });
+
+      const response = ApiResponse.created(result, 'Tạo gói đăng ký thành công');
+      res.status(response.statusCode).json(response.toJSON());
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * PUT /api/admin/subscription-plans/:planId
+   * Body: { name?, description?, price?, features?, maxEmployees?, ... }
+   */
+  updateSubscriptionPlan = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { planId } = req.params;
+      const existing = await this.subscriptionPlanRepo.findById(planId as string);
+      if (!existing) {
+        throw new ValidationError('Gói đăng ký không tồn tại');
+      }
+
+      const result = await this.subscriptionPlanRepo.update(planId as string, req.body);
+
+      const response = ApiResponse.success(result, 'Cập nhật gói đăng ký thành công');
+      res.status(response.statusCode).json(response.toJSON());
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * DELETE /api/admin/subscription-plans/:planId
+   */
+  deleteSubscriptionPlan = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { planId } = req.params;
+      const existing = await this.subscriptionPlanRepo.findById(planId as string);
+      if (!existing) {
+        throw new ValidationError('Gói đăng ký không tồn tại');
+      }
+
+      if (existing.storeCount && existing.storeCount > 0) {
+        throw new ValidationError(`Không thể xoá gói đang có ${existing.storeCount} cửa hàng sử dụng`);
+      }
+
+      await this.subscriptionPlanRepo.delete(planId as string);
+
+      const response = ApiResponse.success(null, 'Xoá gói đăng ký thành công');
+      res.status(response.statusCode).json(response.toJSON());
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  // ── Subscription History ──────────────────────────────────────────────────
+
+  /**
+   * GET /api/admin/subscription-history
+   * Query: { storeId?, page?, limit? }
+   */
+  listSubscriptionHistory = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const result = await this.subscriptionHistoryRepo.findAll({
+        storeId: req.query.storeId as string | undefined,
+        page: req.query.page ? parseInt(req.query.page as string, 10) : undefined,
+        limit: req.query.limit ? parseInt(req.query.limit as string, 10) : undefined,
+      });
+
+      const response = ApiResponse.success(result, 'Lấy lịch sử đăng ký thành công');
       res.status(response.statusCode).json(response.toJSON());
     } catch (error) {
       next(error);

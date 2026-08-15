@@ -325,3 +325,173 @@ export function usePlatformAnalytics() {
     staleTime: 60_000,
   });
 }
+
+// ── Subscription Plans ────────────────────────────────────────────────────────
+
+export interface SubscriptionPlan {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  price: number;
+  features: string[];
+  maxEmployees: number;
+  isActive: boolean;
+  sortOrder: number;
+  colorFrom: string | null;
+  colorTo: string | null;
+  icon: string | null;
+  storeCount?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreatePlanData {
+  name: string;
+  slug: string;
+  description?: string;
+  price: number;
+  features: string[];
+  maxEmployees: number;
+  sortOrder?: number;
+  colorFrom?: string;
+  colorTo?: string;
+  icon?: string;
+}
+
+export interface UpdatePlanData {
+  name?: string;
+  description?: string;
+  price?: number;
+  features?: string[];
+  maxEmployees?: number;
+  isActive?: boolean;
+  sortOrder?: number;
+  colorFrom?: string;
+  colorTo?: string;
+  icon?: string;
+}
+
+/** Lấy danh sách subscription plans */
+export function useSubscriptionPlans() {
+  return useQuery({
+    queryKey: ["admin", "subscription-plans"],
+    queryFn: async (): Promise<SubscriptionPlan[]> => {
+      const { data } = await apiClient.get<ApiResponseData<SubscriptionPlan[]>>(
+        "/admin/subscription-plans"
+      );
+      if (!data.data) throw new Error(data.message);
+      return data.data;
+    },
+    staleTime: 30_000,
+  });
+}
+
+/** Tạo subscription plan mới */
+export function useCreateSubscriptionPlan() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (planData: CreatePlanData): Promise<SubscriptionPlan> => {
+      const { data: res } = await apiClient.post<
+        ApiResponseData<SubscriptionPlan>
+      >("/admin/subscription-plans", planData);
+      if (!res.data) throw new Error(res.message);
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "subscription-plans"] });
+    },
+  });
+}
+
+/** Cập nhật subscription plan */
+export function useUpdateSubscriptionPlan() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      planId,
+      data,
+    }: {
+      planId: string;
+      data: UpdatePlanData;
+    }): Promise<SubscriptionPlan> => {
+      const { data: res } = await apiClient.put<
+        ApiResponseData<SubscriptionPlan>
+      >(`/admin/subscription-plans/${planId}`, data);
+      if (!res.data) throw new Error(res.message);
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "subscription-plans"] });
+    },
+  });
+}
+
+/** Xoá subscription plan */
+export function useDeleteSubscriptionPlan() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (planId: string): Promise<void> => {
+      await apiClient.delete(`/admin/subscription-plans/${planId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "subscription-plans"] });
+    },
+  });
+}
+
+// ── Subscription History ──────────────────────────────────────────────────────
+
+export interface SubscriptionHistoryItem {
+  id: string;
+  storeId: string;
+  storeName: string | null;
+  oldPlan: string | null;
+  newPlan: string;
+  oldStatus: string | null;
+  newStatus: string | null;
+  changedBy: string | null;
+  changedByName: string | null;
+  note: string | null;
+  createdAt: string;
+}
+
+export interface SubscriptionHistoryParams {
+  storeId?: string;
+  page?: number;
+  limit?: number;
+}
+
+interface SubscriptionHistoryResponse {
+  items: SubscriptionHistoryItem[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+/** Lấy lịch sử thay đổi gói đăng ký */
+export function useSubscriptionHistory(
+  params: SubscriptionHistoryParams = {}
+) {
+  return useQuery({
+    queryKey: ["admin", "subscription-history", params],
+    queryFn: async (): Promise<SubscriptionHistoryResponse> => {
+      const { data } = await apiClient.get<
+        ApiResponseData<SubscriptionHistoryResponse>
+      >("/admin/subscription-history", {
+        params: {
+          storeId: params.storeId || undefined,
+          page: params.page,
+          limit: params.limit,
+        },
+      });
+      if (!data.data) throw new Error(data.message);
+      return data.data;
+    },
+    staleTime: 30_000,
+  });
+}
