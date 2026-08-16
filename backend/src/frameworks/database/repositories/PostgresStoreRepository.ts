@@ -24,7 +24,7 @@ const ADMIN_STORE_SELECT = `
     s.updated_at,
     owner.full_name AS "ownerName",
     owner.email AS "ownerEmail",
-    (SELECT COUNT(*)::int FROM users u WHERE u.store_id = s.id) AS "employeeCount",
+    (SELECT COUNT(*)::int FROM users u WHERE u.store_id = s.id AND u.role = 'employee') AS "employeeCount",
     (SELECT COUNT(*)::int FROM orders o WHERE o.store_id = s.id) AS "totalOrders",
     (SELECT COALESCE(SUM(o.final_amount), 0)::float8 FROM orders o
        WHERE o.store_id = s.id AND o.status = 'confirmed') AS "totalRevenue"
