@@ -6,6 +6,7 @@ import {
   Search,
   RefreshCcw,
   Download,
+  Loader2,
   MoreHorizontal,
   Eye,
   Power,
@@ -61,6 +62,7 @@ import {
   useStoreDetail,
   useToggleStoreStatus,
   useSubscriptionPlans,
+  fetchAllAdminStores,
 } from "@/hooks/useAdmin";
 import type { Store, StoreListParams, SubscriptionPlan } from "@/hooks/useAdmin";
 import { SubscriptionDialog } from "./_components/SubscriptionDialog";
@@ -392,6 +394,7 @@ export default function AdminStoresPage() {
   const [subDialogOpen, setSubDialogOpen] = useState(false);
   const [subDialogStore, setSubDialogStore] = useState<Store | null>(null);
   const [formDialogOpen, setFormDialogOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   // Debounced search
   const debouncedSearch = useMemo(() => {
@@ -456,6 +459,66 @@ export default function AdminStoresPage() {
     setSelectedStoreId(storeId);
   };
 
+  const handleExportExcel = async () => {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      const items = await fetchAllAdminStores(params);
+
+      const XLSX = await import("xlsx");
+      const headers = [
+        "Cửa hàng",
+        "Chủ sở hữu",
+        "Email chủ sở hữu",
+        "SĐT",
+        "Địa chỉ",
+        "Gói dịch vụ",
+        "Trạng thái",
+        "Ngày đăng ký",
+        "Hết hạn",
+        "Nhân viên",
+        "Đơn hàng",
+        "Doanh thu",
+      ];
+      const statusLabel = (s: string) =>
+        s === "active"
+          ? "Đang hoạt động"
+          : s === "trial"
+          ? "Dùng thử"
+          : "Hết hạn";
+      const rows = items.map((store) => [
+        store.name,
+        store.ownerName,
+        store.ownerEmail,
+        store.phone ?? "",
+        store.address ?? "",
+        getPlanInfo(plans, store.subscriptionPlan).name,
+        statusLabel(store.subscriptionStatus),
+        formatDate(store.createdAt),
+        formatDate(store.subscriptionExpiresAt),
+        store.employeeCount,
+        store.totalOrders,
+        store.totalRevenue,
+      ]);
+
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+      ws["!cols"] = headers.map((_, i) => ({
+        wch: Math.max(
+          12,
+          headers[i].length + 2,
+          ...rows.map((r) => String(r[i] ?? "").length + 2),
+        ),
+      }));
+      XLSX.utils.book_append_sheet(wb, ws, "Danh sách cửa hàng");
+      XLSX.writeFile(wb, `danh-sach-cua-hang-${new Date().toISOString().slice(0, 10)}.xlsx`);
+    } catch (error) {
+      console.error("[Stores] Xuất Excel thất bại:", error);
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <motion.div
       variants={containerVariants}
@@ -503,10 +566,17 @@ export default function AdminStoresPage() {
           <Button
             variant="outline"
             size="icon"
-            aria-label="Xuất danh sách"
+            onClick={handleExportExcel}
+            disabled={exporting}
+            aria-label="Xuất danh sách Excel"
             id="export-stores-btn"
+            title="Xuất danh sách cửa hàng ra Excel"
           >
-            <Download className="h-4 w-4" />
+            {exporting ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Download className="h-4 w-4" />
+            )}
           </Button>
         </div>
       </motion.div>

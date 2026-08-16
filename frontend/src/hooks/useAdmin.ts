@@ -148,6 +148,22 @@ export function useStoreList(params: StoreListParams = {}) {
   });
 }
 
+/** Lấy toàn bộ stores khớp bộ lọc (phục vụ xuất Excel) */
+export async function fetchAllAdminStores(params: StoreListParams = {}): Promise<Store[]> {
+  const { data } = await apiClient.get<
+    ApiResponseData<PaginatedResponse<Store>>
+  >("/admin/stores", {
+    params: {
+      search: params.search || undefined,
+      status: params.status === "all" || !params.status ? undefined : params.status,
+      plan: params.plan === "all" || !params.plan ? undefined : params.plan,
+      page: 1,
+      limit: 100000,
+    },
+  });
+  return data.data?.items ?? [];
+}
+
 /** Tạo cửa hàng mới + tài khoản chủ sở hữu (Admin) */
 export function useCreateStore() {
   const queryClient = useQueryClient();
