@@ -38,6 +38,7 @@ router.use(authMiddleware);
 router.use(allowRoles('admin'));
 
 // Stores
+router.post('/stores', adminController.createStore);
 router.get('/stores', adminController.listStores);
 router.get('/stores/:storeId', adminController.getStoreById);
 router.patch('/stores/:storeId/subscription', adminController.manageStores);

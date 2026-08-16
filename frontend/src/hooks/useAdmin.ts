@@ -13,7 +13,7 @@ export interface Store {
   phone: string | null;
   email: string | null;
   taxCode: string | null;
-  subscriptionPlan: "basic" | "professional";
+  subscriptionPlan: string;
   subscriptionStatus: "active" | "expired" | "trial";
   subscriptionExpiresAt: string | null;
   ownerName: string;
@@ -38,13 +38,28 @@ export interface StoreDetail extends Store {
 export interface StoreListParams {
   search?: string;
   status?: "all" | "active" | "expired" | "trial";
-  plan?: "all" | "basic" | "professional";
+  plan?: string;
   page?: number;
   limit?: number;
 }
 
+export interface CreateStoreData {
+  name: string;
+  address?: string;
+  phone?: string;
+  email?: string;
+  taxCode?: string;
+  ownerFullName: string;
+  ownerEmail: string;
+  ownerPhone?: string;
+  ownerPassword: string;
+  subscriptionPlan?: string;
+  subscriptionStatus?: "active" | "expired" | "trial";
+  durationMonths?: number;
+}
+
 export interface UpdateSubscriptionData {
-  plan: "basic" | "professional";
+  plan: string;
   price: number;
   durationMonths: number;
 }
@@ -130,6 +145,26 @@ export function useStoreList(params: StoreListParams = {}) {
       return data.data;
     },
     staleTime: 30_000,
+  });
+}
+
+/** Tạo cửa hàng mới + tài khoản chủ sở hữu (Admin) */
+export function useCreateStore() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: CreateStoreData): Promise<Store> => {
+      const { data: res } = await apiClient.post<ApiResponseData<Store>>(
+        "/admin/stores",
+        data
+      );
+      if (!res.data) throw new Error(res.message);
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "stores"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "analytics"] });
+    },
   });
 }
 

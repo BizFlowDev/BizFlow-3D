@@ -4,6 +4,7 @@ import { ToggleStoreStatusUseCase } from '../../core/usecases/admin/ToggleStoreS
 import { GetSystemAnalyticsUseCase } from '../../core/usecases/admin/GetSystemAnalyticsUseCase.js';
 import { ListStoresUseCase } from '../../core/usecases/admin/ListStoresUseCase.js';
 import { GetStoreDetailUseCase } from '../../core/usecases/admin/GetStoreDetailUseCase.js';
+import { CreateStoreUseCase } from '../../core/usecases/admin/CreateStoreUseCase.js';
 import { ISystemConfigRepository } from '../../core/repositories/ISystemConfigRepository.js';
 import { IAnnouncementRepository } from '../../core/repositories/IAnnouncementRepository.js';
 import { ITemplateRepository } from '../../core/repositories/ITemplateRepository.js';
@@ -23,12 +24,30 @@ export class AdminController {
     private readonly getSystemAnalyticsUseCase: GetSystemAnalyticsUseCase,
     private readonly listStoresUseCase: ListStoresUseCase,
     private readonly getStoreDetailUseCase: GetStoreDetailUseCase,
+    private readonly createStoreUseCase: CreateStoreUseCase,
     private readonly systemConfigRepo: ISystemConfigRepository,
     private readonly announcementRepo: IAnnouncementRepository,
     private readonly templateRepo: ITemplateRepository,
     private readonly subscriptionPlanRepo: ISubscriptionPlanRepository,
     private readonly subscriptionHistoryRepo: ISubscriptionHistoryRepository,
   ) {}
+
+  /**
+   * POST /api/admin/stores
+   * Body: { name, address?, phone?, email?, taxCode?, ownerFullName, ownerEmail,
+   *         ownerPhone?, ownerPassword, subscriptionPlan?, subscriptionStatus?,
+   *         subscriptionExpiresAt? }
+   */
+  createStore = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const result = await this.createStoreUseCase.execute(req.body);
+
+      const response = ApiResponse.created(result, 'Tạo cửa hàng mới thành công');
+      res.status(response.statusCode).json(response.toJSON());
+    } catch (error) {
+      next(error);
+    }
+  };
 
   /**
    * GET /api/admin/stores
@@ -39,7 +58,7 @@ export class AdminController {
       const result = await this.listStoresUseCase.execute({
         search: req.query.search as string | undefined,
         status: req.query.status as 'active' | 'expired' | 'trial' | 'all' | undefined,
-        plan: req.query.plan as 'basic' | 'professional' | 'all' | undefined,
+        plan: req.query.plan as string | 'all' | undefined,
         page: req.query.page ? parseInt(req.query.page as string, 10) : undefined,
         limit: req.query.limit ? parseInt(req.query.limit as string, 10) : undefined,
       });

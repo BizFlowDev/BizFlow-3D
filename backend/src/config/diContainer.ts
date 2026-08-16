@@ -70,6 +70,7 @@ import { ToggleStoreStatusUseCase } from '../core/usecases/admin/ToggleStoreStat
 import { GetSystemAnalyticsUseCase } from '../core/usecases/admin/GetSystemAnalyticsUseCase.js';
 import { ListStoresUseCase } from '../core/usecases/admin/ListStoresUseCase.js';
 import { GetStoreDetailUseCase } from '../core/usecases/admin/GetStoreDetailUseCase.js';
+import { CreateStoreUseCase } from '../core/usecases/admin/CreateStoreUseCase.js';
 
 // Import Controllers
 import { AuthController } from '../adapters/controllers/AuthController.js';
@@ -215,6 +216,7 @@ const manageStoreSubscriptionUseCase = new ManageStoreSubscriptionUseCase(storeR
 const toggleStoreStatusUseCase = new ToggleStoreStatusUseCase(storeRepo);
 const listStoresUseCase = new ListStoresUseCase(storeRepo);
 const getStoreDetailUseCase = new GetStoreDetailUseCase(storeRepo, orderRepo);
+const createStoreUseCase = new CreateStoreUseCase(storeRepo, userRepo, passwordService);
 const getSystemAnalyticsUseCase = new GetSystemAnalyticsUseCase(
   storeRepo,
   userRepo,
@@ -277,6 +279,7 @@ export const controllers = {
     getSystemAnalyticsUseCase,
     listStoresUseCase,
     getStoreDetailUseCase,
+    createStoreUseCase,
     systemConfigRepo,
     announcementRepo,
     templateRepo,

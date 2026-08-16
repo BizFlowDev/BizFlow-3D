@@ -9,7 +9,7 @@ export interface AdminStoreRow {
   phone: string | null;
   email: string | null;
   taxCode: string | null;
-  subscriptionPlan: 'basic' | 'professional';
+  subscriptionPlan: string;
   subscriptionStatus: 'active' | 'expired' | 'trial';
   subscriptionExpiresAt: string | null;
   ownerName: string | null;
@@ -24,7 +24,7 @@ export interface AdminStoreRow {
 export interface AdminStoreFilter {
   search?: string;
   status?: 'active' | 'expired' | 'trial';
-  plan?: 'basic' | 'professional';
+  plan?: string;
   page?: number;
   limit?: number;
 }
@@ -55,7 +55,7 @@ export interface IStoreRepository {
   updateSubscription(
     id: string,
     data: {
-      subscriptionPlan: 'basic' | 'professional';
+      subscriptionPlan: string;
       subscriptionStatus: 'active' | 'expired' | 'trial';
       subscriptionExpiresAt: Date | null;
     },

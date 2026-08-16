@@ -156,7 +156,7 @@ export class PostgresStoreRepository implements IStoreRepository {
   async updateSubscription(
     id: string,
     data: {
-      subscriptionPlan: 'basic' | 'professional';
+      subscriptionPlan: string;
       subscriptionStatus: 'active' | 'expired' | 'trial';
       subscriptionExpiresAt: Date | null;
     }

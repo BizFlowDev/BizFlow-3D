@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "motion/react";
 import {
   Crown,
   Zap,
+  Star,
   Calendar,
   DollarSign,
   CheckCircle2,
@@ -24,8 +25,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { useUpdateSubscription } from "@/hooks/useAdmin";
-import type { Store } from "@/hooks/useAdmin";
+import { useUpdateSubscription, useSubscriptionPlans } from "@/hooks/useAdmin";
+import type { Store, SubscriptionPlan } from "@/hooks/useAdmin";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -36,59 +37,17 @@ interface SubscriptionDialogProps {
   onSuccess?: () => void;
 }
 
-type PlanType = "basic" | "professional";
+// ── Icon Mapper ───────────────────────────────────────────────────────────────
 
-interface PlanInfo {
-  name: string;
-  icon: React.ComponentType<{ className?: string }>;
-  color: string;
-  gradientFrom: string;
-  gradientTo: string;
-  features: string[];
-  defaultPrice: number;
-}
-
-// ── Plan Config ───────────────────────────────────────────────────────────────
-
-const PLAN_CONFIG: Record<PlanType, PlanInfo> = {
-  basic: {
-    name: "Basic",
-    icon: Zap,
-    color: "text-blue-600",
-    gradientFrom: "from-blue-500",
-    gradientTo: "to-cyan-500",
-    features: [
-      "Tối đa 3 nhân viên",
-      "Quản lý sản phẩm cơ bản",
-      "Báo cáo doanh thu",
-      "Hỗ trợ qua email",
-    ],
-    defaultPrice: 199000,
-  },
-  professional: {
-    name: "Professional",
-    icon: Crown,
-    color: "text-amber-600",
-    gradientFrom: "from-amber-500",
-    gradientTo: "to-orange-500",
-    features: [
-      "Tối đa 20 nhân viên",
-      "AI Order Assistant",
-      "Kế toán Thông tư 88",
-      "3D Store View",
-      "Hỗ trợ ưu tiên 24/7",
-      "API mở rộng",
-    ],
-    defaultPrice: 499000,
-  },
+const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
+  Crown,
+  Zap,
+  Star: Star as React.ComponentType<{ className?: string }>,
 };
 
-const DURATION_OPTIONS = [
-  { value: 1, label: "1 tháng" },
-  { value: 3, label: "3 tháng", discount: 10 },
-  { value: 6, label: "6 tháng", discount: 15 },
-  { value: 12, label: "12 tháng", discount: 20 },
-];
+function getPlanIcon(iconName: string | null) {
+  return ICON_MAP[iconName ?? "Zap"] ?? Zap;
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -109,6 +68,24 @@ function formatDate(dateStr: string | null): string {
   }).format(new Date(dateStr));
 }
 
+function getPlanInfo(
+  plans: SubscriptionPlan[],
+  slug: string
+): { name: string; icon: React.ComponentType<{ className?: string }> } {
+  const plan = plans.find((p) => p.slug === slug);
+  return {
+    name: plan?.name ?? slug,
+    icon: plan?.icon ? ICON_MAP[plan.icon] ?? Zap : Zap,
+  };
+}
+
+const DURATION_OPTIONS = [
+  { value: 1, label: "1 tháng" },
+  { value: 3, label: "3 tháng", discount: 10 },
+  { value: 6, label: "6 tháng", discount: 15 },
+  { value: 12, label: "12 tháng", discount: 20 },
+];
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function SubscriptionDialog({
@@ -117,8 +94,11 @@ export function SubscriptionDialog({
   store,
   onSuccess,
 }: SubscriptionDialogProps) {
-  const [selectedPlan, setSelectedPlan] = useState<PlanType>("basic");
-  const [price, setPrice] = useState<number>(199000);
+  const { data: planData } = useSubscriptionPlans();
+  const plans = planData ?? [];
+
+  const [selectedPlan, setSelectedPlan] = useState<string>("basic");
+  const [price, setPrice] = useState<number>(0);
   const [duration, setDuration] = useState<number>(1);
 
   const { mutate: updateSubscription, isPending } = useUpdateSubscription();
@@ -126,18 +106,23 @@ export function SubscriptionDialog({
   // Reset khi mở dialog
   useEffect(() => {
     if (open && store) {
-      const otherPlan: PlanType =
-        store.subscriptionPlan === "basic" ? "professional" : "basic";
-      setSelectedPlan(otherPlan);
-      setPrice(PLAN_CONFIG[otherPlan].defaultPrice);
+      const firstOther = plans.find(
+        (p) => p.slug !== store.subscriptionPlan && p.isActive
+      );
+      const target = firstOther ?? plans[0];
+      setSelectedPlan(target?.slug ?? store.subscriptionPlan);
+      setPrice(target?.price ?? 0);
       setDuration(1);
     }
-  }, [open, store]);
+  }, [open, store, plans]);
 
   // Cập nhật giá khi đổi plan
   useEffect(() => {
-    setPrice(PLAN_CONFIG[selectedPlan].defaultPrice);
-  }, [selectedPlan]);
+    const selected = plans.find((p) => p.slug === selectedPlan);
+    if (selected) {
+      setPrice(Number(selected.price));
+    }
+  }, [selectedPlan, plans]);
 
   const discountOption = DURATION_OPTIONS.find((d) => d.value === duration);
   const discountPercent = discountOption?.discount ?? 0;
@@ -165,8 +150,9 @@ export function SubscriptionDialog({
 
   if (!store) return null;
 
-  const currentPlan = PLAN_CONFIG[store.subscriptionPlan];
+  const currentPlan = getPlanInfo(plans, store.subscriptionPlan);
   const CurrentIcon = currentPlan.icon;
+  const currentPlanObj = plans.find((p) => p.slug === store.subscriptionPlan);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -189,15 +175,16 @@ export function SubscriptionDialog({
           </p>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div
-                className={`rounded-lg bg-gradient-to-br ${currentPlan.gradientFrom} ${currentPlan.gradientTo} p-2`}
-              >
+              <div className="rounded-lg bg-gradient-to-br from-blue-500 to-cyan-500 p-2">
                 <CurrentIcon className="h-5 w-5 text-white" />
               </div>
               <div>
                 <p className="font-semibold">{currentPlan.name}</p>
                 <p className="text-xs text-muted-foreground">
-                  {formatCurrency(currentPlan.defaultPrice)}/tháng
+                  {currentPlanObj
+                    ? formatCurrency(Number(currentPlanObj.price))
+                    : "—"}
+                  /tháng
                 </p>
               </div>
             </div>
@@ -232,77 +219,92 @@ export function SubscriptionDialog({
           <Label className="mb-3 block text-sm font-semibold">
             Chọn gói mới
           </Label>
-          <div className="grid grid-cols-2 gap-3">
-            {(Object.keys(PLAN_CONFIG) as PlanType[]).map((planKey) => {
-              const plan = PLAN_CONFIG[planKey];
-              const PlanIcon = plan.icon;
-              const isSelected = selectedPlan === planKey;
-              const isCurrent = store.subscriptionPlan === planKey;
+          {plans.length === 0 ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">
+              Chưa có gói dịch vụ nào. Hãy tạo gói trong trang Quản lý Gói Đăng
+              ký.
+            </p>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              {plans.map((plan) => {
+                const PlanIcon = getPlanIcon(plan.icon);
+                const isSelected = selectedPlan === plan.slug;
+                const isCurrent = store.subscriptionPlan === plan.slug;
+                const isDisabled = !plan.isActive;
 
-              return (
-                <motion.button
-                  key={planKey}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => setSelectedPlan(planKey)}
-                  className={`relative rounded-xl border-2 p-4 text-left transition-all ${
-                    isSelected
-                      ? "border-primary bg-primary/5 shadow-md"
-                      : "border-border hover:border-primary/40 hover:bg-muted/30"
-                  } ${isCurrent ? "opacity-60" : ""}`}
-                >
-                  {isCurrent && (
-                    <span className="absolute -top-2 right-3 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-                      Hiện tại
-                    </span>
-                  )}
-
-                  <div className="flex items-center gap-2 mb-3">
-                    <div
-                      className={`rounded-lg bg-gradient-to-br ${plan.gradientFrom} ${plan.gradientTo} p-2`}
-                    >
-                      <PlanIcon className="h-4 w-4 text-white" />
-                    </div>
-                    <span className="font-bold">{plan.name}</span>
-                  </div>
-
-                  <p className="mb-3 text-lg font-bold tabular-nums">
-                    {formatCurrency(plan.defaultPrice)}
-                    <span className="text-xs font-normal text-muted-foreground">
-                      /tháng
-                    </span>
-                  </p>
-
-                  <ul className="space-y-1.5">
-                    {plan.features.map((feature) => (
-                      <li
-                        key={feature}
-                        className="flex items-start gap-1.5 text-xs text-muted-foreground"
-                      >
-                        <CheckCircle2 className="h-3.5 w-3.5 mt-0.5 shrink-0 text-emerald-500" />
-                        {feature}
-                      </li>
-                    ))}
-                  </ul>
-
-                  <AnimatePresence>
-                    {isSelected && (
-                      <motion.div
-                        initial={{ scale: 0 }}
-                        animate={{ scale: 1 }}
-                        exit={{ scale: 0 }}
-                        className="absolute -top-1.5 -right-1.5"
-                      >
-                        <div className="rounded-full bg-primary p-1">
-                          <CheckCircle2 className="h-3.5 w-3.5 text-primary-foreground" />
-                        </div>
-                      </motion.div>
+                return (
+                  <motion.button
+                    key={plan.id}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => !isCurrent && setSelectedPlan(plan.slug)}
+                    disabled={isDisabled || isCurrent}
+                    className={`relative rounded-xl border-2 p-4 text-left transition-all ${
+                      isSelected
+                        ? "border-primary bg-primary/5 shadow-md"
+                        : "border-border hover:border-primary/40 hover:bg-muted/30"
+                    } ${isCurrent ? "opacity-60" : ""} ${
+                      isDisabled ? "opacity-40 cursor-not-allowed" : ""
+                    }`}
+                  >
+                    {isCurrent && (
+                      <span className="absolute -top-2 right-3 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                        Hiện tại
+                      </span>
                     )}
-                  </AnimatePresence>
-                </motion.button>
-              );
-            })}
-          </div>
+                    {isDisabled && !isCurrent && (
+                      <span className="absolute -top-2 right-3 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                        Tạm dừng
+                      </span>
+                    )}
+
+                    <div className="flex items-center gap-2 mb-3">
+                      <div
+                        className={`rounded-lg bg-gradient-to-br ${plan.colorFrom ?? "from-blue-500"} ${plan.colorTo ?? "to-cyan-500"} p-2`}
+                      >
+                        <PlanIcon className="h-4 w-4 text-white" />
+                      </div>
+                      <span className="font-bold">{plan.name}</span>
+                    </div>
+
+                    <p className="mb-3 text-lg font-bold tabular-nums">
+                      {formatCurrency(Number(plan.price))}
+                      <span className="text-xs font-normal text-muted-foreground">
+                        /tháng
+                      </span>
+                    </p>
+
+                    <ul className="space-y-1.5">
+                      {plan.features.map((feature) => (
+                        <li
+                          key={feature}
+                          className="flex items-start gap-1.5 text-xs text-muted-foreground"
+                        >
+                          <CheckCircle2 className="h-3.5 w-3.5 mt-0.5 shrink-0 text-emerald-500" />
+                          {feature}
+                        </li>
+                      ))}
+                    </ul>
+
+                    <AnimatePresence>
+                      {isSelected && (
+                        <motion.div
+                          initial={{ scale: 0 }}
+                          animate={{ scale: 1 }}
+                          exit={{ scale: 0 }}
+                          className="absolute -top-1.5 -right-1.5"
+                        >
+                          <div className="rounded-full bg-primary p-1">
+                            <CheckCircle2 className="h-3.5 w-3.5 text-primary-foreground" />
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </motion.button>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* ── Price & Duration ── */}
@@ -381,7 +383,9 @@ export function SubscriptionDialog({
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={isPending || selectedPlan === store.subscriptionPlan}
+            disabled={
+              isPending || selectedPlan === store.subscriptionPlan
+            }
             className="relative overflow-hidden bg-gradient-to-r from-blue-600 to-blue-500 font-semibold text-white shadow-lg shadow-blue-500/25 transition-all hover:from-blue-500 hover:to-blue-400 hover:shadow-blue-500/40"
           >
             {isPending ? (

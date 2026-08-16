@@ -3,7 +3,7 @@ import { IStoreRepository, AdminStoreResult } from '../../repositories/IStoreRep
 export interface ListStoresFilter {
   search?: string;
   status?: 'active' | 'expired' | 'trial' | 'all';
-  plan?: 'basic' | 'professional' | 'all';
+  plan?: string | 'all';
   page?: number;
   limit?: number;
 }

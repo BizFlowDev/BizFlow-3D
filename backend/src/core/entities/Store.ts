@@ -9,7 +9,7 @@ export const StoreSchema = z.object({
   phone: z.string().max(20).nullish(),
   email: z.string().email().max(255).nullish(),
   taxCode: z.string().max(50).nullish(),
-  subscriptionPlan: z.enum(['basic', 'professional']),
+  subscriptionPlan: z.string().min(1).max(50),
   subscriptionStatus: z.enum(['active', 'expired', 'trial']),
   subscriptionExpiresAt: z.coerce.date().nullish(),
   createdAt: z.coerce.date(),
@@ -26,7 +26,7 @@ export class Store {
   readonly phone: string | null;
   readonly email: string | null;
   readonly taxCode: string | null;
-  readonly subscriptionPlan: 'basic' | 'professional';
+  readonly subscriptionPlan: string;
   readonly subscriptionStatus: 'active' | 'expired' | 'trial';
   readonly subscriptionExpiresAt: Date | null;
   readonly createdAt: Date;

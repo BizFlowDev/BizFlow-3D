@@ -6,7 +6,7 @@ import { ValidationError } from '../../errors/ValidationError.js';
 
 const ManageSubscriptionInputSchema = z.object({
   storeId: z.string().uuid(),
-  plan: z.enum(['basic', 'professional']),
+  plan: z.string().min(1).max(50),
   price: z.number().min(0).optional(),
   durationMonths: z.number().int().min(1).max(120),
 });

@@ -22,8 +22,10 @@ import {
   Mail,
   Crown,
   Zap,
+  Star,
   X,
   ArrowLeft,
+  Plus,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -58,9 +60,30 @@ import {
   useStoreList,
   useStoreDetail,
   useToggleStoreStatus,
+  useSubscriptionPlans,
 } from "@/hooks/useAdmin";
-import type { Store, StoreListParams } from "@/hooks/useAdmin";
+import type { Store, StoreListParams, SubscriptionPlan } from "@/hooks/useAdmin";
 import { SubscriptionDialog } from "./_components/SubscriptionDialog";
+import { StoreFormDialog } from "./_components/StoreFormDialog";
+
+// ── Plan helpers ──────────────────────────────────────────────────────────────
+
+const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
+  Crown,
+  Zap,
+  Star: Star as React.ComponentType<{ className?: string }>,
+};
+
+function getPlanInfo(
+  plans: SubscriptionPlan[],
+  slug: string
+): { name: string; icon: React.ComponentType<{ className?: string }> } {
+  const plan = plans.find((p) => p.slug === slug);
+  return {
+    name: plan?.name ?? slug,
+    icon: plan?.icon ? ICON_MAP[plan.icon] ?? Zap : Zap,
+  };
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -129,10 +152,12 @@ function StoreDetailPanel({
   storeId,
   onClose,
   onChangePlan,
+  plans,
 }: {
   storeId: string;
   onClose: () => void;
   onChangePlan: (store: Store) => void;
+  plans: SubscriptionPlan[];
 }) {
   const { data: store, isLoading } = useStoreDetail(storeId);
 
@@ -156,8 +181,8 @@ function StoreDetailPanel({
 
   if (!store) return null;
 
-  const PlanIcon =
-    store.subscriptionPlan === "professional" ? Crown : Zap;
+  const planInfo = getPlanInfo(plans, store.subscriptionPlan);
+  const PlanIcon = planInfo.icon;
 
   return (
     <motion.div
@@ -193,9 +218,7 @@ function StoreDetailPanel({
             }
           >
             <PlanIcon className="mr-1 h-3 w-3" />
-            {store.subscriptionPlan === "professional"
-              ? "Professional"
-              : "Basic"}
+            {planInfo.name}
           </Badge>
           <Button
             variant="outline"
@@ -368,6 +391,7 @@ export default function AdminStoresPage() {
   const [selectedStoreId, setSelectedStoreId] = useState<string | null>(null);
   const [subDialogOpen, setSubDialogOpen] = useState(false);
   const [subDialogStore, setSubDialogStore] = useState<Store | null>(null);
+  const [formDialogOpen, setFormDialogOpen] = useState(false);
 
   // Debounced search
   const debouncedSearch = useMemo(() => {
@@ -394,6 +418,8 @@ export default function AdminStoresPage() {
   const currentPage = data?.page ?? 1;
 
   const { mutate: toggleStatus } = useToggleStoreStatus();
+  const { data: planData } = useSubscriptionPlans();
+  const plans = planData ?? [];
 
   // ── Handlers ──
   const handleStatusFilter = (value: string) => {
@@ -455,6 +481,14 @@ export default function AdminStoresPage() {
         </div>
         <div className="flex items-center gap-2">
           <Button
+            onClick={() => setFormDialogOpen(true)}
+            className="bg-gradient-to-r from-violet-600 to-purple-600 font-semibold text-white shadow-lg shadow-violet-500/25 transition-all hover:from-violet-500 hover:to-purple-500 hover:shadow-violet-500/40"
+            id="add-store-btn"
+          >
+            <Plus className="mr-1 h-4 w-4" />
+            Thêm cửa hàng
+          </Button>
+          <Button
             variant="outline"
             size="icon"
             onClick={() => refetch()}
@@ -515,8 +549,11 @@ export default function AdminStoresPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Tất cả gói</SelectItem>
-            <SelectItem value="basic">Basic</SelectItem>
-            <SelectItem value="professional">Professional</SelectItem>
+            {plans.map((plan) => (
+              <SelectItem key={plan.id} value={plan.slug}>
+                {plan.name}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </motion.div>
@@ -528,6 +565,7 @@ export default function AdminStoresPage() {
             storeId={selectedStoreId}
             onClose={() => setSelectedStoreId(null)}
             onChangePlan={handleChangePlan}
+            plans={plans}
           />
         )}
       </AnimatePresence>
@@ -566,6 +604,14 @@ export default function AdminStoresPage() {
             <p className="mt-1 text-sm text-muted-foreground text-center max-w-sm">
               Chưa có cửa hàng nào đăng ký trên nền tảng.
             </p>
+            <Button
+              onClick={() => setFormDialogOpen(true)}
+              className="mt-4 bg-gradient-to-r from-violet-600 to-purple-600 font-semibold text-white shadow-lg shadow-violet-500/25 transition-all hover:from-violet-500 hover:to-purple-500"
+              id="empty-add-store-btn"
+            >
+              <Plus className="mr-1 h-4 w-4" />
+              Thêm cửa hàng đầu tiên
+            </Button>
           </div>
         ) : (
           <>
@@ -598,8 +644,8 @@ export default function AdminStoresPage() {
                 </TableHeader>
                 <TableBody>
                   {stores.map((store, index) => {
-                    const PlanIcon =
-                      store.subscriptionPlan === "professional" ? Crown : Zap;
+                    const planInfo = getPlanInfo(plans, store.subscriptionPlan);
+                    const PlanIcon = planInfo.icon;
 
                     return (
                       <motion.tr
@@ -663,9 +709,7 @@ export default function AdminStoresPage() {
                             }
                           >
                             <PlanIcon className="mr-1 h-3 w-3" />
-                            {store.subscriptionPlan === "professional"
-                              ? "Professional"
-                              : "Basic"}
+                            {planInfo.name}
                           </Badge>
                         </TableCell>
 
@@ -799,6 +843,13 @@ export default function AdminStoresPage() {
         open={subDialogOpen}
         onOpenChange={setSubDialogOpen}
         store={subDialogStore}
+        onSuccess={() => refetch()}
+      />
+
+      {/* ── Add Store Dialog ── */}
+      <StoreFormDialog
+        open={formDialogOpen}
+        onOpenChange={setFormDialogOpen}
         onSuccess={() => refetch()}
       />
     </motion.div>
