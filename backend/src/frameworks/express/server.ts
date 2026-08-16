@@ -22,6 +22,7 @@ import reportRoutes from './routes/reportRoutes.js';
 // import aiOrderRoutes from './routes/aiOrderRoutes.js';
 import accountingRoutes from './routes/accountingRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
+import announcementRoutes from './routes/announcementRoutes.js';
 
 export function createServer(): Express {
   const app = express();
@@ -50,6 +51,7 @@ export function createServer(): Express {
   // apiRouter.use('/ai-orders', aiOrderRoutes);
   apiRouter.use('/accounting', accountingRoutes);
   apiRouter.use('/admin', adminRoutes);
+  apiRouter.use('/announcements', announcementRoutes);
 
   app.use('/api/v1', apiRouter);
 

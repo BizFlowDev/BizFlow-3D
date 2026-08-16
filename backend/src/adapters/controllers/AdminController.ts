@@ -12,6 +12,7 @@ import { ISubscriptionPlanRepository } from '../../core/repositories/ISubscripti
 import { ISubscriptionHistoryRepository } from '../../core/repositories/ISubscriptionHistoryRepository.js';
 import { ApiResponse } from '../presenters/ApiResponse.js';
 import { ValidationError } from '../../core/errors/ValidationError.js';
+import { emitToAll, emitToAllExcept } from '../../frameworks/websocket/socketServer.js';
 
 /**
  * Admin controller.
@@ -192,6 +193,20 @@ export class AdminController {
         content,
         createdBy: req.user?.userId ?? null,
       });
+
+      // Broadcast realtime tới tất cả client đang kết nối (owners/stores),
+      // ngoại trừ chính admin đã phát hành thông báo.
+      const adminUserId = req.user?.userId;
+      const payload = {
+        type: 'announcement',
+        title,
+        message: content,
+      };
+      if (adminUserId) {
+        emitToAllExcept(adminUserId, 'notification', payload);
+      } else {
+        emitToAll('notification', payload);
+      }
 
       const response = ApiResponse.created(result, 'Gửi thông báo thành công');
       res.status(response.statusCode).json(response.toJSON());

@@ -144,3 +144,11 @@ export function emitToAll(event: string, data: unknown): void {
   if (!io) return;
   io.emit(event, data);
 }
+
+/**
+ * Broadcast an event to all connected clients except sockets in the given user room.
+ */
+export function emitToAllExcept(userId: string, event: string, data: unknown): void {
+  if (!io) return;
+  io.except(`user:${userId}`).emit(event, data);
+}

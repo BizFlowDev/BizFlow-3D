@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Bell, Boxes, CheckCheck, LogOut, Search, User } from "lucide-react";
+import { Bell, Boxes, CheckCheck, LogOut, Search, User, X } from "lucide-react";
 import type { UserRole } from "@/config/navigation";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
@@ -26,7 +26,7 @@ import { ThemeSwitcher } from "@/components/theme-switcher";
 import { MobileSidebar } from "@/components/layout/mobile-sidebar";
 import { useAuth } from "@/hooks/useAuth";
 import { useAuthStore } from "@/stores/auth-store";
-import { useSocketStore } from "@/hooks/useSocket";
+import { useSocketStore, syncAnnouncements } from "@/hooks/useSocket";
 import { useUiPreferencesStore } from "@/lib/stores/uiPreferences";
 
 interface HeaderProps {
@@ -46,10 +46,21 @@ export function Header({ role }: HeaderProps) {
   const unreadCount = useSocketStore((s) => s.unreadCount);
   const markNotificationsRead = useSocketStore((s) => s.markNotificationsRead);
   const clearNotifications = useSocketStore((s) => s.clearNotifications);
+  const removeNotification = useSocketStore((s) => s.removeNotification);
+  const socketStatus = useSocketStore((s) => s.status);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Khi user sẵn sàng + socket kết nối → đồng bộ announcements từ server.
+  // Phạm vi lưu theo user được kích hoạt bên trong syncAnnouncements
+  // (reset + hydrate đúng key riêng của từng user, không ảnh hưởng user khác).
+  useEffect(() => {
+    if (user?.id && socketStatus === "connected") {
+      void syncAnnouncements();
+    }
+  }, [user?.id, socketStatus]);
 
   const roleLabel =
     role === "admin" ? "Quản trị viên" : role === "owner" ? "Chủ cửa hàng" : "Nhân viên";
@@ -142,14 +153,25 @@ export function Header({ role }: HeaderProps) {
               </div>
             ) : (
               <>
-                {notifications.slice(0, 8).map((n) => (
+{notifications.slice(0, 8).map((n) => (
                   <DropdownMenuItem
                     key={n.id}
-                    className="flex-col items-start gap-0.5 py-2"
+                    className="group relative flex-col items-start gap-0.5 py-2 pr-8"
                     onClick={markNotificationsRead}
                   >
+                    <button
+                      type="button"
+                      aria-label="Xóa thông báo"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeNotification(n.id);
+                      }}
+                      className="absolute right-2 top-2 rounded p-1 text-muted-foreground/50 opacity-0 transition-opacity hover:bg-muted hover:text-foreground group-hover:opacity-100"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
                     <span className="flex w-full items-center gap-2">
-                      <span
+                    <span
                         className={cn(
                           "h-2 w-2 shrink-0 rounded-full",
                           n.read ? "bg-muted-foreground/30" : "bg-primary",

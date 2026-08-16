@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useRef } from "react";
 import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
 import { io, type Socket } from "socket.io-client";
 import { useAuthStore } from "@/stores/auth-store";
+import apiClient, { type ApiResponseData } from "@/lib/api-client";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -79,6 +81,8 @@ interface SocketEventState {
   draftCount: number;
   notifications: NotificationItem[];
   unreadCount: number;
+  /** Các id thông báo user đã xóa — giữ nguyên qua các lần fetch/đăng nhập */
+  deletedIds: string[];
 }
 
 interface SocketEventActions {
@@ -88,37 +92,147 @@ interface SocketEventActions {
   pushNotification: (item: NotificationItem) => void;
   markNotificationsRead: () => void;
   clearNotifications: () => void;
+  removeNotification: (id: string) => void;
+  resetNotifications: () => void;
+  mergeAnnouncements: (items: NotificationItem[]) => void;
+}
+
+// ── Persist notifications riêng theo từng user ────────────────────────────────
+// Thông báo được giữ lại qua các lần đăng nhập (logout/login, refresh) cho tới
+// khi người dùng chủ động xóa. Mỗi user có key localStorage riêng
+// (bizflow.notifications.{userId}) nên các owner đọc/xóa KHÔNG ảnh hưởng nhau.
+
+const DEFAULT_KEY = "bizflow.notifications.guest";
+let activeNotificationKey: string | null = null;
+
+/**
+ * Kích hoạt phạm vi lưu thông báo đúng user hiện tại:
+ * reset dữ liệu RAM cũ → đổi key persist → hydrate lại dữ liệu của user mới.
+ */
+function activateNotificationScope(uid: string): void {
+  const key = `bizflow.notifications.${uid}`;
+  if (activeNotificationKey === key) return;
+  activeNotificationKey = key;
+  useSocketStore.getState().resetNotifications();
+  useSocketStore.persist.setOptions({ name: key });
+  useSocketStore.persist.rehydrate();
 }
 
 /** Store dùng chung: cập nhật badge & notification bell khi nhận sự kiện realtime */
-export const useSocketStore = create<SocketEventState & SocketEventActions>(
-  (set) => ({
-    status: "disconnected",
-    draftCount: 0,
-    notifications: [],
-    unreadCount: 0,
+export const useSocketStore = create<SocketEventState & SocketEventActions>()(
+  persist(
+    (set) => ({
+      status: "disconnected",
+      draftCount: 0,
+      notifications: [],
+      unreadCount: 0,
+      deletedIds: [],
 
-    setStatus: (status) => set({ status }),
-    incrementDraftCount: () =>
-      set((s) => ({ draftCount: s.draftCount + 1 })),
-    resetDraftCount: () => set({ draftCount: 0 }),
-    pushNotification: (item) =>
-      set((s) => ({
-        notifications: [item, ...s.notifications].slice(0, 50),
-        unreadCount: s.unreadCount + 1,
-      })),
-    markNotificationsRead: () =>
-      set((s) => ({
-        notifications: s.notifications.map((n) =>
-          n.read ? n : { ...n, read: true },
-        ),
-        unreadCount: 0,
-      })),
-    clearNotifications: () => set({ notifications: [], unreadCount: 0 }),
-  }),
+      setStatus: (status) => set({ status }),
+      incrementDraftCount: () =>
+        set((s) => ({ draftCount: s.draftCount + 1 })),
+      resetDraftCount: () => set({ draftCount: 0 }),
+      pushNotification: (item) =>
+        set((s) => ({
+          notifications: [item, ...s.notifications].slice(0, 50),
+          unreadCount: s.unreadCount + 1,
+        })),
+      markNotificationsRead: () =>
+        set((s) => ({
+          notifications: s.notifications.map((n) =>
+            n.read ? n : { ...n, read: true },
+          ),
+          unreadCount: 0,
+        })),
+      clearNotifications: () =>
+        set((s) => ({
+          notifications: [],
+          unreadCount: 0,
+          // Nhớ id đã xóa để lần fetch sau không hiện lại
+          deletedIds: [
+            ...s.deletedIds,
+            ...s.notifications.map((n) => n.id),
+          ].slice(-200),
+        })),
+      removeNotification: (id) =>
+        set((s) => ({
+          notifications: s.notifications.filter((n) => n.id !== id),
+          deletedIds: [...s.deletedIds, id].slice(-200),
+        })),
+      resetNotifications: () =>
+        set({ notifications: [], unreadCount: 0, deletedIds: [] }),
+      mergeAnnouncements: (items) =>
+        set((s) => {
+          const existingIds = new Set(s.notifications.map((n) => n.id));
+          const deleted = new Set(s.deletedIds);
+          const fresh = items.filter(
+            (i) => !existingIds.has(i.id) && !deleted.has(i.id),
+          );
+          if (fresh.length === 0) return s;
+          return {
+            notifications: [...fresh, ...s.notifications].slice(0, 50),
+            unreadCount: s.unreadCount + fresh.length,
+          };
+        }),
+    }),
+    {
+      name: DEFAULT_KEY,
+      storage: createJSONStorage(() => localStorage),
+      partialize: (s) => ({
+        notifications: s.notifications,
+        unreadCount: s.unreadCount,
+        deletedIds: s.deletedIds,
+      }),
+    },
+  ),
 );
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+/** Thông báo broadcast từ backend (bảng announcements) */
+interface AnnouncementRow {
+  id: string;
+  title: string;
+  content: string;
+  createdBy: string | null;
+  createdAt: string;
+}
+
+/**
+ * Đồng bộ thông báo admin (announcements) từ server sau khi đăng nhập.
+ * Đảm bảo owner không online lúc phát thông báo vẫn thấy khi đăng nhập lại,
+ * và thông báo tồn tại cho tới khi user chủ động xóa.
+ */
+export async function syncAnnouncements(): Promise<void> {
+  const user = useAuthStore.getState().user;
+  if (!user) return;
+
+  // Đảm bảo đang đọc/ghi đúng phạm vi lưu của user hiện tại
+  activateNotificationScope(user.id);
+
+  try {
+    const res = await apiClient.get<ApiResponseData<AnnouncementRow[]>>(
+      "/announcements",
+    );
+    const rows = res.data?.data ?? [];
+
+    const items: NotificationItem[] = rows
+      // Admin không nhận thông báo do chính mình phát hành
+      .filter((r) => r.createdBy !== user.id)
+      .map((r) => ({
+        id: r.id,
+        type: "announcement",
+        title: r.title,
+        message: r.content,
+        createdAt: r.createdAt,
+        read: false,
+      }));
+
+    useSocketStore.getState().mergeAnnouncements(items);
+  } catch {
+    // Lỗi mạng/token — bỏ qua, lần kết nối sau sẽ thử lại
+  }
+}
 
 export function formatVND(amount: number): string {
   return new Intl.NumberFormat("vi-VN", {
@@ -175,6 +289,9 @@ function createSocket(url: string): Socket {
     const user = useAuthStore.getState().user;
     if (user?.storeId) socket.emit("subscribe:store", user.storeId);
     socket.emit("subscribe:user");
+
+    // Đồng bộ announcements đã phát hành từ server (bù cho user online sau)
+    void syncAnnouncements();
   });
 
   socket.on("disconnect", () => {
