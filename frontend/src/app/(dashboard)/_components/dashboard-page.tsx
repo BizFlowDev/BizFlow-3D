@@ -28,6 +28,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
   TableBody,
@@ -88,21 +89,48 @@ function formatDateTime(dateStr: string): string {
 }
 
 function formatShortDate(dateStr: string): string {
-  const [y, m, d] = dateStr.split("-");
-  return `${d}/${m}`;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    const [y, m, d] = dateStr.split("-");
+    return `${d}/${m}`;
+  }
+  return dateStr;
 }
 
 function formatFullDate(label: React.ReactNode): string {
   const dateStr = String(label ?? "");
-  return new Intl.DateTimeFormat("vi-VN", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  }).format(new Date(`${dateStr}T00:00:00`));
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    return new Intl.DateTimeFormat("vi-VN", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    }).format(new Date(`${dateStr}T00:00:00`));
+  }
+  return dateStr;
 }
 
 function shortName(name: string, max = 18): string {
   return name.length > max ? `${name.slice(0, max)}…` : name;
+}
+
+function weekKey(date: string): string {
+  const d = new Date(`${date}T00:00:00`);
+  const day = (d.getDay() + 6) % 7;
+  const iso = new Date(d);
+  iso.setDate(d.getDate() - day + 3);
+  const yearThursday = new Date(iso.getFullYear(), 0, 4);
+  const week =
+    1 +
+    Math.round(
+      ((iso.getTime() - yearThursday.getTime()) / 864e5 -
+        3 +
+        ((yearThursday.getDay() + 6) % 7)) /
+        7,
+    );
+  return `${d.getFullYear()}-${week}`;
+}
+
+function monthKey(date: string): string {
+  return date.slice(0, 7);
 }
 
 // ── Animation variants ────────────────────────────────────────────────────────
@@ -183,6 +211,35 @@ export default function DashboardPage() {
   const ordersToday = todayPoint?.orderCount ?? 0;
   const yesterdayRevenue = yesterdayPoint?.totalRevenue ?? 0;
   const yesterdayOrders = yesterdayPoint?.orderCount ?? 0;
+
+  // ── Revenue filter (2D mode) ──
+  type RevenueTab = "day" | "week" | "month";
+  const [revenueTab, setRevenueTab] = useState<RevenueTab>("day");
+
+  const aggregateRevenue = (
+    data: typeof points,
+    tab: RevenueTab,
+  ): { date: string; totalRevenue: number; orderCount: number }[] => {
+    if (tab === "day") return data;
+    const groups = new Map<string, { date: string; totalRevenue: number; orderCount: number }>();
+    for (const p of data) {
+      const key = tab === "week" ? weekKey(p.date) : monthKey(p.date);
+      const label =
+        tab === "week"
+          ? `Tuần ${p.date.slice(8, 10)}/${p.date.slice(5, 7)}`
+          : `Thg ${Number(p.date.slice(5, 7))}`;
+      const existing = groups.get(key);
+      if (existing) {
+        existing.totalRevenue += p.totalRevenue;
+        existing.orderCount += p.orderCount;
+      } else {
+        groups.set(key, { date: label, totalRevenue: p.totalRevenue, orderCount: p.orderCount });
+      }
+    }
+    return [...groups.values()];
+  };
+
+  const filteredPoints = aggregateRevenue(points, revenueTab);
 
   const revenueChange =
     yesterdayRevenue > 0
@@ -306,13 +363,24 @@ export default function DashboardPage() {
             isEmpty={!revenue.isLoading && points.length === 0}
             render3D={is3D ? <RevenueChart3D data={points} /> : undefined}
             action={
-              <Badge variant="secondary" className="gap-1 bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
-                <TrendingUp className="h-3 w-3" />
-                {formatCurrency(revenueToday)}
-              </Badge>
+              <div className="flex items-center gap-3">
+                {!is3D && (
+                  <Tabs value={revenueTab} onValueChange={(v) => setRevenueTab(v as RevenueTab)}>
+                    <TabsList className="h-8">
+                      <TabsTrigger value="day" className="px-3 text-xs">Ngày</TabsTrigger>
+                      <TabsTrigger value="week" className="px-3 text-xs">Tuần</TabsTrigger>
+                      <TabsTrigger value="month" className="px-3 text-xs">Tháng</TabsTrigger>
+                    </TabsList>
+                  </Tabs>
+                )}
+                <Badge variant="secondary" className="gap-1 bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
+                  <TrendingUp className="h-3 w-3" />
+                  {formatCurrency(revenueToday)}
+                </Badge>
+              </div>
             }
           >
-            <LineChart data={points} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+            <LineChart data={filteredPoints} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
               <defs>
                 <linearGradient id="revStroke" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="#2563eb" stopOpacity={1} />

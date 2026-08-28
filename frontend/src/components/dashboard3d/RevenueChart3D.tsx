@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Box, Html } from "@react-three/drei";
+import { Box, Html, OrbitControls } from "@react-three/drei";
 import { useThree } from "@react-three/fiber";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { DailyRevenuePoint } from "@/lib/dashboard-keys";
@@ -125,6 +125,21 @@ export default function RevenueChart3D({ data, height }: RevenueChart3DProps) {
           camera={{ position: [0, 1.9, 6.2], fov: 42 }}
           style={{ position: "absolute", inset: 0 }}
         >
+          <OrbitControls
+            enablePan={false}
+            enableZoom={true}
+            enableRotate={true}
+            minDistance={3}
+            maxDistance={10}
+            minPolarAngle={Math.PI / 6}
+            maxPolarAngle={Math.PI / 2.2}
+            minAzimuthAngle={-Math.PI / 3}
+            maxAzimuthAngle={Math.PI / 3}
+            zoomSpeed={0.8}
+            rotateSpeed={0.6}
+            dampingFactor={0.1}
+            enableDamping={true}
+          />
           <RevenueBars
             buckets={buckets}
             max={max}
