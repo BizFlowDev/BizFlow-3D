@@ -1,26 +1,19 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
-import { Html } from "@react-three/drei";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Html, OrbitControls } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import type { TopProductRow } from "@/lib/dashboard-keys";
 import { SceneCanvas, useDemandLoop } from "./SceneCanvas";
 
-const SLICE_COLORS = ["#6366f1", "#8b5cf6", "#06b6d4", "#f59e0b", "#10b981"];
-const DONUT_INNER_RADIUS = 0.9;
-const DONUT_OUTER_RADIUS = 1.75;
-const MIN_DEPTH = 0.35;
-const MAX_DEPTH = 2.6;
-
-interface DonutSlice {
-  product: TopProductRow;
-  startAngle: number;
-  endAngle: number;
-  share: number;
-  depth: number;
-  color: string;
-}
+const BAR_COLORS = ["#6366f1", "#8b5cf6", "#06b6d4", "#f59e0b", "#10b981"];
+const BAR_GLOW = ["#818cf8", "#a78bfa", "#22d3ee", "#fbbf24", "#34d399"];
+const BAR_WIDTH = 0.7;
+const BAR_DEPTH = 0.7;
+const BAR_GAP = 0.25;
+const MAX_BAR_HEIGHT = 3.0;
+const BASE_HEIGHT = 0.12;
 
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat("vi-VN", {
@@ -30,123 +23,154 @@ function formatCurrency(amount: number): string {
   }).format(amount);
 }
 
-function shortName(name: string, max = 20): string {
+function shortName(name: string, max = 18): string {
   return name.length > max ? `${name.slice(0, max)}…` : name;
 }
 
-/** Cắt lát donut 3D (Shape + ExtrudeGeometry) cho 1 sản phẩm */
-function buildSliceGeometry(slice: DonutSlice): THREE.BufferGeometry {
-  const shape = new THREE.Shape();
-  const segments = 28;
-  shape.absarc(0, 0, DONUT_OUTER_RADIUS, slice.startAngle, slice.endAngle, false);
-  shape.absarc(0, 0, DONUT_INNER_RADIUS, slice.endAngle, slice.startAngle, true);
-  shape.closePath();
-
-  const geometry = new THREE.ExtrudeGeometry(shape, {
-    depth: slice.depth,
-    bevelEnabled: true,
-    bevelThickness: 0.04,
-    bevelSize: 0.04,
-    bevelSegments: 2,
-    curveSegments: segments,
-  });
-  geometry.center();
-  return geometry;
+interface BarData {
+  product: TopProductRow;
+  normalizedHeight: number;
+  color: string;
+  glowColor: string;
+  rank: number;
 }
 
 interface TopProducts3DProps {
   data: TopProductRow[];
 }
 
-/**
- * Top Products 3D — donut chart dạng đĩa xoay.
- * Mỗi lát = 1 sản phẩm trong top 5, độ dày lát tỉ lệ tỷ trọng doanh số.
- * Click lát → tooltip 2D (Html) hiện tên sản phẩm + %.
- * Dữ liệu dạng text (tên, %, doanh thu) luôn hiển thị ở legend dưới canvas.
- */
 export default function TopProducts3D({ data }: TopProducts3DProps) {
   const items = data ?? [];
-  const totalRevenue = useMemo(
-    () => items.reduce((sum, p) => sum + Math.max(p.totalRevenue, 0), 0) || 1,
+
+  const sortedItems = useMemo(
+    () => [...items].sort((a, b) => b.totalRevenue - a.totalRevenue),
     [items],
   );
 
-  const slices = useMemo<DonutSlice[]>(() => {
-    let angle = 0;
-    return items.map((product, index) => {
-      const share = Math.max(product.totalRevenue, 0) / totalRevenue;
-      const startAngle = angle;
-      const endAngle = angle + share * Math.PI * 2;
-      angle = endAngle;
-      return {
-        product,
-        startAngle,
-        endAngle,
-        share,
-        depth: MIN_DEPTH + share * (MAX_DEPTH - MIN_DEPTH),
-        color: SLICE_COLORS[index % SLICE_COLORS.length],
-      };
-    });
-  }, [items, totalRevenue]);
+  const maxRevenue = useMemo(
+    () => Math.max(...sortedItems.map((p) => Math.max(p.totalRevenue, 0)), 1),
+    [sortedItems],
+  );
+
+  const bars = useMemo<BarData[]>(() => {
+    return sortedItems.map((product, index) => ({
+      product,
+      normalizedHeight: Math.max(product.totalRevenue, 0) / maxRevenue,
+      color: BAR_COLORS[index % BAR_COLORS.length],
+      glowColor: BAR_GLOW[index % BAR_GLOW.length],
+      rank: index + 1,
+    }));
+  }, [sortedItems, maxRevenue]);
 
   const [hovered, setHovered] = useState<number | null>(null);
   const [selected, setSelected] = useState<number | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const handleClearSelection = useCallback(() => {
+    setSelected(null);
+  }, []);
+
+  useEffect(() => {
+    if (selected === null) return;
+
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setSelected(null);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [selected]);
+
+  const activeIndex = selected ?? hovered;
+  const activeBar = activeIndex !== null ? bars[activeIndex] : null;
+
+  const totalWidth = bars.length * (BAR_WIDTH + BAR_GAP) - BAR_GAP;
+  const offsetX = -totalWidth / 2;
 
   return (
-    <div className="relative h-full w-full">
+    <div ref={containerRef} className="relative h-full w-full">
       <SceneCanvas
-        camera={{ position: [0, 2.1, 6.2], fov: 42 }}
+        camera={{ position: [0, 2.8, 6.5], fov: 38 }}
         style={{ position: "absolute", inset: 0 }}
       >
-        <RotatingDonut
-          slices={slices}
+        <OrbitControls
+          enablePan={false}
+          enableZoom={true}
+          enableRotate={true}
+          minDistance={3}
+          maxDistance={12}
+          minPolarAngle={Math.PI / 6}
+          maxPolarAngle={Math.PI / 2.2}
+          minAzimuthAngle={-Math.PI / 3}
+          maxAzimuthAngle={Math.PI / 3}
+          zoomSpeed={0.8}
+          rotateSpeed={0.6}
+          dampingFactor={0.1}
+          enableDamping={true}
+        />
+        <BarScene
+          bars={bars}
+          offsetX={offsetX}
           hovered={hovered}
+          selected={selected}
           onHover={setHovered}
           onSelect={setSelected}
         />
       </SceneCanvas>
 
-      {/* Tooltip 2D khi click lát */}
-      {selected !== null && slices[selected] && (
-        <div className="absolute left-1/2 top-2 -translate-x-1/2 rounded-lg border border-border bg-background/95 px-3 py-2 text-xs shadow-xl shadow-black/10 backdrop-blur-md">
-          <div className="flex items-center gap-2">
-            <span
-              className="h-2.5 w-2.5 shrink-0 rounded-full"
-              style={{ backgroundColor: slices[selected].color }}
-            />
-            <span className="max-w-[180px] truncate font-semibold">
-              {shortName(slices[selected].product.name)}
-            </span>
-            <span className="font-semibold tabular-nums text-muted-foreground">
-              {(slices[selected].share * 100).toFixed(1)}%
-            </span>
-          </div>
-          <div className="mt-1 pl-[18px] tabular-nums text-muted-foreground">
-            {formatCurrency(slices[selected].product.totalRevenue)}
+      {/* Center info */}
+      {activeBar && (
+        <div className="pointer-events-none absolute left-1/2 top-3 z-50 -translate-x-1/2">
+          <div className="animate-in fade-in slide-in-from-top-1 rounded-xl border border-border/50 bg-background/85 px-4 py-2.5 shadow-lg backdrop-blur-md">
+            <div className="flex items-center gap-2">
+              <span
+                className="flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold text-white shadow"
+                style={{ backgroundColor: activeBar.color }}
+              >
+                {activeBar.rank}
+              </span>
+              <span className="max-w-[140px] truncate text-sm font-bold">
+                {shortName(activeBar.product.name, 18)}
+              </span>
+            </div>
+            <div className="mt-1.5 grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs">
+              <span className="text-muted-foreground">Doanh thu:</span>
+              <span className="text-right font-bold tabular-nums text-primary">
+                {formatCurrency(activeBar.product.totalRevenue)}
+              </span>
+              <span className="text-muted-foreground">Đã bán:</span>
+              <span className="text-right font-bold tabular-nums">
+                {activeBar.product.totalQuantitySold.toLocaleString("vi-VN")}
+              </span>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Legend — dữ liệu text luôn hiển thị (nguyên tắc #1) */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-2 flex flex-wrap items-center justify-center gap-1.5 px-2">
-        {slices.map((slice, index) => (
+      {/* Legend */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-2 z-50 flex flex-wrap items-center justify-center gap-1.5 px-2">
+        {bars.map((bar, index) => (
           <button
-            key={slice.product.productId}
+            key={bar.product.productId}
             type="button"
-            onClick={() => setSelected(index)}
-            className={`pointer-events-auto inline-flex max-w-[46%] items-center gap-1 rounded-full bg-background/90 px-2 py-0.5 text-[10px] backdrop-blur transition-colors hover:bg-accent ${
+            onClick={() => setSelected(selected === index ? null : index)}
+            className={`pointer-events-auto inline-flex max-w-[48%] items-center gap-1 rounded-full px-2 py-0.5 text-[10px] backdrop-blur transition-all ${
               selected === index
-                ? "ring-2 ring-ring"
-                : "text-muted-foreground"
+                ? "bg-background shadow-md ring-2 ring-ring scale-105"
+                : hovered === index
+                  ? "bg-background/95 shadow-sm ring-1 ring-ring/50"
+                  : "bg-background/80 text-muted-foreground hover:bg-accent"
             }`}
           >
             <span
               className="h-2 w-2 shrink-0 rounded-full"
-              style={{ backgroundColor: slice.color }}
+              style={{ backgroundColor: bar.color }}
             />
-            <span className="truncate">{shortName(slice.product.name, 16)}</span>
-            <span className="shrink-0 font-semibold tabular-nums">
-              {(slice.share * 100).toFixed(0)}%
+            <span className="truncate">{shortName(bar.product.name, 14)}</span>
+            <span className="shrink-0 font-bold tabular-nums">
+              {formatCurrency(bar.product.totalRevenue)}
             </span>
           </button>
         ))}
@@ -155,79 +179,221 @@ export default function TopProducts3D({ data }: TopProducts3DProps) {
   );
 }
 
-/** Đĩa donut tự xoay (gọi invalidate mỗi frame vì frameloop="demand") */
-function RotatingDonut({
-  slices,
+function BarScene({
+  bars,
+  offsetX,
   hovered,
+  selected,
   onHover,
   onSelect,
 }: {
-  slices: DonutSlice[];
+  bars: BarData[];
+  offsetX: number;
   hovered: number | null;
+  selected: number | null;
   onHover: (index: number | null) => void;
-  onSelect: (index: number) => void;
+  onSelect: (index: number | null) => void;
 }) {
-  const spin = useRef<THREE.Group>(null);
   useDemandLoop();
 
+  return (
+    <>
+      {/* Ambient light boost */}
+      <ambientLight intensity={0.8} />
+
+      {/* Platform */}
+      <mesh position={[0, -0.06, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[bars.length * (BAR_WIDTH + BAR_GAP) + 1.2, 2.5]} />
+        <meshStandardMaterial color="#1e293b" transparent opacity={0.35} />
+      </mesh>
+
+      {/* Grid lines on platform */}
+      {bars.map((_, index) => {
+        const x = offsetX + index * (BAR_WIDTH + BAR_GAP);
+        return (
+          <mesh
+            key={index}
+            position={[x + BAR_WIDTH / 2, -0.05, 0]}
+            rotation={[-Math.PI / 2, 0, 0]}
+          >
+            <planeGeometry args={[0.02, 2.0]} />
+            <meshStandardMaterial color="#334155" transparent opacity={0.25} />
+          </mesh>
+        );
+      })}
+
+      {bars.map((bar, index) => {
+        const x = offsetX + index * (BAR_WIDTH + BAR_GAP) + BAR_WIDTH / 2;
+        const targetHeight =
+          BASE_HEIGHT + bar.normalizedHeight * MAX_BAR_HEIGHT;
+        const isHovered = hovered === index;
+        const isSelected = selected === index;
+        const isActive = isHovered || isSelected;
+
+        return (
+          <Bar3D
+            key={bar.product.productId}
+            bar={bar}
+            position={[x, 0, 0]}
+            targetHeight={targetHeight}
+            isActive={isActive}
+            isHovered={isHovered}
+            isSelected={isSelected}
+            onHover={onHover}
+            onSelect={onSelect}
+            index={index}
+          />
+        );
+      })}
+    </>
+  );
+}
+
+function Bar3D({
+  bar,
+  position,
+  targetHeight,
+  isActive,
+  isHovered,
+  isSelected,
+  onHover,
+  onSelect,
+  index,
+}: {
+  bar: BarData;
+  position: [number, number, number];
+  targetHeight: number;
+  isActive: boolean;
+  isHovered: boolean;
+  isSelected: boolean;
+  onHover: (index: number | null) => void;
+  onSelect: (index: number | null) => void;
+  index: number;
+}) {
+  const meshRef = useRef<THREE.Mesh>(null);
+  const glowRef = useRef<THREE.Mesh>(null);
+  const currentHeight = useRef(BASE_HEIGHT);
+
   useFrame((_, delta) => {
-    if (spin.current) {
-      spin.current.rotation.y += delta * 0.3;
+    if (!meshRef.current) return;
+    const target = isActive ? targetHeight * 1.03 : targetHeight;
+    currentHeight.current += (target - currentHeight.current) * 0.08;
+    const h = currentHeight.current;
+    meshRef.current.scale.y = h / BASE_HEIGHT;
+    meshRef.current.position.y = h / 2;
+
+    if (glowRef.current) {
+      const glowTarget = isActive ? 0.4 : 0;
+      const currentGlow = (glowRef.current.material as THREE.MeshStandardMaterial).opacity;
+      (glowRef.current.material as THREE.MeshStandardMaterial).opacity +=
+        (glowTarget - currentGlow) * 0.1;
+      glowRef.current.position.y = h / 2;
+      glowRef.current.scale.y = h / BASE_HEIGHT;
     }
   });
 
+  const labelY = targetHeight + 0.35;
+
   return (
-    <group ref={spin}>
-      {/* Lật mặt phẳng XY xuống ngang để nhìn như một "đĩa" */}
-      <group rotation={[-Math.PI / 2, 0, 0]}>
-        {slices.map((slice, index) => {
-          const angleMid = (slice.startAngle + slice.endAngle) / 2;
-          const radiusMid = (DONUT_INNER_RADIUS + DONUT_OUTER_RADIUS) / 2;
-          const tooltipPosition: [number, number, number] = [
-            Math.cos(angleMid) * radiusMid,
-            Math.sin(angleMid) * radiusMid,
-            slice.depth + 0.3,
-          ];
-          const isHovered = hovered === index;
+    <group position={position}>
+      {/* Glow effect behind bar */}
+      <mesh ref={glowRef} position={[0, targetHeight / 2, -BAR_DEPTH / 2 - 0.05]}>
+        <boxGeometry args={[BAR_WIDTH + 0.15, BASE_HEIGHT, 0.08]} />
+        <meshStandardMaterial
+          color={bar.glowColor}
+          transparent
+          opacity={0}
+          emissive={bar.glowColor}
+          emissiveIntensity={0.8}
+        />
+      </mesh>
 
-          return (
-            <group key={slice.product.productId}>
-              <mesh
-                geometry={buildSliceGeometry(slice)}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onSelect(index);
-                }}
-                onPointerOver={(e) => {
-                  e.stopPropagation();
-                  onHover(index);
-                }}
-                onPointerOut={() => onHover(null)}
-              >
-                <meshStandardMaterial
-                  color={slice.color}
-                  emissive={slice.color}
-                  emissiveIntensity={isHovered ? 0.45 : 0.07}
-                  roughness={0.45}
-                  metalness={0.05}
-                />
-              </mesh>
+      {/* Main bar */}
+      <mesh
+        ref={meshRef}
+        position={[0, BASE_HEIGHT / 2, 0]}
+        onClick={(e) => {
+          e.stopPropagation();
+          onSelect(isSelected ? null : index);
+        }}
+        onPointerOver={(e) => {
+          e.stopPropagation();
+          onHover(index);
+          document.body.style.cursor = "pointer";
+        }}
+        onPointerOut={() => {
+          onHover(null);
+          document.body.style.cursor = "auto";
+        }}
+      >
+        <boxGeometry args={[BAR_WIDTH, BASE_HEIGHT, BAR_DEPTH]} />
+        <meshStandardMaterial
+          color={isActive ? bar.glowColor : bar.color}
+          emissive={bar.color}
+          emissiveIntensity={isSelected ? 0.5 : isHovered ? 0.35 : 0.08}
+          roughness={isActive ? 0.3 : 0.5}
+          metalness={isActive ? 0.15 : 0.05}
+        />
+      </mesh>
 
-              {/* Nhãn % ngay tại lát (text luôn hiển thị) */}
-              <Html
-                position={tooltipPosition}
-                center
-                zIndexRange={[30, 0]}
-                style={{ pointerEvents: "none" }}
-              >
-                <div className="select-none whitespace-nowrap text-[10px] font-semibold text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.7)]">
-                  {(slice.share * 100).toFixed(0)}%
-                </div>
-              </Html>
-            </group>
-          );
-        })}
-      </group>
+      {/* Top cap */}
+      <mesh position={[0, targetHeight + 0.02, 0]}>
+        <boxGeometry args={[BAR_WIDTH + 0.06, 0.04, BAR_DEPTH + 0.06]} />
+        <meshStandardMaterial
+          color={bar.glowColor}
+          emissive={bar.color}
+          emissiveIntensity={0.3}
+          roughness={0.3}
+          metalness={0.1}
+        />
+      </mesh>
+
+      {/* Rank badge */}
+      <Html
+        position={[0, labelY + 0.15, 0]}
+        center
+        zIndexRange={[30, 0]}
+        style={{ pointerEvents: "none" }}
+      >
+        <span
+          className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold text-white shadow-lg transition-transform ${
+            isActive ? "scale-125" : ""
+          }`}
+          style={{ backgroundColor: bar.color }}
+        >
+          {bar.rank}
+        </span>
+      </Html>
+
+      {/* Value label */}
+      <Html
+        position={[0, labelY - 0.1, 0]}
+        center
+        zIndexRange={[30, 0]}
+        style={{ pointerEvents: "none" }}
+      >
+        <div className="whitespace-nowrap text-center">
+          <div
+            className={`text-[11px] font-bold tabular-nums drop-shadow-[0_1px_3px_rgba(0,0,0,0.7)] transition-all ${
+              isActive ? "text-white scale-110" : "text-white/90"
+            }`}
+          >
+            {(bar.normalizedHeight * 100).toFixed(0)}%
+          </div>
+        </div>
+      </Html>
+
+      {/* Product name below bar */}
+      <Html
+        position={[0, -0.3, 0]}
+        center
+        zIndexRange={[30, 0]}
+        style={{ pointerEvents: "none" }}
+      >
+        <div className="max-w-[80px] truncate text-center text-[9px] font-medium text-muted-foreground">
+          {shortName(bar.product.name, 12)}
+        </div>
+      </Html>
     </group>
   );
 }
