@@ -255,10 +255,12 @@ export default function DashboardPage() {
         ? 100
         : 0;
 
-  const topProductsData = (topProducts.data ?? []).map((p) => ({
-    ...p,
-    displayName: shortName(p.name),
-  }));
+  const topProductsData = [...(topProducts.data ?? [])]
+    .sort((a, b) => b.totalRevenue - a.totalRevenue)
+    .map((p) => ({
+      ...p,
+      displayName: shortName(p.name),
+    }));
 
   const draftCount = pendingDrafts.data ?? 0;
 
@@ -432,7 +434,7 @@ export default function DashboardPage() {
         <div>
           <ChartWrapper
             title="Sản phẩm bán chạy"
-            subtitle="Top 5 theo số lượng bán ra"
+            subtitle="Top 5 theo doanh thu"
             height={300}
             isLoading={topProducts.isLoading}
             isEmpty={!topProducts.isLoading && topProductsData.length === 0}
@@ -462,17 +464,17 @@ export default function DashboardPage() {
                 cursor={{ fill: "rgba(100, 116, 139, 0.08)" }}
                 content={
                   <ChartTooltip
-                    name="Đã bán:"
+                    name="Doanh thu:"
                     labelFormatter={(label) => shortName(label, 28)}
-                    valueFormatter={(value) => value.toLocaleString("vi-VN")}
-                    footer={(row) => ({
-                      label: "Doanh thu:",
-                      value: formatCurrency(Number(row.totalRevenue) || 0),
+                    valueFormatter={(value) => formatCurrency(Number(value) || 0)}
+                    footer={(row: Record<string, unknown>) => ({
+                      label: "Đã bán:",
+                      value: (row.totalQuantitySold as number).toLocaleString("vi-VN"),
                     })}
                   />
                 }
               />
-              <Bar dataKey="totalQuantitySold" fill="url(#barGrad)" radius={[0, 6, 6, 0]} barSize={18}>
+              <Bar dataKey="totalRevenue" fill="url(#barGrad)" radius={[0, 6, 6, 0]} barSize={18}>
                 {topProductsData.map((p) => (
                   <Cell key={p.productId} fill="url(#barGrad)" />
                 ))}
