@@ -25,6 +25,7 @@ export class OrderItem {
   readonly unitPrice: number;
   readonly totalPrice: number;
   readonly createdAt: Date;
+  productName?: string;
 
   private constructor(props: OrderItemProps) {
     this.id = props.id;

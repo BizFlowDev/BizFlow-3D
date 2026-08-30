@@ -42,6 +42,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { useToast, ToastViewport } from "@/components/ui/toast";
 import {
   Select,
   SelectContent,
@@ -57,6 +58,7 @@ import {
   useDeleteCustomer,
 } from "@/hooks/useCustomers";
 import { DebtPaymentDialog } from "../_components/DebtPaymentDialog";
+import OrderDetailDialog from "../../orders/_components/OrderDetailDialog";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -253,9 +255,12 @@ export default function CustomerDetailPage({
   const { data: debtHistory, isLoading: debtsLoading } =
     useCustomerDebtHistory(id);
   const deleteMutation = useDeleteCustomer();
+  const { toasts, showToast, dismiss } = useToast();
 
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
 
   // Payment tab inline state
   const [payAmount, setPayAmount] = useState("");
@@ -553,7 +558,11 @@ export default function CustomerDetailPage({
                         {purchases.map((order) => (
                           <TableRow
                             key={order.id}
-                            className="group transition-colors hover:bg-muted/40"
+                            className="group cursor-pointer transition-colors hover:bg-muted/40"
+                            onClick={() => {
+                              setSelectedOrderId(order.id);
+                              setDetailOpen(true);
+                            }}
                           >
                             <TableCell className="font-medium font-mono text-sm">
                               {order.orderCode}
@@ -907,6 +916,15 @@ export default function CustomerDetailPage({
         loading={deleteMutation.isPending}
         onConfirm={handleDelete}
       />
+
+      {/* ── Order Detail Dialog ── */}
+      <OrderDetailDialog
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        orderId={selectedOrderId ?? ""}
+        showToast={showToast}
+      />
+      <ToastViewport toasts={toasts} onDismiss={dismiss} />
     </motion.div>
   );
 }
