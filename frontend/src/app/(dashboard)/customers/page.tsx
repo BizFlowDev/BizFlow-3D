@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { motion } from "motion/react";
+import * as XLSX from "xlsx";
 import {
   Search,
   UserPlus,
@@ -183,6 +184,46 @@ export default function CustomersPage() {
     setParams((p) => ({ ...p, page: newPage }));
   };
 
+  const handleExport = useCallback(() => {
+    if (!customers.length) return;
+
+    const exportData = customers.map((c, i) => ({
+      "STT": i + 1,
+      "Mã khách hàng": c.id,
+      "Tên khách hàng": c.name,
+      "Điện thoại": c.phone || "",
+      "Email": c.email || "",
+      "Địa chỉ": c.address || "",
+      "Tổng đơn hàng": c.totalPurchases,
+      "Công nợ": c.debtBalance,
+      "Mua gần nhất": c.lastPurchaseDate
+        ? new Date(c.lastPurchaseDate).toLocaleDateString("vi-VN")
+        : "",
+      "Trạng thái": c.isActive ? "Hoạt động" : "Ngừng",
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Khách hàng");
+
+    // Set column widths
+    ws["!cols"] = [
+      { wch: 5 },
+      { wch: 38 },
+      { wch: 25 },
+      { wch: 15 },
+      { wch: 25 },
+      { wch: 35 },
+      { wch: 12 },
+      { wch: 15 },
+      { wch: 15 },
+      { wch: 12 },
+    ];
+
+    const dateStr = new Date().toISOString().slice(0, 10);
+    XLSX.writeFile(wb, `Danh-sach-khach-hang_${dateStr}.xlsx`);
+  }, [customers]);
+
   return (
     <motion.div
       variants={containerVariants}
@@ -266,7 +307,14 @@ export default function CustomersPage() {
               className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`}
             />
           </Button>
-          <Button variant="outline" size="icon" aria-label="Xuất Excel" id="export-btn">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={handleExport}
+            disabled={!customers.length}
+            aria-label="Xuất Excel"
+            id="export-btn"
+          >
             <Download className="h-4 w-4" />
           </Button>
         </div>
