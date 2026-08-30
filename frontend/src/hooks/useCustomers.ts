@@ -732,3 +732,28 @@ export function useRecordDebtPayment() {
     },
   });
 }
+
+/** Xóa khách hàng */
+export function useDeleteCustomer() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (customerId: string): Promise<void> => {
+      try {
+        await apiClient.delete(`/customers/${customerId}`);
+        return;
+      } catch {
+        // Fallback mock
+      }
+
+      await delay(500);
+      const index = MOCK_CUSTOMERS.findIndex((c) => c.id === customerId);
+      if (index !== -1) {
+        MOCK_CUSTOMERS.splice(index, 1);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["customers"] });
+    },
+  });
+}

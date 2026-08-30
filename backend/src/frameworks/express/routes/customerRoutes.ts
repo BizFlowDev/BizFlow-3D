@@ -14,5 +14,6 @@ router.get('/', customerController.list);
 router.put('/:id', validate(updateCustomerSchema), customerController.update);
 router.get('/:id', customerController.getById);
 router.get('/:id/debt', customerController.getDebtHistory);
+router.delete('/:id', customerController.delete);
 
 export default router;

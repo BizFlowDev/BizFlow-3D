@@ -106,6 +106,32 @@ export class CustomerController {
   };
 
   /**
+   * DELETE /api/customers/:id
+   */
+  delete = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const storeId = req.user?.storeId;
+      if (!storeId) throw new AuthenticationError('Store không xác định');
+
+      const customer = await this.customerRepo.findById(req.params.id as string);
+      if (!customer) {
+        throw new NotFoundError('Khách hàng');
+      }
+
+      if (customer.storeId !== storeId) {
+        throw new AuthenticationError('Không có quyền xóa khách hàng này');
+      }
+
+      await this.customerRepo.delete(req.params.id as string);
+
+      const response = ApiResponse.success(null, 'Xóa khách hàng thành công');
+      res.status(response.statusCode).json(response.toJSON());
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
    * GET /api/customers/:id/debt
    * Returns debt summary and payment history for a customer.
    */

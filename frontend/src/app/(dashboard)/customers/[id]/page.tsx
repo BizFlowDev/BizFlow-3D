@@ -2,6 +2,7 @@
 
 import { use, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { motion } from "motion/react";
 import {
   ArrowLeft,
@@ -22,6 +23,7 @@ import {
   Clock,
   UserCheck,
   CircleDot,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -52,8 +54,10 @@ import {
   useCustomerPurchaseHistory,
   useCustomerDebtHistory,
   useRecordDebtPayment,
+  useDeleteCustomer,
 } from "@/hooks/useCustomers";
 import { DebtPaymentDialog } from "../_components/DebtPaymentDialog";
+import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -242,13 +246,16 @@ export default function CustomerDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
+  const router = useRouter();
   const { data: customer, isLoading } = useCustomerDetail(id);
   const { data: purchases, isLoading: purchasesLoading } =
     useCustomerPurchaseHistory(id);
   const { data: debtHistory, isLoading: debtsLoading } =
     useCustomerDebtHistory(id);
+  const deleteMutation = useDeleteCustomer();
 
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   // Payment tab inline state
   const [payAmount, setPayAmount] = useState("");
@@ -273,6 +280,16 @@ export default function CustomerDetailPage({
       setTimeout(() => setPaySuccess(false), 3000);
     } catch {
       // handled
+    }
+  };
+
+  const handleDelete = async () => {
+    try {
+      await deleteMutation.mutateAsync(id);
+      setDeleteDialogOpen(false);
+      router.push("/customers");
+    } catch {
+      // handled by mutation
     }
   };
 
@@ -374,7 +391,7 @@ export default function CustomerDetailPage({
             </div>
           </div>
 
-          {/* Debt Badge */}
+          {/* Debt Badge & Actions */}
           <div className="flex items-center gap-3">
             {hasDebt ? (
               <motion.div
@@ -419,6 +436,15 @@ export default function CustomerDetailPage({
                 Thanh toán
               </Button>
             )}
+
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-10 w-10 text-red-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30"
+              onClick={() => setDeleteDialogOpen(true)}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
           </div>
         </div>
       </motion.div>
@@ -869,6 +895,17 @@ export default function CustomerDetailPage({
         open={paymentDialogOpen}
         onOpenChange={setPaymentDialogOpen}
         customer={customer}
+      />
+
+      {/* ── Delete Confirm Dialog ── */}
+      <ConfirmDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        title="Xóa khách hàng"
+        description={`Bạn có chắc chắn muốn xóa khách hàng "${customer.name}"? Hành động này không thể hoàn tác.`}
+        confirmText="Xóa"
+        loading={deleteMutation.isPending}
+        onConfirm={handleDelete}
       />
     </motion.div>
   );

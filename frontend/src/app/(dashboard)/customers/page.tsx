@@ -47,10 +47,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useCustomerList } from "@/hooks/useCustomers";
+import { useCustomerList, useDeleteCustomer } from "@/hooks/useCustomers";
 import type { Customer, CustomerListParams } from "@/hooks/useCustomers";
 import { CustomerFormDialog } from "./_components/CustomerFormDialog";
 import { DebtPaymentDialog } from "./_components/DebtPaymentDialog";
+import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -115,6 +116,9 @@ export default function CustomersPage() {
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [paymentCustomer, setPaymentCustomer] = useState<Customer | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteCustomer, setDeleteCustomer] = useState<Customer | null>(null);
+  const deleteMutation = useDeleteCustomer();
 
   // Debounced search
   const debouncedSearch = useMemo(() => {
@@ -157,6 +161,22 @@ export default function CustomersPage() {
   const handlePayment = (customer: Customer) => {
     setPaymentCustomer(customer);
     setPaymentDialogOpen(true);
+  };
+
+  const handleDelete = (customer: Customer) => {
+    setDeleteCustomer(customer);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteCustomer) return;
+    try {
+      await deleteMutation.mutateAsync(deleteCustomer.id);
+      setDeleteDialogOpen(false);
+      setDeleteCustomer(null);
+    } catch {
+      // handled by mutation
+    }
   };
 
   const handlePageChange = (newPage: number) => {
@@ -460,7 +480,10 @@ export default function CustomersPage() {
                                 Thanh toán nợ
                               </DropdownMenuItem>
                             )}
-                            <DropdownMenuItem className="text-destructive focus:text-destructive">
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive"
+                              onClick={() => handleDelete(customer)}
+                            >
                               <Trash2 className="mr-2 h-4 w-4" />
                               Xóa
                             </DropdownMenuItem>
@@ -518,6 +541,15 @@ export default function CustomersPage() {
         open={paymentDialogOpen}
         onOpenChange={setPaymentDialogOpen}
         customer={paymentCustomer}
+      />
+      <ConfirmDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        title="Xóa khách hàng"
+        description={`Bạn có chắc chắn muốn xóa khách hàng "${deleteCustomer?.name}"? Hành động này không thể hoàn tác.`}
+        confirmText="Xóa"
+        loading={deleteMutation.isPending}
+        onConfirm={confirmDelete}
       />
     </motion.div>
   );
