@@ -191,8 +191,18 @@ export class PostgresOrderRepository implements IOrderRepository {
 
   // ── Order Items ──
   async findItemsByOrderId(orderId: string): Promise<OrderItem[]> {
-    const res = await query('SELECT * FROM order_items WHERE order_id = $1', [orderId]);
-    return res.rows.map(row => OrderItem.fromPersistence(mapToCamelCase(row)));
+    const res = await query(
+      `SELECT oi.*, p.name AS product_name
+       FROM order_items oi
+       LEFT JOIN products p ON p.id = oi.product_id
+       WHERE oi.order_id = $1`,
+      [orderId]
+    );
+    return res.rows.map(row => {
+      const item = OrderItem.fromPersistence(mapToCamelCase(row));
+      item.productName = row.product_name ?? undefined;
+      return item;
+    });
   }
 
   async createItem(item: OrderItem): Promise<OrderItem> {

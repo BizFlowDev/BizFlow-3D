@@ -587,7 +587,10 @@ export function useCustomerPurchaseHistory(id: string) {
 
             // Build products string from items
             const products = order.items && order.items.length > 0
-              ? order.items.map(item => `SP (x${item.quantity})`).join(", ")
+              ? order.items.map(item => {
+                  const name = (item as any).productName || "Sản phẩm";
+                  return `${name} (x${item.quantity})`;
+                }).join(", ")
               : order.note || "Đơn hàng";
 
             // Determine payment method based on debtAmount
