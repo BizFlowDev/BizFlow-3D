@@ -42,6 +42,8 @@ import { ChartWrapper } from "@/components/shared/ChartWrapper";
 import { ChartTooltip } from "@/components/shared/ChartTooltip";
 import { dashboardKeys } from "@/lib/dashboard-keys";
 import { useUiPreferencesStore } from "@/lib/stores/uiPreferences";
+import { useToast, ToastViewport } from "@/components/ui/toast";
+import OrderDetailDialog from "../orders/_components/OrderDetailDialog";
 import TotalDebtWidget from "./TotalDebtWidget";
 import LowStockWidget from "./LowStockWidget";
 import {
@@ -202,6 +204,16 @@ export default function DashboardPage() {
   const lowStock = useLowStockItems();
   const totalDebt = useTotalDebt();
   const pendingDrafts = usePendingDrafts();
+
+  // ── Order detail dialog ──
+  const { toasts, showToast, dismiss } = useToast();
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+
+  const handleOpenDetail = (order: { id: string }) => {
+    setSelectedId(order.id);
+    setDetailOpen(true);
+  };
 
   // ── Derived stats ──
   const points = revenue.data ?? [];
@@ -541,15 +553,13 @@ export default function DashboardPage() {
                     initial={{ opacity: 0, x: -10 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: index * 0.04 }}
-                    className="group border-b transition-colors hover:bg-muted/40"
+                    onClick={() => handleOpenDetail(order)}
+                    className="group cursor-pointer border-b transition-colors hover:bg-muted/40"
                   >
                     <TableCell>
-                      <Link
-                        href={`/orders/${order.id}`}
-                        className="font-medium hover:text-blue-600 hover:underline transition-colors"
-                      >
+                      <span className="font-medium text-blue-600 hover:underline transition-colors">
                         {order.orderCode}
-                      </Link>
+                      </span>
                       <p className="text-xs text-muted-foreground">
                         {formatDateTime(order.createdAt)}
                       </p>
@@ -582,6 +592,16 @@ export default function DashboardPage() {
           </div>
         )}
       </motion.div>
+
+      {/* ── Order detail dialog ── */}
+      <OrderDetailDialog
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        orderId={selectedId}
+        showToast={showToast}
+      />
+
+      <ToastViewport toasts={toasts} onDismiss={dismiss} />
     </motion.div>
   );
 }
