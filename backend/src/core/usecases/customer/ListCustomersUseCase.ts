@@ -5,6 +5,7 @@ export interface ListCustomersInput {
   storeId: string;
   isActive?: boolean;
   search?: string;
+  filter?: 'all' | 'has_debt' | 'no_debt';
   page?: number;
   limit?: number;
 }
@@ -17,6 +18,7 @@ export class ListCustomersUseCase {
       storeId: input.storeId,
       isActive: input.isActive,
       search: input.search,
+      filter: input.filter,
       page: input.page ?? 1,
       limit: Math.min(input.limit ?? 20, 100),
     };

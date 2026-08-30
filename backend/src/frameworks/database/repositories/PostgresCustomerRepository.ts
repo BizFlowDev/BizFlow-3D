@@ -116,6 +116,11 @@ export class PostgresCustomerRepository implements ICustomerRepository {
       params.push(`%${filter.search}%`);
       idx++;
     }
+    if (filter.filter === 'has_debt') {
+      conditions.push(`debt_balance > 0`);
+    } else if (filter.filter === 'no_debt') {
+      conditions.push(`debt_balance = 0`);
+    }
 
     const whereClause = `WHERE ${conditions.join(' AND ')}`;
     

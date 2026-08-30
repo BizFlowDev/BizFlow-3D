@@ -4,6 +4,7 @@ export interface CustomerFilter {
   storeId: string;
   isActive?: boolean;
   search?: string;
+  filter?: 'all' | 'has_debt' | 'no_debt';
   page?: number;
   limit?: number;
 }

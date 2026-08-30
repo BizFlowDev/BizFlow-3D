@@ -77,6 +77,7 @@ export class CustomerController {
         storeId,
         isActive: req.query.isActive !== undefined ? req.query.isActive === 'true' : undefined,
         search: req.query.search as string | undefined,
+        filter: req.query.filter as 'all' | 'has_debt' | 'no_debt' | undefined,
         page: req.query.page ? parseInt(req.query.page as string, 10) : undefined,
         limit: req.query.limit ? parseInt(req.query.limit as string, 10) : undefined,
       });
