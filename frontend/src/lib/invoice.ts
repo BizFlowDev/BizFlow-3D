@@ -19,6 +19,23 @@ function formatDateTime(dateStr: string): string {
   }).format(new Date(dateStr));
 }
 
+/** Convert ArrayBuffer to base64 string */
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+
+/** Load font file from public/ and return base64 string */
+async function loadFontBase64(path: string): Promise<string> {
+  const res = await fetch(path);
+  const buffer = await res.arrayBuffer();
+  return arrayBufferToBase64(buffer);
+}
+
 /**
  * Tạo hóa đơn PDF từ đơn hàng và mở print dialog.
  * Nếu trình duyệt chặn popup → fallback tải file PDF.
@@ -28,6 +45,18 @@ export async function printInvoice(order: Order): Promise<void> {
   const { default: autoTable } = await import("jspdf-autotable");
 
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+
+  // ── Load Vietnamese Unicode font (Roboto) ──
+  const [regularBase64, boldBase64] = await Promise.all([
+    loadFontBase64("/fonts/Roboto-Regular.ttf"),
+    loadFontBase64("/fonts/Roboto-Bold.ttf"),
+  ]);
+  doc.addFileToVFS("Roboto-Regular.ttf", regularBase64);
+  doc.addFont("Roboto-Regular.ttf", "Roboto", "normal");
+  doc.addFileToVFS("Roboto-Bold.ttf", boldBase64);
+  doc.addFont("Roboto-Bold.ttf", "Roboto", "bold");
+  doc.setFont("Roboto");
+
   const pageW = doc.internal.pageSize.getWidth();
   const margin = 14;
   let y = 24;
@@ -57,12 +86,12 @@ export async function printInvoice(order: Order): Promise<void> {
     body: [
       ["Mã đơn", getOrderCode(order)],
       ["Ngày tạo", formatDateTime(order.createdAt)],
-      ["Khách hàng", order.customerName || "Khách vãng lai"],
+      ["Khách hàng", order.customerName || "Khách lẻ"],
       ["Loại đơn", order.orderType === "counter" ? "Bán tại quầy" : "AI tạo"],
       ["Ghi chú", order.note || "—"],
     ],
     margin: { left: margin, right: margin },
-    styles: { fontSize: 9, cellPadding: 1.6, textColor: [60, 70, 90] },
+    styles: { font: "Roboto", fontSize: 9, cellPadding: 1.6, textColor: [60, 70, 90] },
     columnStyles: {
       0: { fontStyle: "bold", textColor: [120, 130, 150], cellWidth: 40 },
     },
@@ -83,7 +112,7 @@ export async function printInvoice(order: Order): Promise<void> {
       formatCurrency(it.totalPrice),
     ]),
     margin: { left: margin, right: margin },
-    styles: { fontSize: 9, cellPadding: 2.5, textColor: [40, 45, 60] },
+    styles: { font: "Roboto", fontSize: 9, cellPadding: 2.5, textColor: [40, 45, 60] },
     headStyles: {
       fillColor: [37, 99, 235],
       textColor: [255, 255, 255],
@@ -116,7 +145,7 @@ export async function printInvoice(order: Order): Promise<void> {
       ["Còn nợ", `${formatCurrency(order.debtAmount)} đ`],
     ],
     margin: { left: margin, right: pageW - margin - 70 },
-    styles: { fontSize: 9.5, cellPadding: 1.8, textColor: [40, 45, 60] },
+    styles: { font: "Roboto", fontSize: 9.5, cellPadding: 1.8, textColor: [40, 45, 60] },
     columnStyles: {
       0: { fontStyle: "bold", textColor: [90, 100, 120] },
       1: { halign: "right", fontStyle: "bold" },
