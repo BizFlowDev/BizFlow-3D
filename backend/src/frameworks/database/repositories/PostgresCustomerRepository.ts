@@ -103,29 +103,29 @@ export class PostgresCustomerRepository implements ICustomerRepository {
   }
 
   async search(filter: CustomerFilter): Promise<PaginatedResult<Customer>> {
-    const conditions: string[] = ['store_id = $1'];
+    const conditions: string[] = ['c.store_id = $1'];
     const params: any[] = [filter.storeId];
     let idx = 2;
 
     if (filter.isActive !== undefined) {
-      conditions.push(`is_active = $${idx++}`);
+      conditions.push(`c.is_active = $${idx++}`);
       params.push(filter.isActive);
     }
     if (filter.search) {
-      conditions.push(`(name ILIKE $${idx} OR phone ILIKE $${idx})`);
+      conditions.push(`(c.name ILIKE $${idx} OR c.phone ILIKE $${idx})`);
       params.push(`%${filter.search}%`);
       idx++;
     }
     if (filter.filter === 'has_debt') {
-      conditions.push(`debt_balance > 0`);
+      conditions.push(`c.debt_balance > 0`);
     } else if (filter.filter === 'no_debt') {
-      conditions.push(`debt_balance = 0`);
+      conditions.push(`c.debt_balance = 0`);
     }
 
     const whereClause = `WHERE ${conditions.join(' AND ')}`;
     
     // Count total
-    const countRes = await query(`SELECT COUNT(*) FROM customers ${whereClause}`, params);
+    const countRes = await query(`SELECT COUNT(*) FROM customers c ${whereClause}`, params);
     const total = parseInt(countRes.rows[0].count, 10);
 
     const page = filter.page || 1;
@@ -133,11 +133,29 @@ export class PostgresCustomerRepository implements ICustomerRepository {
     const offset = (page - 1) * limit;
 
     const dataRes = await query(
-      `SELECT * FROM customers ${whereClause} ORDER BY created_at DESC LIMIT $${idx++} OFFSET $${idx}`,
+      `SELECT c.*,
+        COALESCE(pc.total_purchases, 0) AS total_purchases,
+        pc.last_purchase_date
+       FROM customers c
+       LEFT JOIN (
+         SELECT customer_id,
+                COUNT(*) FILTER (WHERE status = 'confirmed') AS total_purchases,
+                MAX(created_at) FILTER (WHERE status = 'confirmed') AS last_purchase_date
+         FROM orders
+         GROUP BY customer_id
+       ) pc ON pc.customer_id = c.id
+       ${whereClause}
+       ORDER BY c.created_at DESC
+       LIMIT $${idx++} OFFSET $${idx}`,
       [...params, limit, offset]
     );
 
-    const data = dataRes.rows.map(row => Customer.fromPersistence(mapToCamelCase(row)));
+    const data = dataRes.rows.map(row => {
+      const customer = Customer.fromPersistence(mapToCamelCase(row));
+      customer.totalPurchases = parseInt(row.total_purchases, 10) || 0;
+      customer.lastPurchaseDate = row.last_purchase_date ? new Date(row.last_purchase_date) : null;
+      return customer;
+    });
 
     return { data, total, page, limit };
   }

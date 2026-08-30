@@ -31,6 +31,8 @@ export class Customer {
   readonly isActive: boolean;
   readonly createdAt: Date;
   readonly updatedAt: Date;
+  totalPurchases?: number;
+  lastPurchaseDate?: Date | null;
 
   private constructor(props: CustomerProps) {
     this.id = props.id;
