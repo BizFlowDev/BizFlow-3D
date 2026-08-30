@@ -116,6 +116,12 @@ export const NAV_SECTIONS: NavSection[] = [
         icon: BookOpen,
         roles: ["owner"],
       },
+      {
+        title: "Cài đặt & VietQR",
+        href: "/settings",
+        icon: Cog,
+        roles: ["owner"],
+      },
     ],
   },
   {

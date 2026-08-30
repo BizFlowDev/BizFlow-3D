@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Bell, Boxes, CheckCheck, LogOut, Search, User, X } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Bell, Boxes, CheckCheck, LogOut, QrCode, Search, User, X } from "lucide-react";
 import type { UserRole } from "@/config/navigation";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
@@ -34,6 +35,7 @@ interface HeaderProps {
 }
 
 export function Header({ role }: HeaderProps) {
+  const router = useRouter();
   // Chỉ render Switch sau khi mount để tránh hydration mismatch
   // (store detect thiết bị ở client, mặc định SSR là true)
   const [mounted, setMounted] = useState(false);
@@ -217,15 +219,17 @@ export function Header({ role }: HeaderProps) {
               <div className="text-xs font-normal text-muted-foreground">{roleLabel}</div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
-              <User />
-              Hồ sơ
-            </DropdownMenuItem>
+            {role !== "admin" && (
+              <DropdownMenuItem onClick={() => router.push("/settings")}>
+                <QrCode className="mr-2 h-4 w-4 text-blue-600" />
+                Cài đặt & VietQR
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem
               className="text-destructive focus:text-destructive"
               onClick={() => void logout()}
             >
-              <LogOut />
+              <LogOut className="mr-2 h-4 w-4" />
               Đăng xuất
             </DropdownMenuItem>
           </DropdownMenuContent>

@@ -43,7 +43,7 @@ export interface IOrderRepository {
   create(order: Order): Promise<Order>;
   update(
     id: string,
-    data: Partial<Pick<Order, 'status' | 'totalAmount' | 'discountAmount' | 'finalAmount' | 'debtAmount' | 'note' | 'confirmedBy' | 'confirmedAt'>>,
+    data: Partial<Pick<Order, 'status' | 'totalAmount' | 'discountAmount' | 'finalAmount' | 'debtAmount' | 'paymentMethod' | 'paidAmount' | 'changeAmount' | 'note' | 'confirmedBy' | 'confirmedAt'>>,
   ): Promise<Order>;
 
   /** Confirm an order — sets status, confirmedBy, confirmedAt. */

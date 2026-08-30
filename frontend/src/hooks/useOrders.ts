@@ -29,10 +29,13 @@ export interface Order {
   userId: string | null;
   orderType: OrderType;
   status: OrderStatus;
+  paymentMethod?: 'cash' | 'qr_code' | 'debt';
   totalAmount: number;
   discountAmount: number;
   finalAmount: number;
   debtAmount: number;
+  paidAmount?: number;
+  changeAmount?: number;
   note: string | null;
   createdByAi: boolean;
   aiRawInput: string | null;
@@ -48,9 +51,12 @@ export interface Order {
 export interface CreateOrderData {
   customerId?: string;
   orderType?: OrderType;
+  paymentMethod?: 'cash' | 'qr_code' | 'debt';
   note?: string;
   discountAmount?: number;
   debtAmount?: number;
+  paidAmount?: number;
+  changeAmount?: number;
   items: {
     productId: string;
     productUnitId?: string;
@@ -498,6 +504,9 @@ export function useCreateOrder() {
         userId: "u1",
         orderType: body.orderType ?? "counter",
         status: status === "confirmed" ? "confirmed" : "draft",
+        paymentMethod: body.paymentMethod ?? "cash",
+        paidAmount: body.paidAmount ?? (body.paymentMethod === "cash" ? finalAmount : 0),
+        changeAmount: body.changeAmount ?? 0,
         totalAmount,
         discountAmount,
         finalAmount,

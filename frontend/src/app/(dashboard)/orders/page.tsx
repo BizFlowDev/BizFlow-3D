@@ -32,7 +32,8 @@ import {
 } from "@/components/ui/select";
 import { useOrderList, getOrderCode, type Order, type OrderListParams } from "@/hooks/useOrders";
 import { useToast, ToastViewport } from "@/components/ui/toast";
-import OrderDetailDialog, { statusBadge } from "./_components/OrderDetailDialog";
+import { cn } from "@/lib/utils";
+import OrderDetailDialog, { statusBadge, paymentMethodBadge } from "./_components/OrderDetailDialog";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -254,25 +255,28 @@ export default function OrdersPage() {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/30 hover:bg-muted/30">
-                    <TableHead className="sticky top-0 min-w-[150px]">
+                    <TableHead className="sticky top-0 min-w-[140px]">
                       Mã đơn
                     </TableHead>
-                    <TableHead className="sticky top-0 min-w-[160px]">
+                    <TableHead className="sticky top-0 min-w-[150px]">
                       Khách hàng
                     </TableHead>
-                    <TableHead className="sticky top-0 min-w-[220px]">
+                    <TableHead className="sticky top-0 min-w-[200px]">
                       Sản phẩm
                     </TableHead>
-                    <TableHead className="sticky top-0 text-right min-w-[130px]">
+                    <TableHead className="sticky top-0 min-w-[130px]">
+                      Thanh toán
+                    </TableHead>
+                    <TableHead className="sticky top-0 text-right min-w-[120px]">
                       Tổng tiền
                     </TableHead>
                     <TableHead className="sticky top-0 text-center min-w-[100px]">
                       Trạng thái
                     </TableHead>
-                    <TableHead className="sticky top-0 min-w-[140px]">
+                    <TableHead className="sticky top-0 min-w-[130px]">
                       Ngày tạo
                     </TableHead>
-                    <TableHead className="sticky top-0 text-center w-[80px]">
+                    <TableHead className="sticky top-0 text-center w-[70px]">
                       Thao tác
                     </TableHead>
                   </TableRow>
@@ -280,6 +284,8 @@ export default function OrdersPage() {
                 <TableBody>
                   {orders.map((order, index) => {
                     const badge = statusBadge(order.status);
+                    const payBadge = paymentMethodBadge(order.paymentMethod);
+                    const PayIcon = payBadge.icon;
                     const summary = itemsSummary(order);
                     return (
                       <motion.tr
@@ -335,8 +341,19 @@ export default function OrdersPage() {
                           </div>
                         </TableCell>
 
+                        {/* Hình thức thanh toán */}
+                        <TableCell>
+                          <Badge
+                            variant="secondary"
+                            className={cn("gap-1 text-[11px] font-medium", payBadge.className)}
+                          >
+                            <PayIcon className="h-3 w-3" />
+                            {payBadge.label}
+                          </Badge>
+                        </TableCell>
+
                         {/* Tổng tiền */}
-                        <TableCell className="text-right font-semibold tabular-nums">
+                        <TableCell className="text-right font-semibold tabular-nums font-mono">
                           {formatCurrency(order.finalAmount)}
                         </TableCell>
 
@@ -355,9 +372,6 @@ export default function OrdersPage() {
                           <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
                             <Calendar className="h-3.5 w-3.5" />
                             {formatDate(order.createdAt)}
-                            <span className="text-muted-foreground/50">
-                              {formatDateTime(order.createdAt).split(", ")[1]}
-                            </span>
                           </span>
                         </TableCell>
 

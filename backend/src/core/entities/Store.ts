@@ -9,6 +9,9 @@ export const StoreSchema = z.object({
   phone: z.string().max(20).nullish(),
   email: z.string().email().max(255).nullish(),
   taxCode: z.string().max(50).nullish(),
+  bankCode: z.string().max(20).nullish(),
+  bankAccountNumber: z.string().max(50).nullish(),
+  bankAccountHolder: z.string().max(255).nullish(),
   subscriptionPlan: z.string().min(1).max(50),
   subscriptionStatus: z.enum(['active', 'expired', 'trial']),
   subscriptionExpiresAt: z.coerce.date().nullish(),
@@ -26,6 +29,9 @@ export class Store {
   readonly phone: string | null;
   readonly email: string | null;
   readonly taxCode: string | null;
+  readonly bankCode: string | null;
+  readonly bankAccountNumber: string | null;
+  readonly bankAccountHolder: string | null;
   readonly subscriptionPlan: string;
   readonly subscriptionStatus: 'active' | 'expired' | 'trial';
   readonly subscriptionExpiresAt: Date | null;
@@ -39,6 +45,9 @@ export class Store {
     this.phone = props.phone ?? null;
     this.email = props.email ?? null;
     this.taxCode = props.taxCode ?? null;
+    this.bankCode = props.bankCode ?? null;
+    this.bankAccountNumber = props.bankAccountNumber ?? null;
+    this.bankAccountHolder = props.bankAccountHolder ?? null;
     this.subscriptionPlan = props.subscriptionPlan;
     this.subscriptionStatus = props.subscriptionStatus;
     this.subscriptionExpiresAt = props.subscriptionExpiresAt ?? null;

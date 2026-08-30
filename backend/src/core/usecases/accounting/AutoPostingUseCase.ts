@@ -69,12 +69,19 @@ export class AutoPostingUseCase {
 
     // 1a) Doanh thu (khống nhất theo T88: doanh thu chưa thuế).
     if (cashAmount > 0) {
+      // Chọn tài khoản theo phương thức thanh toán
+      const cashAccountCode = order.paymentMethod === 'qr_code' ? '112' : '111';
+      const cashAccountName = order.paymentMethod === 'qr_code' ? 'Tiền gửi ngân hàng' : 'Tiền mặt';
+      const cashDescription = order.paymentMethod === 'qr_code'
+        ? 'Doanh thu bán hàng thu bằng chuyển khoản'
+        : 'Doanh thu bán hàng thu bằng tiền mặt';
+
       this.accountingRepo.createMany([
         this.entry({
           storeId: order.storeId, entryDate,
-          accountCode: '111', accountName: 'Tiền mặt',
+          accountCode: cashAccountCode, accountName: cashAccountName,
           debit: cashAmount, referenceType: 'order', referenceId: order.id,
-          description: 'Doanh thu bán hàng thu bằng tiền mặt',
+          description: cashDescription,
         }),
       ]);
     }

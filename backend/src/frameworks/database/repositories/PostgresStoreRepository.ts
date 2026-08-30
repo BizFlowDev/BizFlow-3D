@@ -89,10 +89,11 @@ export class PostgresStoreRepository implements IStoreRepository {
     const text = `
       INSERT INTO stores (
         id, name, address, phone, email, tax_code,
+        bank_code, bank_account_number, bank_account_holder,
         subscription_plan, subscription_status, subscription_expires_at,
         created_at, updated_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
       RETURNING *
     `;
     const values = [
@@ -102,6 +103,9 @@ export class PostgresStoreRepository implements IStoreRepository {
       store.phone,
       store.email,
       store.taxCode,
+      store.bankCode,
+      store.bankAccountNumber,
+      store.bankAccountHolder,
       store.subscriptionPlan,
       store.subscriptionStatus,
       store.subscriptionExpiresAt,
@@ -113,7 +117,7 @@ export class PostgresStoreRepository implements IStoreRepository {
     return Store.fromPersistence(mapToCamelCase(res.rows[0]));
   }
 
-  async update(id: string, data: Partial<Pick<Store, 'name' | 'address' | 'phone' | 'email' | 'taxCode'>>): Promise<Store> {
+  async update(id: string, data: Partial<Pick<Store, 'name' | 'address' | 'phone' | 'email' | 'taxCode' | 'bankCode' | 'bankAccountNumber' | 'bankAccountHolder'>>): Promise<Store> {
     const fields: string[] = [];
     const values: any[] = [];
     let idx = 1;

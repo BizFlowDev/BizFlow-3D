@@ -80,6 +80,13 @@ export async function printInvoice(order: Order): Promise<void> {
   y += 8;
 
   // ── Thông tin đơn ──
+  const paymentMethodText =
+    order.paymentMethod === "qr_code"
+      ? "Chuyển khoản VietQR"
+      : order.paymentMethod === "debt"
+      ? "Ghi nợ"
+      : "Tiền mặt";
+
   autoTable(doc, {
     startY: y,
     theme: "plain",
@@ -88,6 +95,7 @@ export async function printInvoice(order: Order): Promise<void> {
       ["Ngày tạo", formatDateTime(order.createdAt)],
       ["Khách hàng", order.customerName || "Khách lẻ"],
       ["Loại đơn", order.orderType === "counter" ? "Bán tại quầy" : "AI tạo"],
+      ["Hình thức TT", paymentMethodText],
       ["Ghi chú", order.note || "—"],
     ],
     margin: { left: margin, right: margin },
@@ -130,21 +138,37 @@ export async function printInvoice(order: Order): Promise<void> {
     ?.finalY ?? y;
   y += 5;
 
-  // ── Tổng tiền ──
+  // ── Tổng tiền & Thanh toán ──
+  const summaryBody: string[][] = [
+    ["Tạm tính", `${formatCurrency(order.totalAmount)} đ`],
+  ];
+
+  if (order.discountAmount > 0) {
+    summaryBody.push(["Giảm giá", `−${formatCurrency(order.discountAmount)} đ`]);
+  }
+
+  summaryBody.push(["Tổng cộng", `${formatCurrency(order.finalAmount)} đ`]);
+  summaryBody.push(["Hình thức TT", paymentMethodText]);
+
+  if (order.paymentMethod === "cash" && (order.paidAmount !== undefined || order.changeAmount !== undefined)) {
+    const cashGiven = (order.paidAmount || 0) + (order.changeAmount || 0);
+    if (cashGiven > 0) {
+      summaryBody.push(["Tiền khách đưa", `${formatCurrency(cashGiven)} đ`]);
+      summaryBody.push(["Tiền thối lại", `${formatCurrency(order.changeAmount || 0)} đ`]);
+    }
+  } else if (order.paymentMethod === "qr_code") {
+    summaryBody.push(["Đã thanh toán (QR)", `${formatCurrency(order.finalAmount)} đ`]);
+  }
+
+  if (order.debtAmount > 0) {
+    summaryBody.push(["Còn nợ", `${formatCurrency(order.debtAmount)} đ`]);
+  }
+
   autoTable(doc, {
     startY: y,
     theme: "plain",
-    body: [
-      ["Tạm tính", `${formatCurrency(order.totalAmount)} đ`],
-      ["Giảm giá", `${formatCurrency(order.discountAmount)} đ`],
-      ["Tổng cộng", `${formatCurrency(order.finalAmount)} đ`],
-      [
-        "Đã thanh toán",
-        `${formatCurrency(order.finalAmount - order.debtAmount)} đ`,
-      ],
-      ["Còn nợ", `${formatCurrency(order.debtAmount)} đ`],
-    ],
-    margin: { left: margin, right: pageW - margin - 70 },
+    body: summaryBody,
+    margin: { left: margin, right: pageW - margin - 75 },
     styles: { font: "Roboto", fontSize: 9.5, cellPadding: 1.8, textColor: [40, 45, 60] },
     columnStyles: {
       0: { fontStyle: "bold", textColor: [90, 100, 120] },

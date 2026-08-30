@@ -10,10 +10,13 @@ export const OrderSchema = z.object({
   userId: z.string().uuid().nullish(),
   orderType: z.enum(['counter', 'ai_generated']),
   status: z.enum(['draft', 'confirmed', 'cancelled']),
+  paymentMethod: z.enum(['cash', 'qr_code', 'debt']).default('cash'),
   totalAmount: z.coerce.number().min(0),
   discountAmount: z.coerce.number().min(0),
   finalAmount: z.coerce.number().min(0),
   debtAmount: z.coerce.number().min(0),
+  paidAmount: z.coerce.number().min(0).default(0),
+  changeAmount: z.coerce.number().min(0).default(0),
   note: z.string().nullish(),
   createdByAi: z.boolean(),
   aiRawInput: z.string().nullish(),
@@ -33,10 +36,13 @@ export class Order {
   readonly userId: string | null;
   readonly orderType: 'counter' | 'ai_generated';
   readonly status: 'draft' | 'confirmed' | 'cancelled';
+  readonly paymentMethod: 'cash' | 'qr_code' | 'debt';
   readonly totalAmount: number;
   readonly discountAmount: number;
   readonly finalAmount: number;
   readonly debtAmount: number;
+  readonly paidAmount: number;
+  readonly changeAmount: number;
   readonly note: string | null;
   readonly createdByAi: boolean;
   readonly aiRawInput: string | null;
@@ -53,10 +59,13 @@ export class Order {
     this.userId = props.userId ?? null;
     this.orderType = props.orderType;
     this.status = props.status;
+    this.paymentMethod = props.paymentMethod;
     this.totalAmount = props.totalAmount;
     this.discountAmount = props.discountAmount;
     this.finalAmount = props.finalAmount;
     this.debtAmount = props.debtAmount;
+    this.paidAmount = props.paidAmount;
+    this.changeAmount = props.changeAmount;
     this.note = props.note ?? null;
     this.createdByAi = props.createdByAi;
     this.aiRawInput = props.aiRawInput ?? null;
@@ -69,14 +78,17 @@ export class Order {
   static create(
     props: Omit<
       OrderProps,
-      'id' | 'createdAt' | 'updatedAt' | 'status' | 'totalAmount' | 'discountAmount' | 'finalAmount' | 'debtAmount' | 'createdByAi' | 'confirmedBy' | 'confirmedAt'
+      'id' | 'createdAt' | 'updatedAt' | 'status' | 'paymentMethod' | 'totalAmount' | 'discountAmount' | 'finalAmount' | 'debtAmount' | 'paidAmount' | 'changeAmount' | 'createdByAi' | 'confirmedBy' | 'confirmedAt'
     > & {
       id?: string;
       status?: 'draft' | 'confirmed' | 'cancelled';
+      paymentMethod?: 'cash' | 'qr_code' | 'debt';
       totalAmount?: number;
       discountAmount?: number;
       finalAmount?: number;
       debtAmount?: number;
+      paidAmount?: number;
+      changeAmount?: number;
       createdByAi?: boolean;
     },
   ): Order {
@@ -84,10 +96,13 @@ export class Order {
     return Order.fromPersistence({
       id: props.id ?? crypto.randomUUID(),
       status: props.status ?? 'draft',
+      paymentMethod: props.paymentMethod ?? 'cash',
       totalAmount: props.totalAmount ?? 0,
       discountAmount: props.discountAmount ?? 0,
       finalAmount: props.finalAmount ?? 0,
       debtAmount: props.debtAmount ?? 0,
+      paidAmount: props.paidAmount ?? 0,
+      changeAmount: props.changeAmount ?? 0,
       createdByAi: props.createdByAi ?? false,
       confirmedBy: null,
       confirmedAt: null,

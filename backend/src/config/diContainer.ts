@@ -288,4 +288,6 @@ export const controllers = {
   ),
   // Also export auditLogRepo to be used by the requestLogger middleware
   auditLogRepo,
+  // Also export storeRepo to be used by storeRoutes
+  storeRepo,
 };

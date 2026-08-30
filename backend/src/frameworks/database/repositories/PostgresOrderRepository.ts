@@ -28,10 +28,11 @@ export class PostgresOrderRepository implements IOrderRepository {
       const text = `
         INSERT INTO orders (
           id, store_id, customer_id, user_id, order_type,
-          status, total_amount, discount_amount, final_amount, debt_amount,
+          status, payment_method, total_amount, discount_amount, final_amount, debt_amount,
+          paid_amount, change_amount,
           note, confirmed_by, confirmed_at, created_at, updated_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
         RETURNING *
       `;
       const values = [
@@ -41,10 +42,13 @@ export class PostgresOrderRepository implements IOrderRepository {
         order.userId,
         order.orderType,
         order.status,
+        order.paymentMethod,
         order.totalAmount,
         order.discountAmount,
         order.finalAmount,
         order.debtAmount,
+        order.paidAmount,
+        order.changeAmount,
         order.note,
         order.confirmedBy,
         order.confirmedAt,
@@ -84,7 +88,7 @@ export class PostgresOrderRepository implements IOrderRepository {
 
   async update(
     id: string,
-    data: Partial<Pick<Order, 'status' | 'totalAmount' | 'discountAmount' | 'finalAmount' | 'debtAmount' | 'note' | 'confirmedBy' | 'confirmedAt'>>
+    data: Partial<Pick<Order, 'status' | 'totalAmount' | 'discountAmount' | 'finalAmount' | 'debtAmount' | 'paymentMethod' | 'paidAmount' | 'changeAmount' | 'note' | 'confirmedBy' | 'confirmedAt'>>
   ): Promise<Order> {
     const fields: string[] = [];
     const values: any[] = [];

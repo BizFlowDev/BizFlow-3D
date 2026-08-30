@@ -7,8 +7,11 @@ import {
   Banknote,
   CheckCircle2,
   Clock,
+  CreditCard,
+  FileText,
   Loader2,
   Printer,
+  QrCode,
   ReceiptText,
   ShoppingCart,
   User,
@@ -81,6 +84,31 @@ export function statusBadge(status: "draft" | "confirmed" | "cancelled") {
     label: "Nháp",
     className:
       "bg-amber-100 text-amber-700 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-400",
+  };
+}
+
+export function paymentMethodBadge(method?: string) {
+  if (method === "qr_code") {
+    return {
+      label: "Quét VietQR",
+      icon: QrCode,
+      className:
+        "bg-blue-100 text-blue-700 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-400",
+    };
+  }
+  if (method === "debt") {
+    return {
+      label: "Ghi nợ",
+      icon: FileText,
+      className:
+        "bg-amber-100 text-amber-700 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-400",
+    };
+  }
+  return {
+    label: "Tiền mặt",
+    icon: Banknote,
+    className:
+      "bg-emerald-100 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-400",
   };
 }
 
@@ -200,9 +228,15 @@ export default function OrderDetailDialog({
                 danger={order.debtAmount > 0}
               />
               <InfoItem
-                icon={ShoppingCart}
-                label="Loại đơn"
-                value={order.orderType === "counter" ? "Bán tại quầy" : "AI tạo"}
+                icon={
+                  order.paymentMethod === "qr_code"
+                    ? QrCode
+                    : order.paymentMethod === "debt"
+                    ? FileText
+                    : Banknote
+                }
+                label="Hình thức TT"
+                value={paymentMethodBadge(order.paymentMethod).label}
               />
               <InfoItem
                 icon={Clock}
@@ -264,23 +298,55 @@ export default function OrderDetailDialog({
                 </Table>
               </div>
               {/* Totals */}
-              <div className="space-y-1 border-t bg-muted/20 p-3 text-sm">
+              <div className="space-y-1.5 border-t bg-muted/20 p-3 text-sm">
                 <div className="flex justify-between text-muted-foreground">
                   <span>Tạm tính</span>
-                  <span className="tabular-nums">{formatCurrency(order.totalAmount)}</span>
+                  <span className="tabular-nums font-mono">{formatCurrency(order.totalAmount)}</span>
                 </div>
-                <div className="flex justify-between text-muted-foreground">
-                  <span>Giảm giá</span>
-                  <span className="tabular-nums">
-                    −{formatCurrency(order.discountAmount)}
-                  </span>
-                </div>
-                <div className="flex justify-between font-bold">
+                {order.discountAmount > 0 && (
+                  <div className="flex justify-between text-muted-foreground">
+                    <span>Giảm giá</span>
+                    <span className="tabular-nums font-mono text-emerald-600">
+                      −{formatCurrency(order.discountAmount)}
+                    </span>
+                  </div>
+                )}
+                <div className="flex justify-between font-bold border-t pt-1.5">
                   <span>Tổng cộng</span>
-                  <span className="tabular-nums text-blue-600">
+                  <span className="tabular-nums font-mono text-blue-600">
                     {formatCurrency(order.finalAmount)}
                   </span>
                 </div>
+                <div className="flex items-center justify-between pt-1 border-t text-xs">
+                  <span className="text-muted-foreground">Hình thức thanh toán:</span>
+                  <Badge variant="secondary" className={paymentMethodBadge(order.paymentMethod).className}>
+                    {paymentMethodBadge(order.paymentMethod).label}
+                  </Badge>
+                </div>
+                {order.paymentMethod === "cash" && (order.paidAmount !== undefined || order.changeAmount !== undefined) && (
+                  <>
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>Tiền khách đưa:</span>
+                      <span className="font-mono tabular-nums">
+                        {formatCurrency((order.paidAmount || 0) + (order.changeAmount || 0))}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                      <span>Tiền thừa trả khách:</span>
+                      <span className="font-mono tabular-nums">
+                        {formatCurrency(order.changeAmount || 0)}
+                      </span>
+                    </div>
+                  </>
+                )}
+                {order.debtAmount > 0 && (
+                  <div className="flex justify-between text-xs font-semibold text-red-500">
+                    <span>Còn nợ:</span>
+                    <span className="font-mono tabular-nums">
+                      {formatCurrency(order.debtAmount)}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
           </>

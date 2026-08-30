@@ -23,6 +23,7 @@ import reportRoutes from './routes/reportRoutes.js';
 import accountingRoutes from './routes/accountingRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 import announcementRoutes from './routes/announcementRoutes.js';
+import storeRoutes from './routes/storeRoutes.js';
 
 export function createServer(): Express {
   const app = express();
@@ -52,6 +53,7 @@ export function createServer(): Express {
   apiRouter.use('/accounting', accountingRoutes);
   apiRouter.use('/admin', adminRoutes);
   apiRouter.use('/announcements', announcementRoutes);
+  apiRouter.use('/stores', storeRoutes);
 
   app.use('/api/v1', apiRouter);
 
