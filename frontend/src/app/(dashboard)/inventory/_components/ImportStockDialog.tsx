@@ -237,9 +237,21 @@ export function ImportStockDialog({
                           <p className="truncate text-sm font-medium">
                             {selectedProduct.name}
                           </p>
-                          <p className="font-mono text-xs text-muted-foreground">
-                            {selectedProduct.code}
-                          </p>
+                          <div className="flex items-center gap-2">
+                            <p className="font-mono text-xs text-muted-foreground">
+                              {selectedProduct.code}
+                            </p>
+                            <span className="text-xs text-muted-foreground">·</span>
+                            <span className={`text-xs font-medium ${
+                              selectedProduct.currentStock <= 0
+                                ? "text-red-500"
+                                : selectedProduct.currentStock < 10
+                                ? "text-amber-500"
+                                : "text-emerald-500"
+                            }`}>
+                              Tồn: {selectedProduct.currentStock}
+                            </span>
+                          </div>
                         </div>
                       </div>
                       <Button
@@ -284,18 +296,51 @@ export function ImportStockDialog({
                                 className="flex w-full items-center gap-2.5 rounded-sm px-2 py-2 text-left hover:bg-accent"
                               >
                                 <Package className="h-4 w-4 shrink-0 text-muted-foreground" />
-                                <div className="min-w-0">
+                                <div className="min-w-0 flex-1">
                                   <p className="truncate text-sm font-medium">
                                     {p.name}
                                   </p>
-                                  <p className="font-mono text-xs text-muted-foreground">
-                                    {p.code}
-                                  </p>
+                                  <div className="flex items-center gap-2">
+                                    <p className="font-mono text-xs text-muted-foreground">
+                                      {p.code}
+                                    </p>
+                                    <span className="text-xs text-muted-foreground">·</span>
+                                    <span className={`text-xs font-medium ${
+                                      p.currentStock <= 0
+                                        ? "text-red-500"
+                                        : p.currentStock < 10
+                                        ? "text-amber-500"
+                                        : "text-emerald-500"
+                                    }`}>
+                                      Tồn: {p.currentStock}
+                                    </span>
+                                  </div>
                                 </div>
+                                {p.units.length > 1 && (
+                                  <span className="shrink-0 rounded bg-blue-100 px-1.5 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                                    {p.units.length} đơn vị
+                                  </span>
+                                )}
                               </button>
                             </li>
                           ))}
                         </ul>
+                      )}
+                      {listOpen && productQuery && filteredProducts.length === 0 && (
+                        <div className="mt-2 rounded-md border border-dashed p-4 text-center text-sm text-muted-foreground">
+                          Không tìm thấy sản phẩm phù hợp
+                        </div>
+                      )}
+                      {listOpen && !productQuery && filteredProducts.length === 0 && (
+                        <div className="mt-2 rounded-md border border-dashed p-4 text-center text-sm text-muted-foreground">
+                          <p>Chưa có sản phẩm nào.</p>
+                          <p className="mt-1">
+                            Vui lòng tạo sản phẩm tại trang{" "}
+                            <a href="/products" className="text-blue-500 underline hover:text-blue-600">
+                              Quản lý sản phẩm
+                            </a>
+                          </p>
+                        </div>
                       )}
                       {errors.productId && (
                         <p className="mt-1 text-xs text-red-500" role="alert">
@@ -325,7 +370,19 @@ export function ImportStockDialog({
                       <SelectContent>
                         {selectedProduct.units.map((u) => (
                           <SelectItem key={u.id} value={u.id}>
-                            {u.unitName}
+                            <div className="flex items-center gap-2">
+                              <span>{u.unitName}</span>
+                              {!u.isDefault && (
+                                <span className="text-xs text-muted-foreground">
+                                  (x{u.conversionFactor})
+                                </span>
+                              )}
+                              {u.isDefault && (
+                                <span className="rounded bg-blue-100 px-1.5 py-0.5 text-xs text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                                  Mặc định
+                                </span>
+                              )}
+                            </div>
                           </SelectItem>
                         ))}
                       </SelectContent>

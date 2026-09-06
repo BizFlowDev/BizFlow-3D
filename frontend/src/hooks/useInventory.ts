@@ -27,6 +27,8 @@ export interface InventoryProduct {
   name: string;
   categoryId: string | null;
   categoryName: string | null;
+  /** Tồn kho hiện tại */
+  currentStock: number;
   /** Mức tồn kho tối đa — dùng làm mốc 100% cho khối 3D */
   maxStock: number;
   units: InventoryUnit[];
@@ -92,236 +94,9 @@ export const inventoryKeys = {
     ["inventory", "transactions", params] as const,
 };
 
-// ── Mock Data (fallback khi API chưa sẵn sàng) ────────────────────────────────
 
-const MOCK_CATEGORIES: { id: string; name: string }[] = [
-  { id: "cat-mvl", name: "Vật liệu xây dựng" },
-  { id: "cat-thep", name: "Thép xây dựng" },
-  { id: "cat-son", name: "Sơn" },
-  { id: "cat-dien", name: "Điện & dây điện" },
-  { id: "cat-ong", name: "Ống nước & van" },
-  { id: "cat-pk", name: "Phụ kiện & công cụ" },
-];
-
-const MOCK_INVENTORY_PRODUCTS: InventoryProduct[] = [
-  {
-    id: "p1",
-    code: "VL-001",
-    name: "Xi măng Hà Tiên PCB40",
-    categoryId: "cat-mvl",
-    categoryName: "Vật liệu xây dựng",
-    maxStock: 200,
-    units: [
-      { id: "p1-u1", unitName: "Bao 50kg", conversionFactor: 1, isDefault: true },
-      { id: "p1-u2", unitName: "Tấn", conversionFactor: 20, isDefault: false },
-    ],
-  },
-  {
-    id: "p2",
-    code: "VL-002",
-    name: "Gạch ống 8 lỗ",
-    categoryId: "cat-mvl",
-    categoryName: "Vật liệu xây dựng",
-    maxStock: 500,
-    units: [
-      { id: "p2-u1", unitName: "Viên", conversionFactor: 1, isDefault: true },
-      { id: "p2-u2", unitName: "Ngàn viên", conversionFactor: 1000, isDefault: false },
-    ],
-  },
-  {
-    id: "p3",
-    code: "VL-003",
-    name: "Sắt phi 10",
-    categoryId: "cat-thep",
-    categoryName: "Thép xây dựng",
-    maxStock: 300,
-    units: [
-      { id: "p3-u1", unitName: "Cây 11.7m", conversionFactor: 1, isDefault: true },
-      { id: "p3-u2", unitName: "Tấn", conversionFactor: 6.4, isDefault: false },
-    ],
-  },
-  {
-    id: "p4",
-    code: "VL-004",
-    name: "Sơn nước Dulux (18L)",
-    categoryId: "cat-son",
-    categoryName: "Sơn",
-    maxStock: 60,
-    units: [{ id: "p4-u1", unitName: "Thùng", conversionFactor: 1, isDefault: true }],
-  },
-  {
-    id: "p5",
-    code: "VL-005",
-    name: "Cát xây dựng (m³)",
-    categoryId: "cat-mvl",
-    categoryName: "Vật liệu xây dựng",
-    maxStock: 100,
-    units: [{ id: "p5-u1", unitName: "Mét khối", conversionFactor: 1, isDefault: true }],
-  },
-  {
-    id: "p6",
-    code: "VL-006",
-    name: "Đinh thép 5cm",
-    categoryId: "cat-pk",
-    categoryName: "Phụ kiện & công cụ",
-    maxStock: 50,
-    units: [{ id: "p6-u1", unitName: "Kg", conversionFactor: 1, isDefault: true }],
-  },
-  {
-    id: "p7",
-    code: "VL-007",
-    name: "Keo dán gạch (25kg)",
-    categoryId: "cat-mvl",
-    categoryName: "Vật liệu xây dựng",
-    maxStock: 40,
-    units: [{ id: "p7-u1", unitName: "Bao", conversionFactor: 1, isDefault: true }],
-  },
-  {
-    id: "p8",
-    code: "VL-008",
-    name: "Dây điện Cadivi 2.5",
-    categoryId: "cat-dien",
-    categoryName: "Điện & dây điện",
-    maxStock: 80,
-    units: [{ id: "p8-u1", unitName: "Cuộn", conversionFactor: 1, isDefault: true }],
-  },
-  {
-    id: "p9",
-    code: "VL-009",
-    name: "Xi măng Hà Tiên PCB30",
-    categoryId: "cat-mvl",
-    categoryName: "Vật liệu xây dựng",
-    maxStock: 200,
-    units: [{ id: "p9-u1", unitName: "Bao 50kg", conversionFactor: 1, isDefault: true }],
-  },
-  {
-    id: "p10",
-    code: "VL-010",
-    name: "Gạch block 4 lỗ",
-    categoryId: "cat-mvl",
-    categoryName: "Vật liệu xây dựng",
-    maxStock: 400,
-    units: [{ id: "p10-u1", unitName: "Viên", conversionFactor: 1, isDefault: true }],
-  },
-  {
-    id: "p11",
-    code: "VL-011",
-    name: "Sắt phi 12",
-    categoryId: "cat-thep",
-    categoryName: "Thép xây dựng",
-    maxStock: 300,
-    units: [{ id: "p11-u1", unitName: "Cây 11.7m", conversionFactor: 1, isDefault: true }],
-  },
-  {
-    id: "p12",
-    code: "VL-012",
-    name: "Sơn lót chống kiềm (5L)",
-    categoryId: "cat-son",
-    categoryName: "Sơn",
-    maxStock: 40,
-    units: [{ id: "p12-u1", unitName: "Thùng", conversionFactor: 1, isDefault: true }],
-  },
-  {
-    id: "p13",
-    code: "VL-013",
-    name: "Ống nước PVC phi 21",
-    categoryId: "cat-ong",
-    categoryName: "Ống nước & van",
-    maxStock: 120,
-    units: [{ id: "p13-u1", unitName: "Cây 4m", conversionFactor: 1, isDefault: true }],
-  },
-  {
-    id: "p14",
-    code: "VL-014",
-    name: "Van nước inox DN20",
-    categoryId: "cat-ong",
-    categoryName: "Ống nước & van",
-    maxStock: 60,
-    units: [{ id: "p14-u1", unitName: "Cái", conversionFactor: 1, isDefault: true }],
-  },
-  {
-    id: "p15",
-    code: "VL-015",
-    name: "Đá 1x2 (m³)",
-    categoryId: "cat-mvl",
-    categoryName: "Vật liệu xây dựng",
-    maxStock: 80,
-    units: [{ id: "p15-u1", unitName: "Mét khối", conversionFactor: 1, isDefault: true }],
-  },
-  {
-    id: "p16",
-    code: "VL-016",
-    name: "Bột trét tường (40kg)",
-    categoryId: "cat-son",
-    categoryName: "Sơn",
-    maxStock: 60,
-    units: [{ id: "p16-u1", unitName: "Bao", conversionFactor: 1, isDefault: true }],
-  },
-  {
-    id: "p17",
-    code: "VL-017",
-    name: "Thép hộp 40x40",
-    categoryId: "cat-thep",
-    categoryName: "Thép xây dựng",
-    maxStock: 150,
-    units: [{ id: "p17-u1", unitName: "Cây 6m", conversionFactor: 1, isDefault: true }],
-  },
-  {
-    id: "p18",
-    code: "VL-018",
-    name: "Đinh vít các loại (hộp)",
-    categoryId: "cat-pk",
-    categoryName: "Phụ kiện & công cụ",
-    maxStock: 100,
-    units: [{ id: "p18-u1", unitName: "Hộp", conversionFactor: 1, isDefault: true }],
-  },
-];
-
-// Tồn kho mặc định (map productId → { qty, lastUpdated })
-const MOCK_STOCK: Record<string, { qty: number; lastUpdated: string }> = {
-  p1: { qty: 120, lastUpdated: "2026-08-04T09:30:00Z" },
-  p2: { qty: 320, lastUpdated: "2026-08-03T14:20:00Z" },
-  p3: { qty: 150, lastUpdated: "2026-08-02T10:10:00Z" },
-  p4: { qty: 24, lastUpdated: "2026-08-04T16:45:00Z" },
-  p5: { qty: 35, lastUpdated: "2026-08-01T08:00:00Z" },
-  p6: { qty: 3, lastUpdated: "2026-08-04T11:15:00Z" },
-  p7: { qty: 8, lastUpdated: "2026-08-04T13:40:00Z" },
-  p8: { qty: 6, lastUpdated: "2026-08-03T17:05:00Z" },
-  p9: { qty: 0, lastUpdated: "2026-07-28T09:00:00Z" },
-  p10: { qty: 0, lastUpdated: "2026-07-29T15:30:00Z" },
-  p11: { qty: 45, lastUpdated: "2026-08-02T09:20:00Z" },
-  p12: { qty: 12, lastUpdated: "2026-08-01T16:10:00Z" },
-  p13: { qty: 60, lastUpdated: "2026-08-03T10:50:00Z" },
-  p14: { qty: 4, lastUpdated: "2026-08-04T08:30:00Z" },
-  p15: { qty: 20, lastUpdated: "2026-07-31T11:25:00Z" },
-  p16: { qty: 15, lastUpdated: "2026-08-02T14:00:00Z" },
-  p17: { qty: 5, lastUpdated: "2026-08-04T10:05:00Z" },
-  p18: { qty: 0, lastUpdated: "2026-07-27T09:45:00Z" },
-};
-
-const MOCK_TRANSACTIONS: InventoryTransaction[] = [
-  { id: "t1", productId: "p1", productName: "Xi măng Hà Tiên PCB40", unitName: "Bao 50kg", type: "import", quantity: 50, referenceType: "purchase", referenceId: null, note: "Nhập lô đầu tháng", createdBy: "Nguyễn Văn An", createdAt: "2026-08-04T09:30:00Z" },
-  { id: "t2", productId: "p4", productName: "Sơn nước Dulux (18L)", unitName: "Thùng", type: "import", quantity: 10, referenceType: "purchase", referenceId: null, note: "Bổ sung hàng trưng bày", createdBy: "Nguyễn Văn An", createdAt: "2026-08-04T16:45:00Z" },
-  { id: "t3", productId: "p6", productName: "Đinh thép 5cm", unitName: "Kg", type: "import", quantity: 2, referenceType: "purchase", referenceId: null, note: "", createdBy: "Trần Thị Bích", createdAt: "2026-08-04T11:15:00Z" },
-  { id: "t4", productId: "p14", productName: "Van nước inox DN20", unitName: "Cái", type: "import", quantity: 5, referenceType: "purchase", referenceId: null, note: "Hàng mới về", createdBy: "Trần Thị Bích", createdAt: "2026-08-04T08:30:00Z" },
-  { id: "t5", productId: "p2", productName: "Gạch ống 8 lỗ", unitName: "Viên", type: "export", quantity: 200, referenceType: "order", referenceId: "DH-20260803-001", note: "Đơn của công trình Nguyễn Văn A", createdBy: "Nguyễn Văn An", createdAt: "2026-08-03T14:20:00Z" },
-  { id: "t6", productId: "p8", productName: "Dây điện Cadivi 2.5", unitName: "Cuộn", type: "import", quantity: 10, referenceType: "purchase", referenceId: null, note: "", createdBy: "Nguyễn Văn An", createdAt: "2026-08-03T17:05:00Z" },
-  { id: "t7", productId: "p13", productName: "Ống nước PVC phi 21", unitName: "Cây 4m", type: "import", quantity: 30, referenceType: "purchase", referenceId: null, note: "Nhập theo yêu cầu thầu", createdBy: "Trần Thị Bích", createdAt: "2026-08-03T10:50:00Z" },
-  { id: "t8", productId: "p3", productName: "Sắt phi 10", unitName: "Cây 11.7m", type: "export", quantity: 60, referenceType: "order", referenceId: "DH-20260802-002", note: "", createdBy: "Nguyễn Văn An", createdAt: "2026-08-02T10:10:00Z" },
-  { id: "t9", productId: "p11", productName: "Sắt phi 12", unitName: "Cây 11.7m", type: "adjustment", quantity: -5, referenceType: "adjustment", referenceId: null, note: "Kiểm kê phát hiện hao hụt", createdBy: "Nguyễn Văn An", createdAt: "2026-08-02T09:20:00Z" },
-  { id: "t10", productId: "p16", productName: "Bột trét tường (40kg)", unitName: "Bao", type: "import", quantity: 10, referenceType: "purchase", referenceId: null, note: "", createdBy: "Trần Thị Bích", createdAt: "2026-08-02T14:00:00Z" },
-  { id: "t11", productId: "p5", productName: "Cát xây dựng (m³)", unitName: "Mét khối", type: "export", quantity: 8, referenceType: "order", referenceId: "DH-20260801-003", note: "", createdBy: "Nguyễn Văn An", createdAt: "2026-08-01T08:00:00Z" },
-  { id: "t12", productId: "p12", productName: "Sơn lót chống kiềm (5L)", unitName: "Thùng", type: "import", quantity: 8, referenceType: "purchase", referenceId: null, note: "", createdBy: "Trần Thị Bích", createdAt: "2026-08-01T16:10:00Z" },
-  { id: "t13", productId: "p7", productName: "Keo dán gạch (25kg)", unitName: "Bao", type: "export", quantity: 5, referenceType: "order", referenceId: "DH-20260731-004", note: "", createdBy: "Nguyễn Văn An", createdAt: "2026-07-31T12:00:00Z" },
-  { id: "t14", productId: "p15", productName: "Đá 1x2 (m³)", unitName: "Mét khối", type: "import", quantity: 12, referenceType: "purchase", referenceId: null, note: "Nhập bãi vật liệu", createdBy: "Trần Thị Bích", createdAt: "2026-07-31T11:25:00Z" },
-  { id: "t15", productId: "p9", productName: "Xi măng Hà Tiên PCB30", unitName: "Bao 50kg", type: "export", quantity: 80, referenceType: "order", referenceId: "DH-20260730-001", note: "Chuyển toàn bộ tồn còn lại cho đại lý", createdBy: "Nguyễn Văn An", createdAt: "2026-07-28T09:00:00Z" },
-];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-function delay(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 export function computeStockStatus(stock: number): StockStatus {
   if (stock <= 0) return "out_of_stock";
@@ -352,13 +127,6 @@ function toStockLevelRow(product: InventoryProduct, stock: number, lastUpdated: 
     status: computeStockStatus(stock),
     stockRatio: ratio,
   };
-}
-
-function buildMockStockRows(): StockLevelRow[] {
-  return MOCK_INVENTORY_PRODUCTS.map((p) => {
-    const s = MOCK_STOCK[p.id] ?? { qty: 0, lastUpdated: new Date().toISOString() };
-    return toStockLevelRow(p, s.qty, s.lastUpdated);
-  });
 }
 
 function filterStockRows(rows: StockLevelRow[], params: StockLevelParams): StockLevelRow[] {
@@ -426,7 +194,8 @@ export function useInventoryCatalog() {
             name: p.name,
             categoryId: p.categoryId ?? null,
             categoryName: categories.get(p.categoryId ?? "") ?? null,
-            maxStock: stockMap.get(p.id) ?? 100,
+            currentStock: stockMap.get(p.id) ?? 0,
+            maxStock: 100,
             units:
               p.units && p.units.length > 0
                 ? p.units.map((u) => ({
@@ -439,10 +208,9 @@ export function useInventoryCatalog() {
           }));
         }
       } catch {
-        // Fallback mock
+        // Không có dữ liệu
       }
-      await delay(400);
-      return MOCK_INVENTORY_PRODUCTS;
+      return [];
     },
     staleTime: 60_000,
   });
@@ -508,10 +276,6 @@ export function useStockLevel(params: StockLevelParams = {}) {
       } catch {
         // Fallback mock
       }
-      if (rows.length === 0) {
-        await delay(400);
-        rows = buildMockStockRows();
-      }
       return filterStockRows(rows, params);
     },
     staleTime: 30_000,
@@ -535,7 +299,7 @@ async function getCatalogReal(): Promise<Map<string, InventoryProduct>> {
       });
     }
   } catch {
-    // Bỏ qua — fallback sẽ dùng mock
+    // Bỏ qua
   }
   return map;
 }
@@ -544,7 +308,7 @@ async function getCatalogReal(): Promise<Map<string, InventoryProduct>> {
  * Lịch sử nhập/xuất kho.
  * Fetch toàn bộ giao dịch rồi lọc type/product/date/search phía client
  * (backend /inventory/transactions chỉ hỗ trợ lọc productId — không đủ cho
- * bộ lọc tổ hợp; filter client cũng đảm bảo nhất quán khi fallback mock).
+ * bộ lọc tổ hợp).
  */
 export function useTransactionHistory(params: TransactionHistoryParams = {}) {
   return useQuery({
@@ -559,12 +323,7 @@ export function useTransactionHistory(params: TransactionHistoryParams = {}) {
       } catch {
         // Fallback mock
       }
-      if (items.length === 0) {
-        await delay(400);
-        items = MOCK_TRANSACTIONS;
-      }
-
-      // Gộp tên sản phẩm/đơn vị nếu API không trả (mock đã có sẵn)
+      // Gộp tên sản phẩm/đơn vị nếu API không trả
       if (items.some((t) => !t.productName)) {
         const catalog = await getCatalogReal();
         items = items.map((t) => {
@@ -625,42 +384,12 @@ export function useImportStock() {
       quantity: number;
       note?: string;
     }): Promise<InventoryTransaction> => {
-      try {
-        const { data } = await apiClient.post<ApiResponseData<InventoryTransaction>>(
-          "/inventory/import",
-          input,
-        );
-        if (data.data) return data.data;
-      } catch {
-        // Fallback mock
-      }
-
-      await delay(700);
-      const now = new Date().toISOString();
-      const product =
-        MOCK_INVENTORY_PRODUCTS.find((p) => p.id === input.productId) ??
-        MOCK_INVENTORY_PRODUCTS[0];
-      const unit = product.units.find((u) => u.id === input.productUnitId) ?? product.units[0];
-
-      // Cập nhật tồn kho mock
-      const cur = MOCK_STOCK[input.productId] ?? { qty: 0, lastUpdated: now };
-      MOCK_STOCK[input.productId] = { qty: cur.qty + input.quantity, lastUpdated: now };
-
-      const transaction: InventoryTransaction = {
-        id: `t${Date.now()}`,
-        productId: product.id,
-        productName: product.name,
-        unitName: unit?.unitName ?? "Cái",
-        type: "import",
-        quantity: input.quantity,
-        referenceType: "purchase",
-        referenceId: null,
-        note: input.note || null,
-        createdBy: "Nguyễn Văn An",
-        createdAt: now,
-      };
-      MOCK_TRANSACTIONS.unshift(transaction);
-      return transaction;
+      const { data } = await apiClient.post<ApiResponseData<InventoryTransaction>>(
+        "/inventory/import",
+        input,
+      );
+      if (!data.data) throw new Error("Không thể nhập kho");
+      return data.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: inventoryKeys.stock });
