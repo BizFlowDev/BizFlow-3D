@@ -18,6 +18,7 @@ import {
   CheckCircle2,
   PackagePlus,
   Pencil,
+  AlertCircle,
 } from "lucide-react";
 import {
   Dialog,
@@ -45,14 +46,15 @@ import {
   useCategoryList,
 } from "@/hooks/useProducts";
 import type { Product } from "@/hooks/useProducts";
+import { ImageUpload } from "@/components/ui/image-upload";
 
 // ── Zod Schema ────────────────────────────────────────────────────────────────
 
 const unitSchema = z.object({
   unitName: z
     .string()
-    .min(1, "Tên đơn vị không được để trống")
-    .max(50, "Tên đơn vị không quá 50 ký tự"),
+    .max(50, "Tên đơn vị không quá 50 ký tự")
+    .optional(),
   conversionFactor: z
     .number({ error: "Hệ số quy đổi phải lớn hơn 0" })
     .positive("Hệ số quy đổi phải lớn hơn 0")
@@ -77,26 +79,32 @@ const productFormSchema = z
     description: z.string().max(1000, "Mô tả không quá 1000 ký tự").optional(),
     imageUrl: z
       .string()
-      .url("URL hình ảnh không hợp lệ")
-      .or(z.literal(""))
-      .optional(),
+      .nullish()
+      .or(z.literal("")),
     hasMultipleUnits: z.boolean(),
     singlePrice: z
       .number({ error: "Giá phải lớn hơn 0" })
       .positive("Giá phải lớn hơn 0")
       .optional(),
-    units: z.array(unitSchema),
+    units: z.array(unitSchema).optional(),
   })
   .superRefine((data, ctx) => {
     if (data.hasMultipleUnits) {
-      if (data.units.length === 0) {
+      if (!data.units || data.units.length === 0) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ["units"],
           message: "Phải có ít nhất 1 đơn vị tính",
         });
       }
-      data.units.forEach((u, index) => {
+      data.units?.forEach((u, index) => {
+        if (!u.unitName || !u.unitName.trim()) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["units", index, "unitName"],
+            message: "Tên đơn vị không được để trống",
+          });
+        }
         if (
           u.conversionFactor === undefined ||
           u.conversionFactor === null ||
@@ -122,17 +130,19 @@ const productFormSchema = z
           });
         }
       });
-    } else if (
-      data.singlePrice === undefined ||
-      data.singlePrice === null ||
-      isNaN(data.singlePrice) ||
-      data.singlePrice <= 0
-    ) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["singlePrice"],
-        message: "Giá phải lớn hơn 0",
-      });
+    } else {
+      if (
+        data.singlePrice === undefined ||
+        data.singlePrice === null ||
+        isNaN(data.singlePrice) ||
+        data.singlePrice <= 0
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["singlePrice"],
+          message: "Giá phải lớn hơn 0",
+        });
+      }
     }
   });
 
@@ -158,6 +168,7 @@ export function ProductFormDialog({
   const updateMutation = useUpdateProduct();
   const { data: categories = [] } = useCategoryList();
   const [showSuccess, setShowSuccess] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const {
     register,
@@ -206,6 +217,7 @@ export function ProductFormDialog({
           price: u.price,
         })),
       });
+      setSubmitError(null);
     } else if (!open) {
       reset({
         name: "",
@@ -218,15 +230,21 @@ export function ProductFormDialog({
         units: [{ unitName: "", conversionFactor: 1, price: undefined }],
       });
       setShowSuccess(false);
+      setSubmitError(null);
     }
   }, [product, open, reset]);
 
   const isLoading = createMutation.isPending || updateMutation.isPending;
 
+  const onInvalid = (formErrors: unknown) => {
+    console.warn("[ProductFormDialog] Validation failed:", formErrors);
+  };
+
   const onSubmit = async (data: ProductFormValues) => {
+    setSubmitError(null);
     const units = data.hasMultipleUnits
-      ? data.units.map((u, i) => ({
-          unitName: u.unitName,
+      ? (data.units ?? []).map((u, i) => ({
+          unitName: u.unitName || "Đơn vị",
           conversionFactor: u.conversionFactor ?? 1,
           price: u.price ?? 0,
           isDefault: i === 0,
@@ -260,14 +278,26 @@ export function ProductFormDialog({
         onOpenChange(false);
         setShowSuccess(false);
       }, 1200);
-    } catch {
-      // Error handled by mutation
+    } catch (err: unknown) {
+      console.error("[ProductFormDialog] Submit error:", err);
+      let message = "Có lỗi xảy ra khi lưu sản phẩm. Vui lòng thử lại.";
+      if (
+        typeof err === "object" &&
+        err !== null &&
+        "response" in err &&
+        (err as { response?: { data?: { message?: string } } }).response?.data?.message
+      ) {
+        message = (err as { response: { data: { message: string } } }).response.data.message;
+      } else if (err instanceof Error) {
+        message = err.message;
+      }
+      setSubmitError(message);
     }
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[620px] overflow-hidden rounded-2xl border-border/50 bg-background/95 backdrop-blur-xl shadow-2xl">
+      <DialogContent className="sm:max-w-[620px] max-h-[90vh] overflow-y-auto rounded-2xl border-border/50 bg-background/95 backdrop-blur-xl shadow-2xl p-6">
         <AnimatePresence mode="wait">
           {showSuccess ? (
             <motion.div
@@ -324,7 +354,7 @@ export function ProductFormDialog({
               </DialogHeader>
 
               <form
-                onSubmit={handleSubmit(onSubmit)}
+                onSubmit={handleSubmit(onSubmit, onInvalid)}
                 className="mt-6 space-y-5"
               >
                 {/* Name + Code */}
@@ -403,22 +433,23 @@ export function ProductFormDialog({
                   />
                 </div>
 
-                {/* Image URL */}
-                <div className="space-y-2">
-                  <Label htmlFor="product-image" className="text-sm font-medium">
-                    URL hình ảnh
+                {/* Image Upload */}
+                <div className="space-y-2 w-full min-w-0">
+                  <Label className="text-sm font-medium">
+                    Hình ảnh sản phẩm
                   </Label>
-                  <div className="relative">
-                    <ImageIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                      id="product-image"
-                      type="url"
-                      placeholder="https://example.com/image.jpg"
-                      className="pl-9"
-                      {...register("imageUrl")}
-                      aria-invalid={errors.imageUrl ? "true" : "false"}
-                    />
-                  </div>
+                  <Controller
+                    control={control}
+                    name="imageUrl"
+                    render={({ field }) => (
+                      <ImageUpload
+                        value={field.value}
+                        onChange={(url) => field.onChange(url)}
+                        onRemove={() => field.onChange("")}
+                        disabled={isLoading}
+                      />
+                    )}
+                  />
                   {errors.imageUrl && (
                     <p className="text-xs text-red-500" role="alert">
                       {errors.imageUrl.message}
@@ -636,6 +667,13 @@ export function ProductFormDialog({
                         {errors.singlePrice.message}
                       </p>
                     )}
+                  </div>
+                )}
+
+                {submitError && (
+                  <div className="flex items-center gap-2 rounded-lg bg-destructive/10 p-3 text-xs text-destructive">
+                    <AlertCircle className="h-4 w-4 shrink-0" />
+                    <span>{submitError}</span>
                   </div>
                 )}
 
