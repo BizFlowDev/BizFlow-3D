@@ -174,7 +174,7 @@ export class PostgresAccountingRepository implements IAccountingRepository {
         c.id AS "customerId",
         c.name AS "customerName",
         c.phone AS "customerPhone",
-        COALESCE(op.accrued_prior, 0) - COALESCE(po.collected_prior, 0) AS "openingDebt",
+        COALESCE(op.accrued_prior, 0) - COALESCE(pp.collected_prior, 0) AS "openingDebt",
         COALESCE(p.accrued, 0) AS "accrued",
         COALESCE(pp2.collected, 0) AS "collected",
         COALESCE(op.accrued_prior, 0) + COALESCE(p.accrued, 0)

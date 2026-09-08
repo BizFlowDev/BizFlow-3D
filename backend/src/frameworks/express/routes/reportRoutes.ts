@@ -14,5 +14,6 @@ router.use(allowRoles('owner', 'manager'));
 router.get('/daily-revenue', reportController.getDailyRevenue);
 router.get('/top-products', reportController.getTopProducts);
 router.get('/debt-summary', reportController.getDebtSummary);
+router.get('/revenue-by-category', reportController.getRevenueByCategory);
 
 export default router;

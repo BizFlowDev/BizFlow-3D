@@ -1,6 +1,6 @@
 import { Order } from '../../../core/entities/Order.js';
 import { OrderItem } from '../../../core/entities/OrderItem.js';
-import { IOrderRepository, OrderFilter, PaginatedResult, DailyRevenueRow, TopProductRow } from '../../../core/repositories/IOrderRepository.js';
+import { IOrderRepository, OrderFilter, PaginatedResult, DailyRevenueRow, TopProductRow, CategoryRevenueRow } from '../../../core/repositories/IOrderRepository.js';
 import { query, transaction } from '../connection.js';
 import { mapToCamelCase } from '../mapper.js';
 
@@ -284,6 +284,26 @@ export class PostgresOrderRepository implements IOrderRepository {
       totalQuantitySold: parseFloat(row.totalQuantitySold) || 0,
       totalRevenue: parseFloat(row.totalRevenue) || 0,
       orderCount: parseInt(row.orderCount, 10) || 0,
+    }));
+  }
+
+  async getRevenueByCategory(storeId: string): Promise<CategoryRevenueRow[]> {
+    const text = `
+      SELECT 
+        COALESCE(c.name, 'Khác') as "categoryName",
+        SUM(oi.total_price) as "totalRevenue"
+      FROM orders o
+      JOIN order_items oi ON o.id = oi.order_id
+      JOIN products p ON oi.product_id = p.id
+      LEFT JOIN product_categories c ON p.category_id = c.id
+      WHERE o.store_id = $1 AND o.status = 'confirmed'
+      GROUP BY c.name
+      ORDER BY "totalRevenue" DESC
+    `;
+    const res = await query(text, [storeId]);
+    return res.rows.map(row => ({
+      categoryName: row.categoryName,
+      totalRevenue: parseFloat(row.totalRevenue) || 0,
     }));
   }
 

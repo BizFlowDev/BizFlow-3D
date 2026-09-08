@@ -5,6 +5,7 @@ export interface DebtSummaryOutput {
   totalDebt: number;
   totalPaid: number;
   totalRemaining: number;
+  customerCount: number;
 }
 
 export class GetDebtSummaryUseCase {
@@ -16,7 +17,9 @@ export class GetDebtSummaryUseCase {
     const totalDebt = customers.reduce((sum, c) => sum + c.totalDebtCreated, 0);
     const totalPaid = customers.reduce((sum, c) => sum + c.totalPaid, 0);
     const totalRemaining = customers.reduce((sum, c) => sum + c.remainingDebt, 0);
+    const customerCount = customers.filter(c => c.remainingDebt > 0).length;
 
-    return { customers, totalDebt, totalPaid, totalRemaining };
+    return { customers, totalDebt, totalPaid, totalRemaining, customerCount };
   }
 }
+

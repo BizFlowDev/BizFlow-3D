@@ -35,6 +35,11 @@ export interface TopProductRow {
   orderCount: number;
 }
 
+export interface CategoryRevenueRow {
+  categoryName: string;
+  totalRevenue: number;
+}
+
 export interface IOrderRepository {
   // ── Order CRUD ──
   findById(id: string): Promise<Order | null>;
@@ -61,6 +66,7 @@ export interface IOrderRepository {
   // ── Report queries (backed by DB views) ──
   getDailyRevenue(storeId: string, fromDate: Date, toDate: Date): Promise<DailyRevenueRow[]>;
   getTopProducts(storeId: string, limit: number): Promise<TopProductRow[]>;
+  getRevenueByCategory(storeId: string): Promise<CategoryRevenueRow[]>;
 
   // ── Admin queries ──
   /** Most recent orders for a store (lightweight, no items). */

@@ -65,6 +65,7 @@ import { GenerateFinancialReportUseCase } from '../core/usecases/accounting/Gene
 import { GetDailyRevenueUseCase } from '../core/usecases/report/GetDailyRevenueUseCase.js';
 import { GetTopProductsUseCase } from '../core/usecases/report/GetTopProductsUseCase.js';
 import { GetDebtSummaryUseCase } from '../core/usecases/report/GetDebtSummaryUseCase.js';
+import { GetRevenueByCategoryUseCase } from '../core/usecases/report/GetRevenueByCategoryUseCase.js';
 
 import { ProcessNaturalLanguageOrderUseCase } from '../core/usecases/ai/ProcessNaturalLanguageOrderUseCase.js';
 import { GenerateDraftOrderUseCase } from '../core/usecases/ai/GenerateDraftOrderUseCase.js';
@@ -211,6 +212,7 @@ const recordDebtPaymentUseCase = new RecordDebtPaymentUseCase(debtPaymentRepo, c
 const getDailyRevenueUseCase = new GetDailyRevenueUseCase(orderRepo);
 const getTopProductsUseCase = new GetTopProductsUseCase(orderRepo);
 const getDebtSummaryUseCase = new GetDebtSummaryUseCase(debtPaymentRepo);
+const getRevenueByCategoryUseCase = new GetRevenueByCategoryUseCase(orderRepo);
 
 const processNLOrderUseCase = new ProcessNaturalLanguageOrderUseCase(aiService, productRepo);
 const generateDraftOrderUseCase = new GenerateDraftOrderUseCase(orderRepo, productRepo);
@@ -277,6 +279,7 @@ export const controllers = {
     getDailyRevenueUseCase,
     getTopProductsUseCase,
     getDebtSummaryUseCase,
+    getRevenueByCategoryUseCase,
   ),
   aiOrderController: new AiOrderController(
     processNLOrderUseCase,
