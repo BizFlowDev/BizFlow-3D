@@ -75,7 +75,7 @@ export interface ProductFormData {
   code: string;
   categoryId?: string;
   description?: string;
-  imageUrl?: string;
+  imageUrl?: string | null;
   units: ProductFormUnit[];
 }
 
@@ -254,6 +254,20 @@ export function useToggleProductStatus() {
       >(`/products/${id}/toggle`);
       if (!res.data) throw new Error("Không thể cập nhật trạng thái");
       return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+    },
+  });
+}
+
+/** Xóa sản phẩm vĩnh viễn (bao gồm ảnh trên Cloudinary) */
+export function useDeleteProduct() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string): Promise<void> => {
+      await apiClient.delete(`/products/${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["products"] });

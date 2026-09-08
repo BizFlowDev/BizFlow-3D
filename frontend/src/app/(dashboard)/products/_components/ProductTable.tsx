@@ -8,6 +8,7 @@ import {
   Pencil,
   Power,
   PowerOff,
+  Trash2,
   AlertTriangle,
   Loader2,
   ChevronLeft,
@@ -29,6 +30,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -39,7 +41,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { useToggleProductStatus } from "@/hooks/useProducts";
+import { useToggleProductStatus, useDeleteProduct } from "@/hooks/useProducts";
 import type { Product, ProductCategory } from "@/hooks/useProducts";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -86,13 +88,25 @@ export function ProductTable({
   onEdit,
 }: ProductTableProps) {
   const toggleMutation = useToggleProductStatus();
+  const deleteMutation = useDeleteProduct();
   const [toggleTarget, setToggleTarget] = useState<Product | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
 
   const handleConfirmToggle = async () => {
     if (!toggleTarget) return;
     try {
       await toggleMutation.mutateAsync(toggleTarget.id);
       setToggleTarget(null);
+    } catch {
+      // Error handled by mutation
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    try {
+      await deleteMutation.mutateAsync(deleteTarget.id);
+      setDeleteTarget(null);
     } catch {
       // Error handled by mutation
     }
@@ -317,6 +331,14 @@ export function ProductTable({
                                 </>
                               )}
                             </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive"
+                              onClick={() => setDeleteTarget(product)}
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Xóa sản phẩm
+                            </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
@@ -415,6 +437,54 @@ export function ProductTable({
                     "Ngưng hoạt động"
                   ) : (
                     "Kích hoạt"
+                  )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
+      </AnimatePresence>
+
+      {/* ── Confirm Delete Dialog ── */}
+      <AnimatePresence>
+        {deleteTarget && (
+          <Dialog
+            open={!!deleteTarget}
+            onOpenChange={(open) => !open && setDeleteTarget(null)}
+          >
+            <DialogContent className="sm:max-w-[400px] overflow-hidden rounded-2xl border-border/50 bg-background/95 backdrop-blur-xl shadow-2xl">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2 text-lg">
+                  <Trash2 className="h-5 w-5 text-destructive" />
+                  Xác nhận xóa sản phẩm
+                </DialogTitle>
+                <DialogDescription>
+                  Bạn có chắc muốn xóa vĩnh viễn sản phẩm{" "}
+                  <strong>&quot;{deleteTarget.name}&quot;</strong>? Hành động
+                  này sẽ xóa toàn bộ dữ liệu sản phẩm và ảnh liên quan trên hệ
+                  thống. Thao tác này không thể hoàn tác.
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => setDeleteTarget(null)}
+                  disabled={deleteMutation.isPending}
+                >
+                  Hủy
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={handleConfirmDelete}
+                  disabled={deleteMutation.isPending}
+                >
+                  {deleteMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Đang xóa...
+                    </>
+                  ) : (
+                    "Xóa sản phẩm"
                   )}
                 </Button>
               </DialogFooter>

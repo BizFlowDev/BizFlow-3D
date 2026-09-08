@@ -43,6 +43,19 @@ export function ImageUpload({
   const [showUrlInput, setShowUrlInput] = useState(false);
   const [customUrl, setCustomUrl] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Lưu publicId của ảnh vừa upload trong phiên này để có thể xóa trên Cloudinary
+  const [currentPublicId, setCurrentPublicId] = useState<string | null>(null);
+
+  /**
+   * Xóa ảnh hiện tại trên Cloudinary (fire-and-forget, không block UI)
+   */
+  const deleteCurrentImage = async (publicId: string) => {
+    try {
+      await apiClient.delete("/upload/image", { data: { publicId } });
+    } catch (err) {
+      console.error("[ImageUpload] Failed to delete image from Cloudinary:", err);
+    }
+  };
 
   const handleFile = async (file: File) => {
     // 1. Kiểm tra định dạng file
@@ -62,6 +75,12 @@ export function ImageUpload({
     setErrorMessage(null);
     setIsUploading(true);
 
+    // Xóa ảnh cũ trên Cloudinary nếu đang có (do thay ảnh)
+    if (currentPublicId) {
+      deleteCurrentImage(currentPublicId);
+      setCurrentPublicId(null);
+    }
+
     // 3. Upload lên backend Cloudinary endpoint
     const formData = new FormData();
     formData.append("image", file);
@@ -79,6 +98,10 @@ export function ImageUpload({
 
       if (res.data?.data?.url) {
         onChange(res.data.data.url);
+        // Lưu publicId để có thể xóa sau này
+        if (res.data.data.publicId) {
+          setCurrentPublicId(res.data.data.publicId);
+        }
       } else {
         throw new Error("Không nhận được URL ảnh từ máy chủ");
       }
@@ -139,6 +162,11 @@ export function ImageUpload({
   };
 
   const handleClear = () => {
+    // Xóa ảnh trên Cloudinary nếu là ảnh vừa upload trong phiên này
+    if (currentPublicId) {
+      deleteCurrentImage(currentPublicId);
+      setCurrentPublicId(null);
+    }
     onChange("");
     onRemove?.();
     setErrorMessage(null);

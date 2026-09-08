@@ -18,6 +18,34 @@ export interface UploadResult {
   bytes: number;
 }
 
+/**
+ * Trích xuất publicId từ URL Cloudinary.
+ * Ví dụ: "https://res.cloudinary.com/demo/image/upload/v1234/bizflow/stores/123/products/abc.webp"
+ *       → "bizflow/stores/123/products/abc"
+ */
+export function extractCloudinaryPublicId(url: string): string | null {
+  if (!url || typeof url !== 'string') return null;
+
+  try {
+    const urlObj = new URL(url);
+    // Chỉ xử lý URL từ Cloudinary
+    if (!urlObj.hostname.includes('cloudinary.com')) return null;
+
+    const pathname = urlObj.pathname; // e.g. /demo/image/upload/v1234/bizflow/.../abc.webp
+    // Tìm vị trí sau "/upload/" (hoặc "/upload/v12345/")
+    const uploadMatch = pathname.match(/\/upload\/(?:v\d+\/)?(.+)$/);
+    if (!uploadMatch || !uploadMatch[1]) return null;
+
+    const pathWithExt = uploadMatch[1]; // bizflow/stores/123/products/abc.webp
+    // Bỏ đuôi file extension
+    const lastDotIndex = pathWithExt.lastIndexOf('.');
+    if (lastDotIndex === -1) return pathWithExt;
+    return pathWithExt.substring(0, lastDotIndex);
+  } catch {
+    return null;
+  }
+}
+
 export class CloudinaryService {
   /**
    * Upload image buffer directly to Cloudinary using upload_stream
@@ -44,7 +72,8 @@ export class CloudinaryService {
           transformation: [
             { quality: 'auto:good' },
             { fetch_format: 'auto' },
-            { max_width: 1600, crop: 'limit' },
+            { flags: 'strip_profile' },
+            { width: 1200, crop: 'limit' },
           ],
         },
         (error, result: UploadApiResponse | undefined) => {
@@ -84,6 +113,19 @@ export class CloudinaryService {
     } catch (err) {
       console.error('[CloudinaryService] Failed to delete image:', err);
     }
+  }
+
+  /**
+   * Xoá ảnh khỏi Cloudinary qua URL.
+   * Tự động trích xuất publicId từ URL Cloudinary.
+   */
+  async deleteImageByUrl(url: string): Promise<void> {
+    const publicId = extractCloudinaryPublicId(url);
+    if (!publicId) {
+      console.warn('[CloudinaryService] Cannot extract publicId from URL:', url);
+      return;
+    }
+    await this.deleteImage(publicId);
   }
 }
 

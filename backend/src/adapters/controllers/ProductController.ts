@@ -6,6 +6,7 @@ import { ListCategoriesUseCase } from '../../core/usecases/product/ListCategorie
 import { CreateCategoryUseCase } from '../../core/usecases/product/CreateCategoryUseCase.js';
 import { UpdateCategoryUseCase } from '../../core/usecases/product/UpdateCategoryUseCase.js';
 import { DeleteCategoryUseCase } from '../../core/usecases/product/DeleteCategoryUseCase.js';
+import { DeleteProductUseCase } from '../../core/usecases/product/DeleteProductUseCase.js';
 import { ToggleProductStatusUseCase } from '../../core/usecases/product/ToggleProductStatusUseCase.js';
 import { ApiResponse } from '../presenters/ApiResponse.js';
 import { AuthenticationError } from '../../core/errors/AuthenticationError.js';
@@ -24,6 +25,7 @@ export class ProductController {
     private readonly createCategoryUseCase: CreateCategoryUseCase,
     private readonly updateCategoryUseCase: UpdateCategoryUseCase,
     private readonly deleteCategoryUseCase: DeleteCategoryUseCase,
+    private readonly deleteProductUseCase: DeleteProductUseCase,
   ) {}
 
   /**
@@ -63,6 +65,27 @@ export class ProductController {
       });
 
       const response = ApiResponse.success(result, 'Cập nhật sản phẩm thành công');
+      res.status(response.statusCode).json(response.toJSON());
+    } catch (error) {
+      next(error);
+    }
+   };
+
+  /**
+   * DELETE /api/products/:id
+   * Xóa sản phẩm vĩnh viễn (bao gồm cả ảnh trên Cloudinary).
+   */
+  delete = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const storeId = req.user?.storeId;
+      if (!storeId) throw new AuthenticationError('Store không xác định');
+
+      await this.deleteProductUseCase.execute({
+        productId: req.params.id as string,
+        storeId,
+      });
+
+      const response = ApiResponse.success(null, 'Xoá sản phẩm thành công');
       res.status(response.statusCode).json(response.toJSON());
     } catch (error) {
       next(error);

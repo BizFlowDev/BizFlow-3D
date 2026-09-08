@@ -41,6 +41,7 @@ import { ListCategoriesUseCase } from '../core/usecases/product/ListCategoriesUs
 import { CreateCategoryUseCase } from '../core/usecases/product/CreateCategoryUseCase.js';
 import { UpdateCategoryUseCase } from '../core/usecases/product/UpdateCategoryUseCase.js';
 import { DeleteCategoryUseCase } from '../core/usecases/product/DeleteCategoryUseCase.js';
+import { DeleteProductUseCase } from '../core/usecases/product/DeleteProductUseCase.js';
 import { ToggleProductStatusUseCase } from '../core/usecases/product/ToggleProductStatusUseCase.js';
 
 import { CreateCustomerUseCase } from '../core/usecases/customer/CreateCustomerUseCase.js';
@@ -189,6 +190,7 @@ const createCategoryUseCase = new CreateCategoryUseCase(productRepo);
 const updateCategoryUseCase = new UpdateCategoryUseCase(productRepo);
 const deleteCategoryUseCase = new DeleteCategoryUseCase(productRepo);
 const toggleProductStatusUseCase = new ToggleProductStatusUseCase(productRepo);
+const deleteProductUseCase = new DeleteProductUseCase(productRepo);
 
 const createCustomerUseCase = new CreateCustomerUseCase(customerRepo);
 const updateCustomerUseCase = new UpdateCustomerUseCase(customerRepo);
@@ -249,6 +251,7 @@ export const controllers = {
     createCategoryUseCase,
     updateCategoryUseCase,
     deleteCategoryUseCase,
+    deleteProductUseCase,
   ),
   customerController: new CustomerController(
     createCustomerUseCase,

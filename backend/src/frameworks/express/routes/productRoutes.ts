@@ -23,6 +23,7 @@ router.post('/', allowRoles('owner', 'manager'), validate(createProductSchema), 
 router.get('/', productController.list);
 router.put('/:id', allowRoles('owner', 'manager'), validate(updateProductSchema), productController.update);
 router.patch('/:id/toggle', allowRoles('owner', 'manager'), productController.toggleStatus);
+router.delete('/:id', allowRoles('owner', 'manager'), productController.delete);
 router.get('/category/:categoryId', productController.getByCategory);
 
 export default router;

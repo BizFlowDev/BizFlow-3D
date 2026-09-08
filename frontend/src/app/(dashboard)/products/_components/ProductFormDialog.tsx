@@ -299,7 +299,7 @@ export function ProductFormDialog({
       code: data.code,
       categoryId: data.categoryId === "all" ? undefined : data.categoryId,
       description: data.description || undefined,
-      imageUrl: data.imageUrl || undefined,
+      imageUrl: data.imageUrl || null,
       units,
     };
 
