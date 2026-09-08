@@ -68,12 +68,10 @@ export function useAuth() {
 
         setAuth(authUser, accessToken, refreshToken);
 
-        // Redirect theo role
-        if (authUser.role === "admin") {
-          router.push("/admin/stores");
-        } else {
-          router.push("/");
-        }
+        // Redirect theo role — dùng window.location để full-reload,
+        // đảm bảo cookie đã được gửi đến middleware (router.push có thể race condition)
+        const dest = authUser.role === "admin" ? "/admin/stores" : "/";
+        window.location.href = dest;
 
         return res;
       } finally {
