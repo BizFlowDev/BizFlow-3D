@@ -3,13 +3,16 @@ import { CreateProductUseCase } from '../../core/usecases/product/CreateProductU
 import { UpdateProductUseCase } from '../../core/usecases/product/UpdateProductUseCase.js';
 import { ListProductsUseCase } from '../../core/usecases/product/ListProductsUseCase.js';
 import { ListCategoriesUseCase } from '../../core/usecases/product/ListCategoriesUseCase.js';
+import { CreateCategoryUseCase } from '../../core/usecases/product/CreateCategoryUseCase.js';
+import { UpdateCategoryUseCase } from '../../core/usecases/product/UpdateCategoryUseCase.js';
+import { DeleteCategoryUseCase } from '../../core/usecases/product/DeleteCategoryUseCase.js';
 import { ToggleProductStatusUseCase } from '../../core/usecases/product/ToggleProductStatusUseCase.js';
 import { ApiResponse } from '../presenters/ApiResponse.js';
 import { AuthenticationError } from '../../core/errors/AuthenticationError.js';
 
 /**
  * Product controller.
- * Handles CRUD operations for products within a store.
+ * Handles CRUD operations for products and categories within a store.
  */
 export class ProductController {
   constructor(
@@ -18,6 +21,9 @@ export class ProductController {
     private readonly listProductsUseCase: ListProductsUseCase,
     private readonly toggleProductStatusUseCase: ToggleProductStatusUseCase,
     private readonly listCategoriesUseCase: ListCategoriesUseCase,
+    private readonly createCategoryUseCase: CreateCategoryUseCase,
+    private readonly updateCategoryUseCase: UpdateCategoryUseCase,
+    private readonly deleteCategoryUseCase: DeleteCategoryUseCase,
   ) {}
 
   /**
@@ -115,6 +121,70 @@ export class ProductController {
       const result = await this.listCategoriesUseCase.execute(storeId);
 
       const response = ApiResponse.success(result, 'Lấy danh sách danh mục thành công');
+      res.status(response.statusCode).json(response.toJSON());
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * POST /api/products/categories
+   * Create a new category for the current store.
+   */
+  createCategory = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const storeId = req.user?.storeId;
+      if (!storeId) throw new AuthenticationError('Store không xác định');
+
+      const result = await this.createCategoryUseCase.execute({
+        storeId,
+        ...req.body,
+      });
+
+      const response = ApiResponse.created(result, 'Tạo danh mục thành công');
+      res.status(response.statusCode).json(response.toJSON());
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * PUT /api/products/categories/:id
+   * Update category for the current store.
+   */
+  updateCategory = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const storeId = req.user?.storeId;
+      if (!storeId) throw new AuthenticationError('Store không xác định');
+
+      const result = await this.updateCategoryUseCase.execute({
+        id: req.params.id as string,
+        storeId,
+        ...req.body,
+      });
+
+      const response = ApiResponse.success(result, 'Cập nhật danh mục thành công');
+      res.status(response.statusCode).json(response.toJSON());
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * DELETE /api/products/categories/:id
+   * Delete category from the current store.
+   */
+  deleteCategory = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const storeId = req.user?.storeId;
+      if (!storeId) throw new AuthenticationError('Store không xác định');
+
+      await this.deleteCategoryUseCase.execute({
+        id: req.params.id as string,
+        storeId,
+      });
+
+      const response = ApiResponse.success(null, 'Xoá danh mục thành công');
       res.status(response.statusCode).json(response.toJSON());
     } catch (error) {
       next(error);

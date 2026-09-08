@@ -41,6 +41,18 @@ export interface ProductCategory {
   updatedAt: string;
 }
 
+export interface CreateCategoryData {
+  name: string;
+  description?: string;
+  isActive?: boolean;
+}
+
+export interface UpdateCategoryData {
+  name?: string;
+  description?: string;
+  isActive?: boolean;
+}
+
 export type ProductStatusFilter = "all" | "active" | "inactive";
 
 export interface ProductListParams {
@@ -128,6 +140,64 @@ export function useCategoryList() {
       return [];
     },
     staleTime: 60_000,
+  });
+}
+
+/** Tạo danh mục mới */
+export function useCreateCategory() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: CreateCategoryData): Promise<ProductCategory> => {
+      const { data: res } = await apiClient.post<
+        ApiResponseData<ProductCategory>
+      >("/products/categories", data);
+      if (!res.data) throw new Error("Không thể tạo danh mục");
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["categories"] });
+    },
+  });
+}
+
+/** Cập nhật danh mục */
+export function useUpdateCategory() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      id,
+      data,
+    }: {
+      id: string;
+      data: UpdateCategoryData;
+    }): Promise<ProductCategory> => {
+      const { data: res } = await apiClient.put<
+        ApiResponseData<ProductCategory>
+      >(`/products/categories/${id}`, data);
+      if (!res.data) throw new Error("Không thể cập nhật danh mục");
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["categories"] });
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+    },
+  });
+}
+
+/** Xóa danh mục */
+export function useDeleteCategory() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string): Promise<void> => {
+      await apiClient.delete(`/products/categories/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["categories"] });
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+    },
   });
 }
 

@@ -7,6 +7,7 @@ import {
   PackagePlus,
   RefreshCcw,
   Download,
+  FolderTree,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -28,6 +29,7 @@ import type {
 } from "@/hooks/useProducts";
 import { ProductTable } from "./_components/ProductTable";
 import { ProductFormDialog } from "./_components/ProductFormDialog";
+import { CategoryManageDialog } from "./_components/CategoryManageDialog";
 
 // ── Animation variants ────────────────────────────────────────────────────────
 
@@ -61,6 +63,7 @@ export default function ProductsPage() {
   });
   const [searchInput, setSearchInput] = useState("");
   const [formOpen, setFormOpen] = useState(false);
+  const [categoryManageOpen, setCategoryManageOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
 
   // Debounced search
@@ -130,19 +133,31 @@ export default function ProductsPage() {
             Quản lý danh mục sản phẩm, đơn vị tính và giá bán.
           </p>
         </div>
-        <Button
-          onClick={() => {
-            setEditingProduct(null);
-            setFormOpen(true);
-          }}
-          className="relative overflow-hidden bg-gradient-to-r from-blue-600 to-blue-500 font-semibold text-white shadow-lg shadow-blue-500/25 transition-all hover:from-blue-500 hover:to-blue-400 hover:shadow-blue-500/40 hover:scale-[1.02] active:scale-[0.98]"
-          size="lg"
-          id="add-product-btn"
-        >
-          <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/10 to-transparent transition-transform duration-700 hover:translate-x-full" />
-          <PackagePlus className="h-4 w-4" />
-          Thêm sản phẩm
-        </Button>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <Button
+            onClick={() => setCategoryManageOpen(true)}
+            variant="outline"
+            size="lg"
+            className="gap-2 border-border/80 hover:bg-accent font-medium shadow-sm"
+          >
+            <FolderTree className="h-4 w-4 text-blue-500" />
+            Quản lý danh mục
+          </Button>
+
+          <Button
+            onClick={() => {
+              setEditingProduct(null);
+              setFormOpen(true);
+            }}
+            className="relative overflow-hidden bg-gradient-to-r from-blue-600 to-blue-500 font-semibold text-white shadow-lg shadow-blue-500/25 transition-all hover:from-blue-500 hover:to-blue-400 hover:shadow-blue-500/40 hover:scale-[1.02] active:scale-[0.98]"
+            size="lg"
+            id="add-product-btn"
+          >
+            <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/10 to-transparent transition-transform duration-700 hover:translate-x-full" />
+            <PackagePlus className="h-4 w-4" />
+            Thêm sản phẩm
+          </Button>
+        </div>
       </motion.div>
 
       {/* ── Toolbar ── */}
@@ -238,11 +253,16 @@ export default function ProductsPage() {
         />
       </motion.div>
 
-      {/* ── Dialog ── */}
+      {/* ── Dialogs ── */}
       <ProductFormDialog
         open={formOpen}
         onOpenChange={setFormOpen}
         product={editingProduct}
+      />
+
+      <CategoryManageDialog
+        open={categoryManageOpen}
+        onOpenChange={setCategoryManageOpen}
       />
     </motion.div>
   );

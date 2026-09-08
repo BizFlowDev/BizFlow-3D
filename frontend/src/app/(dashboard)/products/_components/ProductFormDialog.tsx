@@ -44,6 +44,7 @@ import {
   useCreateProduct,
   useUpdateProduct,
   useCategoryList,
+  useCreateCategory,
 } from "@/hooks/useProducts";
 import type { Product } from "@/hooks/useProducts";
 import { ImageUpload } from "@/components/ui/image-upload";
@@ -167,8 +168,43 @@ export function ProductFormDialog({
   const createMutation = useCreateProduct();
   const updateMutation = useUpdateProduct();
   const { data: categories = [] } = useCategoryList();
+  const createCategoryMutation = useCreateCategory();
   const [showSuccess, setShowSuccess] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+
+  // Quick Category Add State
+  const [quickCatOpen, setQuickCatOpen] = useState(false);
+  const [quickCatName, setQuickCatName] = useState("");
+  const [quickCatDesc, setQuickCatDesc] = useState("");
+  const [quickCatLoading, setQuickCatLoading] = useState(false);
+  const [quickCatError, setQuickCatError] = useState("");
+
+  const handleQuickCreateCategory = async () => {
+    const trimmed = quickCatName.trim();
+    if (!trimmed) {
+      setQuickCatError("Vui lòng nhập tên danh mục");
+      return;
+    }
+
+    setQuickCatLoading(true);
+    setQuickCatError("");
+    try {
+      const newCat = await createCategoryMutation.mutateAsync({
+        name: trimmed,
+        description: quickCatDesc.trim() || undefined,
+      });
+      setValue("categoryId", newCat.id);
+      setQuickCatOpen(false);
+      setQuickCatName("");
+      setQuickCatDesc("");
+    } catch (err: any) {
+      const msg =
+        err.response?.data?.message || err.message || "Không thể tạo danh mục";
+      setQuickCatError(msg);
+    } finally {
+      setQuickCatLoading(false);
+    }
+  };
 
   const {
     register,
@@ -296,7 +332,8 @@ export function ProductFormDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[620px] max-h-[90vh] overflow-y-auto rounded-2xl border-border/50 bg-background/95 backdrop-blur-xl shadow-2xl p-6">
         <AnimatePresence mode="wait">
           {showSuccess ? (
@@ -406,9 +443,23 @@ export function ProductFormDialog({
 
                 {/* Category */}
                 <div className="space-y-2">
-                  <Label htmlFor="product-category" className="text-sm font-medium">
-                    Danh mục
-                  </Label>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="product-category" className="text-sm font-medium">
+                      Danh mục
+                    </Label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setQuickCatError("");
+                        setQuickCatName("");
+                        setQuickCatDesc("");
+                        setQuickCatOpen(true);
+                      }}
+                      className="flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 hover:underline cursor-pointer"
+                    >
+                      <Plus className="h-3.5 w-3.5" /> Thêm danh mục mới
+                    </button>
+                  </div>
                   <Controller
                     control={control}
                     name="categoryId"
@@ -708,6 +759,76 @@ export function ProductFormDialog({
           )}
         </AnimatePresence>
       </DialogContent>
-    </Dialog>
+      </Dialog>
+
+      {/* ── Quick Add Category Modal ── */}
+      <Dialog open={quickCatOpen} onOpenChange={setQuickCatOpen}>
+        <DialogContent className="sm:max-w-[420px] rounded-2xl p-6">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base font-semibold">
+              <Tag className="h-4 w-4 text-blue-500" />
+              Thêm danh mục mới
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Tạo danh mục mới để gán ngay cho sản phẩm này.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="mt-4 space-y-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">
+                Tên danh mục <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                placeholder="VD: Cà phê, Nước ngọt..."
+                value={quickCatName}
+                onChange={(e) => {
+                  setQuickCatName(e.target.value);
+                  if (quickCatError) setQuickCatError("");
+                }}
+                autoFocus
+              />
+              {quickCatError && (
+                <p className="text-xs text-red-500">{quickCatError}</p>
+              )}
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">Mô tả (tùy chọn)</Label>
+              <Input
+                placeholder="Mô tả danh mục..."
+                value={quickCatDesc}
+                onChange={(e) => setQuickCatDesc(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="mt-4 gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setQuickCatOpen(false)}
+              disabled={quickCatLoading}
+            >
+              Hủy
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              disabled={quickCatLoading}
+              onClick={handleQuickCreateCategory}
+              className="gap-1.5"
+            >
+              {quickCatLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Plus className="h-4 w-4" />
+              )}
+              Tạo & Chọn luôn
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

@@ -38,6 +38,9 @@ import { CreateProductUseCase } from '../core/usecases/product/CreateProductUseC
 import { UpdateProductUseCase } from '../core/usecases/product/UpdateProductUseCase.js';
 import { ListProductsUseCase } from '../core/usecases/product/ListProductsUseCase.js';
 import { ListCategoriesUseCase } from '../core/usecases/product/ListCategoriesUseCase.js';
+import { CreateCategoryUseCase } from '../core/usecases/product/CreateCategoryUseCase.js';
+import { UpdateCategoryUseCase } from '../core/usecases/product/UpdateCategoryUseCase.js';
+import { DeleteCategoryUseCase } from '../core/usecases/product/DeleteCategoryUseCase.js';
 import { ToggleProductStatusUseCase } from '../core/usecases/product/ToggleProductStatusUseCase.js';
 
 import { CreateCustomerUseCase } from '../core/usecases/customer/CreateCustomerUseCase.js';
@@ -182,6 +185,9 @@ const createProductUseCase = new CreateProductUseCase(productRepo);
 const updateProductUseCase = new UpdateProductUseCase(productRepo);
 const listProductsUseCase = new ListProductsUseCase(productRepo);
 const listCategoriesUseCase = new ListCategoriesUseCase(productRepo);
+const createCategoryUseCase = new CreateCategoryUseCase(productRepo);
+const updateCategoryUseCase = new UpdateCategoryUseCase(productRepo);
+const deleteCategoryUseCase = new DeleteCategoryUseCase(productRepo);
 const toggleProductStatusUseCase = new ToggleProductStatusUseCase(productRepo);
 
 const createCustomerUseCase = new CreateCustomerUseCase(customerRepo);
@@ -240,6 +246,9 @@ export const controllers = {
     listProductsUseCase,
     toggleProductStatusUseCase,
     listCategoriesUseCase,
+    createCategoryUseCase,
+    updateCategoryUseCase,
+    deleteCategoryUseCase,
   ),
   customerController: new CustomerController(
     createCustomerUseCase,
