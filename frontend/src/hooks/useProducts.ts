@@ -64,6 +64,7 @@ export interface ProductListParams {
 }
 
 export interface ProductFormUnit {
+  id?: string;
   unitName: string;
   conversionFactor: number;
   price: number;
@@ -76,6 +77,7 @@ export interface ProductFormData {
   categoryId?: string;
   description?: string;
   imageUrl?: string | null;
+  hasMultipleUnits?: boolean;
   units: ProductFormUnit[];
 }
 

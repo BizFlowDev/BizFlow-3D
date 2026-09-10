@@ -5,6 +5,7 @@ import { z } from 'zod';
  */
 
 const unitSchema = z.object({
+  id: z.string().uuid('ID đơn vị không hợp lệ').optional(),
   unitName: z.string().min(1, 'Tên đơn vị không được để trống').max(50),
   conversionFactor: z.number().positive('Hệ số quy đổi phải lớn hơn 0'),
   price: z.number().min(0, 'Giá không được âm'),
@@ -28,6 +29,8 @@ export const updateProductSchema = z.object({
   name: z.string().min(1).max(255).optional(),
   imageUrl: z.string().nullish(),
   description: z.string().nullish(),
+  hasMultipleUnits: z.boolean().optional(),
+  units: z.array(unitSchema).min(1, 'Phải có ít nhất 1 đơn vị tính').optional(),
 });
 
 export type CreateProductInput = z.infer<typeof createProductSchema>;

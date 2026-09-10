@@ -52,6 +52,7 @@ import { ImageUpload } from "@/components/ui/image-upload";
 // ── Zod Schema ────────────────────────────────────────────────────────────────
 
 const unitSchema = z.object({
+  id: z.string().optional(),
   unitName: z
     .string()
     .max(50, "Tên đơn vị không quá 50 ký tự")
@@ -64,6 +65,7 @@ const unitSchema = z.object({
     .number({ error: "Giá phải lớn hơn 0" })
     .positive("Giá phải lớn hơn 0")
     .optional(),
+  isDefault: z.boolean().optional(),
 });
 
 const productFormSchema = z
@@ -224,7 +226,7 @@ export function ProductFormDialog({
       imageUrl: "",
       hasMultipleUnits: false,
       singlePrice: undefined,
-      units: [{ unitName: "", conversionFactor: 1, price: undefined }],
+      units: [{ unitName: "", conversionFactor: 1, price: undefined, isDefault: true }],
     },
   });
 
@@ -248,9 +250,11 @@ export function ProductFormDialog({
         hasMultipleUnits: product.hasMultipleUnits,
         singlePrice: baseUnit?.price,
         units: (product.units ?? []).map((u) => ({
+          id: u.id,
           unitName: u.unitName,
           conversionFactor: u.conversionFactor,
           price: u.price,
+          isDefault: u.isDefault,
         })),
       });
       setSubmitError(null);
@@ -263,7 +267,7 @@ export function ProductFormDialog({
         imageUrl: "",
         hasMultipleUnits: false,
         singlePrice: undefined,
-        units: [{ unitName: "", conversionFactor: 1, price: undefined }],
+        units: [{ unitName: "", conversionFactor: 1, price: undefined, isDefault: true }],
       });
       setShowSuccess(false);
       setSubmitError(null);
@@ -272,21 +276,28 @@ export function ProductFormDialog({
 
   const isLoading = createMutation.isPending || updateMutation.isPending;
 
+  const [validationAlert, setValidationAlert] = useState(false);
+
   const onInvalid = (formErrors: unknown) => {
     console.warn("[ProductFormDialog] Validation failed:", formErrors);
+    setValidationAlert(true);
+    setTimeout(() => setValidationAlert(false), 4000);
   };
 
   const onSubmit = async (data: ProductFormValues) => {
     setSubmitError(null);
+    setValidationAlert(false);
     const units = data.hasMultipleUnits
-      ? (data.units ?? []).map((u, i) => ({
+      ? (data.units ?? []).map((u) => ({
+          id: u.id || undefined,
           unitName: u.unitName || "Đơn vị",
           conversionFactor: u.conversionFactor ?? 1,
           price: u.price ?? 0,
-          isDefault: i === 0,
+          isDefault: u.isDefault ?? false,
         }))
       : [
           {
+            id: data.units?.[0]?.id || undefined,
             unitName: "Cái",
             conversionFactor: 1,
             price: data.singlePrice ?? 0,
@@ -294,12 +305,19 @@ export function ProductFormDialog({
           },
         ];
 
+    // Ensure exactly one default
+    const hasDefault = units.some((u) => u.isDefault);
+    if (!hasDefault && units.length > 0) {
+      units[0].isDefault = true;
+    }
+
     const payload = {
       name: data.name,
       code: data.code,
       categoryId: data.categoryId === "all" ? undefined : data.categoryId,
       description: data.description || undefined,
       imageUrl: data.imageUrl || null,
+      hasMultipleUnits: data.hasMultipleUnits,
       units,
     };
 
@@ -556,20 +574,47 @@ export function ProductFormDialog({
                       Đơn vị tính & giá <span className="text-red-500">*</span>
                     </Label>
                     <div className="space-y-3">
-                      {fields.map((field, index) => (
+                      {fields.map((field, index) => {
+                        const isBaseUnit = watch(`units.${index}.isDefault`);
+                        return (
                         <motion.div
                           key={field.id}
                           initial={{ opacity: 0, y: 8 }}
                           animate={{ opacity: 1, y: 0 }}
-                          className="grid grid-cols-1 gap-3 rounded-lg border bg-muted/20 p-3 sm:grid-cols-[1fr_1fr_1fr_auto]"
+                          className={`grid grid-cols-1 gap-3 rounded-lg border p-3 sm:grid-cols-[1fr_1fr_1fr_auto] ${
+                            isBaseUnit
+                              ? "border-blue-300 bg-blue-50/50 dark:border-blue-800 dark:bg-blue-950/20"
+                              : "bg-muted/20"
+                          }`}
                         >
                           <div className="space-y-1.5">
-                            <Label
-                              htmlFor={`unit-name-${index}`}
-                              className="text-xs text-muted-foreground"
-                            >
-                              Tên đơn vị
-                            </Label>
+                            <div className="flex items-center gap-1.5">
+                              <Label
+                                htmlFor={`unit-name-${index}`}
+                                className="text-xs text-muted-foreground"
+                              >
+                                Tên đơn vị
+                              </Label>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  // Set all to false, then this one to true
+                                  fields.forEach((_, i) => {
+                                    setValue(`units.${i}.isDefault`, i === index, { shouldValidate: false });
+                                    if (i === index) {
+                                      setValue(`units.${i}.conversionFactor`, 1, { shouldValidate: false });
+                                    }
+                                  });
+                                }}
+                                className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold transition-colors ${
+                                  isBaseUnit
+                                    ? "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300"
+                                    : "bg-muted text-muted-foreground hover:bg-muted/80 cursor-pointer"
+                                }`}
+                              >
+                                {isBaseUnit ? "★ Cơ bản" : "☆ Đặt cơ bản"}
+                              </button>
+                            </div>
                             <Input
                               id={`unit-name-${index}`}
                               placeholder="Cái"
@@ -651,21 +696,35 @@ export function ProductFormDialog({
                               </p>
                             )}
                           </div>
-                          <div className="flex items-end">
+                          <div className="flex items-end gap-1">
                             <Button
                               type="button"
                               variant="ghost"
                               size="icon"
                               className="h-8 w-8 text-destructive hover:text-destructive"
-                              onClick={() => remove(index)}
+                              onClick={() => {
+                                if (isBaseUnit && fields.length > 1) {
+                                  // Transfer default to next available
+                                  const nextIndex = index === 0 ? 1 : 0;
+                                  setValue(`units.${nextIndex}.isDefault`, true, { shouldValidate: false });
+                                  setValue(`units.${nextIndex}.conversionFactor`, 1, { shouldValidate: false });
+                                }
+                                remove(index);
+                              }}
                               disabled={fields.length <= 1}
+                              title={
+                                fields.length <= 1
+                                  ? "Sản phẩm phải có ít nhất 1 đơn vị cơ bản"
+                                  : "Xóa đơn vị"
+                              }
                               aria-label="Xóa đơn vị"
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
                         </motion.div>
-                      ))}
+                        );
+                      })}
                     </div>
                     {errors.units && typeof errors.units.message === "string" && (
                       <p className="text-xs text-red-500" role="alert">
@@ -681,6 +740,7 @@ export function ProductFormDialog({
                           unitName: "",
                           conversionFactor: 1,
                           price: undefined,
+                          isDefault: false,
                         })
                       }
                     >
@@ -719,6 +779,18 @@ export function ProductFormDialog({
                       </p>
                     )}
                   </div>
+                )}
+
+                {validationAlert && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    className="flex items-center gap-2 rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800 dark:bg-amber-950/30 dark:border-amber-800 dark:text-amber-300"
+                  >
+                    <AlertCircle className="h-4 w-4 shrink-0" />
+                    <span>Vui lòng kiểm tra và điền đầy đủ thông tin bắt buộc trước khi lưu.</span>
+                  </motion.div>
                 )}
 
                 {submitError && (

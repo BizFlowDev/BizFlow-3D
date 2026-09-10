@@ -215,6 +215,76 @@ export class PostgresProductRepository implements IProductRepository {
     await query('DELETE FROM product_units WHERE product_id = $1', [productId]);
   }
 
+  async syncUnits(productId: string, units: ProductUnit[]): Promise<ProductUnit[]> {
+    return transaction(async (txQuery) => {
+      // 1. Get existing unit IDs from DB
+      const existingRes = await txQuery(
+        'SELECT id FROM product_units WHERE product_id = $1',
+        [productId],
+      );
+      const existingIds = new Set<string>(existingRes.rows.map((r: { id: string }) => r.id));
+
+      // 2. Determine which incoming units have known IDs (update) vs new (insert)
+      const incomingIds = new Set<string>();
+      const result: ProductUnit[] = [];
+
+      for (const unit of units) {
+        if (existingIds.has(unit.id)) {
+          // UPDATE existing unit
+          incomingIds.add(unit.id);
+          const updateText = `
+            UPDATE product_units
+            SET unit_name = $1, conversion_factor = $2, price = $3, is_default = $4
+            WHERE id = $5 AND product_id = $6
+            RETURNING *
+          `;
+          const updateRes = await txQuery(updateText, [
+            unit.unitName,
+            unit.conversionFactor,
+            unit.price,
+            unit.isDefault,
+            unit.id,
+            productId,
+          ]);
+          if (updateRes.rowCount && updateRes.rowCount > 0) {
+            result.push(ProductUnit.fromPersistence(mapToCamelCase(updateRes.rows[0])));
+          }
+        } else {
+          // INSERT new unit
+          const insertText = `
+            INSERT INTO product_units (
+              id, product_id, unit_name, conversion_factor, price, is_default, created_at
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            RETURNING *
+          `;
+          const insertRes = await txQuery(insertText, [
+            unit.id,
+            productId,
+            unit.unitName,
+            unit.conversionFactor,
+            unit.price,
+            unit.isDefault,
+            unit.createdAt,
+          ]);
+          result.push(ProductUnit.fromPersistence(mapToCamelCase(insertRes.rows[0])));
+        }
+      }
+
+      // 3. DELETE units that exist in DB but are NOT in the incoming list
+      const idsToDelete = [...existingIds].filter((id) => !incomingIds.has(id));
+      if (idsToDelete.length > 0) {
+        const placeholders = idsToDelete.map((_, i) => `$${i + 2}`).join(', ');
+        await txQuery(
+          `DELETE FROM product_units WHERE product_id = $1 AND id IN (${placeholders})`,
+          [productId, ...idsToDelete],
+        );
+      }
+
+      return result;
+    });
+  }
+
   // ── Product Categories ──
   async findCategoriesByStoreId(storeId: string): Promise<ProductCategory[]> {
     const res = await query('SELECT * FROM product_categories WHERE store_id = $1', [storeId]);

@@ -40,8 +40,8 @@ export class ProductUnit {
     },
   ): ProductUnit {
     return ProductUnit.fromPersistence({
-      id: props.id ?? crypto.randomUUID(),
       ...props,
+      id: props.id ?? crypto.randomUUID(),
       createdAt: new Date(),
     });
   }

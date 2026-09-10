@@ -51,7 +51,7 @@ export class ProductController {
 
   /**
    * PUT /api/products/:id
-   * Body: { code?, name?, categoryId?, imageUrl?, description? }
+   * Body: { code?, name?, categoryId?, imageUrl?, description?, hasMultipleUnits?, units? }
    */
   update = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {

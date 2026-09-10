@@ -39,6 +39,7 @@ export interface IProductRepository {
   findUnitsByProductId(productId: string): Promise<ProductUnit[]>;
   createUnit(unit: ProductUnit): Promise<ProductUnit>;
   deleteUnitsByProductId(productId: string): Promise<void>;
+  syncUnits(productId: string, units: ProductUnit[]): Promise<ProductUnit[]>;
 
   // ── Product Categories ──
   findCategoriesByStoreId(storeId: string): Promise<ProductCategory[]>;
