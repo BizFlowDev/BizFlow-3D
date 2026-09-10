@@ -1189,28 +1189,32 @@ export default function NewOrderPage() {
                 : "Tạo đơn hàng thành công"}
             </DialogTitle>
             <DialogDescription>
-              {lastOrder && (
-                <div className="mt-2 space-y-1 text-left rounded-lg bg-muted/30 p-3 text-xs">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Mã đơn hàng:</span>
-                    <span className="font-bold text-foreground font-mono">{getOrderCode(lastOrder)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Tổng tiền:</span>
-                    <span className="font-bold text-blue-600 font-mono">{formatCurrency(lastOrder.finalAmount)}</span>
-                  </div>
-                  <div className="flex justify-between items-center pt-1 border-t">
-                    <span className="text-muted-foreground">Hình thức thanh toán:</span>
-                    <Badge variant="outline" className="text-[11px] font-semibold">
-                      {lastOrder.paymentMethod === "cash" && "💵 Tiền mặt"}
-                      {lastOrder.paymentMethod === "qr_code" && "📱 Quét VietQR"}
-                      {lastOrder.paymentMethod === "debt" && "📋 Ghi nợ"}
-                    </Badge>
-                  </div>
-                </div>
-              )}
+              {lastOrder?.status === "draft"
+                ? "Đơn nháp đã được lưu vào hệ thống."
+                : "Đơn hàng đã được ghi nhận thành công."}
             </DialogDescription>
           </DialogHeader>
+
+          {lastOrder && (
+            <div className="space-y-1 text-left rounded-lg bg-muted/30 p-3 text-xs">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Mã đơn hàng:</span>
+                <span className="font-bold text-foreground font-mono">{getOrderCode(lastOrder)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Tổng tiền:</span>
+                <span className="font-bold text-blue-600 font-mono">{formatCurrency(lastOrder.finalAmount)}</span>
+              </div>
+              <div className="flex justify-between items-center pt-1 border-t">
+                <span className="text-muted-foreground">Hình thức thanh toán:</span>
+                <Badge variant="outline" className="text-[11px] font-semibold">
+                  {lastOrder.paymentMethod === "cash" && "💵 Tiền mặt"}
+                  {lastOrder.paymentMethod === "qr_code" && "📱 Quét VietQR"}
+                  {lastOrder.paymentMethod === "debt" && "📋 Ghi nợ"}
+                </Badge>
+              </div>
+            </div>
+          )}
           <div className="grid gap-2 pt-2">
             <Button
               onClick={handlePrintInvoice}

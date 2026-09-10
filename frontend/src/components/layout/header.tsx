@@ -154,8 +154,8 @@ export function Header({ role }: HeaderProps) {
                 Chưa có thông báo
               </div>
             ) : (
-              <>
-{notifications.slice(0, 8).map((n) => (
+              <div className="max-h-[320px] overflow-y-auto pr-1">
+                {notifications.map((n) => (
                   <DropdownMenuItem
                     key={n.id}
                     className="group relative flex-col items-start gap-0.5 py-2 pr-8"
@@ -173,7 +173,7 @@ export function Header({ role }: HeaderProps) {
                       <X className="h-3.5 w-3.5" />
                     </button>
                     <span className="flex w-full items-center gap-2">
-                    <span
+                      <span
                         className={cn(
                           "h-2 w-2 shrink-0 rounded-full",
                           n.read ? "bg-muted-foreground/30" : "bg-primary",
@@ -188,7 +188,7 @@ export function Header({ role }: HeaderProps) {
                     </span>
                   </DropdownMenuItem>
                 ))}
-              </>
+              </div>
             )}
             {notifications.length > 0 && (
               <>

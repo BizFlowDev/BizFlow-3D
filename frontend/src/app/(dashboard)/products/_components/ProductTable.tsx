@@ -393,11 +393,10 @@ export function ProductTable({
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2 text-lg">
                   <AlertTriangle
-                    className={`h-5 w-5 ${
-                      toggleTarget.isActive
-                        ? "text-amber-500"
-                        : "text-emerald-500"
-                    }`}
+                    className={`h-5 w-5 ${toggleTarget.isActive
+                      ? "text-amber-500"
+                      : "text-emerald-500"
+                      }`}
                   />
                   Xác nhận {toggleTarget.isActive ? "ngưng" : "kích hoạt"} sản
                   phẩm
@@ -475,6 +474,7 @@ export function ProductTable({
                 </Button>
                 <Button
                   variant="destructive"
+                  className="text-black border border-black"
                   onClick={handleConfirmDelete}
                   disabled={deleteMutation.isPending}
                 >
