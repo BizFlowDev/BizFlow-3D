@@ -1,24 +1,33 @@
 "use client";
 
-import { useState, useMemo, useCallback, Suspense } from "react";
+import { useState, useMemo, useCallback, Suspense, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import {
   Search,
-  ShoppingCart,
+  CreditCard,
   X,
   LayoutDashboard,
-  Bell,
   Loader2,
   Package,
   Store,
+  Sparkles,
+  Receipt,
 } from "lucide-react";
-import { useProductList } from "@/hooks/useProducts";
-import { useOrderList } from "@/hooks/useOrders";
+import { useProductList, type Product } from "@/hooks/useProducts";
+import { useOrderList, type Order } from "@/hooks/useOrders";
+import { useStockLevel } from "@/hooks/useInventory";
+import { useQueryClient } from "@tanstack/react-query";
 import type { ShelfProduct } from "@/components/3d/ProductShelf";
-import type { Order } from "@/hooks/useOrders";
+import type { CameraPreset } from "@/components/3d/CameraController";
+import {
+  ProductDetailModal3D,
+  type CartItem3D,
+} from "./_components/ProductDetailModal3D";
+import { OrderSuccessModal } from "./_components/OrderSuccessModal";
+import { CameraPresetsBar } from "./_components/CameraPresetsBar";
 
-// ── Lazy load 3D components (toàn bộ three.js chỉ load khi vào trang) ────────
+// ── Lazy load 3D components ───────────────────────────────────────────────────
 
 const StoreViewer = dynamic(() => import("@/components/3d/StoreViewer"), {
   ssr: false,
@@ -41,117 +50,16 @@ const Avatar3D = dynamic(() => import("@/components/3d/Avatar3D"), {
 
 function SceneLoading() {
   return (
-    <div className="flex h-screen w-full flex-col items-center justify-center gap-4 bg-[#1a1a2e]">
+    <div className="flex h-screen w-full flex-col items-center justify-center gap-4 bg-[#090d16]">
       <div className="relative">
         <Store className="h-16 w-16 text-indigo-400 animate-pulse" />
         <Loader2 className="absolute -right-2 -top-2 h-6 w-6 text-white animate-spin" />
       </div>
       <p className="text-sm font-medium text-slate-300">
-        Đang tải cửa hàng 3D...
+        Đang khởi tạo Showroom 3D...
       </p>
-      <div className="h-1.5 w-48 overflow-hidden rounded-full bg-slate-700">
-        <div className="h-full animate-[loading_2s_ease-in-out_infinite] rounded-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500" />
-      </div>
-    </div>
-  );
-}
-
-// ── Format VND ────────────────────────────────────────────────────────────────
-
-function formatVND(amount: number): string {
-  return new Intl.NumberFormat("vi-VN", {
-    style: "currency",
-    currency: "VND",
-    maximumFractionDigits: 0,
-  }).format(amount);
-}
-
-// ── Order Summary Modal ───────────────────────────────────────────────────────
-
-function OrderSummaryOverlay({
-  orders,
-  onClose,
-}: {
-  orders: Order[];
-  onClose: () => void;
-}) {
-  const statusLabels: Record<string, { label: string; color: string }> = {
-    confirmed: { label: "Đã xác nhận", color: "bg-emerald-100 text-emerald-700" },
-    draft: { label: "Nháp", color: "bg-amber-100 text-amber-700" },
-    cancelled: { label: "Đã hủy", color: "bg-red-100 text-red-700" },
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="relative mx-4 max-h-[80vh] w-full max-w-lg overflow-hidden rounded-2xl border border-border bg-background shadow-2xl">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-border bg-muted/50 px-5 py-4">
-          <h2 className="flex items-center gap-2 text-lg font-bold">
-            <ShoppingCart className="h-5 w-5 text-primary" />
-            Đơn hàng gần đây
-          </h2>
-          <button
-            onClick={onClose}
-            className="rounded-full p-1.5 transition-colors hover:bg-muted"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        {/* Order list */}
-        <div className="max-h-[60vh] overflow-y-auto p-4">
-          {orders.length === 0 ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">
-              Chưa có đơn hàng nào
-            </p>
-          ) : (
-            <div className="space-y-3">
-              {orders.map((order) => (
-                <div
-                  key={order.id}
-                  className="rounded-xl border border-border bg-card p-4 transition-colors hover:bg-accent/50"
-                >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <div className="text-sm font-semibold">
-                        {order.customerName || "Khách lẻ"}
-                      </div>
-                      <div className="mt-0.5 text-xs text-muted-foreground">
-                        {new Date(order.createdAt).toLocaleDateString("vi-VN", {
-                          day: "2-digit",
-                          month: "2-digit",
-                          year: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </div>
-                    </div>
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${
-                        statusLabels[order.status]?.color ?? ""
-                      }`}
-                    >
-                      {statusLabels[order.status]?.label ?? order.status}
-                    </span>
-                  </div>
-                  <div className="mt-2 flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">
-                      {order.items?.length ?? 0} sản phẩm
-                    </span>
-                    <span className="font-bold tabular-nums text-emerald-600">
-                      {formatVND(order.finalAmount)}
-                    </span>
-                  </div>
-                  {order.debtAmount > 0 && (
-                    <div className="mt-1 text-xs text-red-500">
-                      Nợ: {formatVND(order.debtAmount)}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+      <div className="h-1.5 w-52 overflow-hidden rounded-full bg-slate-800">
+        <div className="h-full animate-[loading_2s_ease-in-out_infinite] rounded-full bg-gradient-to-r from-indigo-500 via-sky-400 to-pink-500" />
       </div>
     </div>
   );
@@ -159,52 +67,94 @@ function OrderSummaryOverlay({
 
 // ── Store3DPage (main) ────────────────────────────────────────────────────────
 
-/**
- * Store 3D Page — Full-screen 3D view của cửa hàng.
- *
- * - Lazy load three.js via next/dynamic (ssr: false)
- * - Overlay UI: search bar, mini cart badge, notifications, toggle 2D/3D
- * - Data: useProductList + useOrderList hooks
- */
 export default function Store3DPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
 
   // ── State ──────────────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState("");
-  const [showOrders, setShowOrders] = useState(false);
   const [notifications, setNotifications] = useState<string[]>([]);
+
+  // Camera preset & Chế độ màn hình POS 3D
+  const [cameraPreset, setCameraPreset] = useState<CameraPreset>("overview");
+  const [isPOSActive, setIsPOSActive] = useState(false);
+
+  // Order Lines State (Các mặt hàng trong đơn)
+  const [orderLines, setOrderLines] = useState<CartItem3D[]>([]);
+  const [selectedProductForDetail, setSelectedProductForDetail] = useState<
+    (Product & { stock: number; categoryName?: string | null }) | null
+  >(null);
+  const [createdOrder, setCreatedOrder] = useState<Order | null>(null);
 
   // ── Data hooks ─────────────────────────────────────────────
   const { data: productsData, isLoading: productsLoading } = useProductList({
-    limit: 20,
+    limit: 40,
     status: "all",
   });
-  const { data: ordersData, isLoading: ordersLoading } = useOrderList({
-    limit: 10,
-  });
+  const { data: stockData } = useStockLevel();
+  const { data: ordersData } = useOrderList({ limit: 12 });
 
-  // ── Computed ───────────────────────────────────────────────
+  // Map số lượng tồn kho thực tế từ useStockLevel
+  const stockMap = useMemo(() => {
+    const map = new Map<string, number>();
+    if (stockData && Array.isArray(stockData)) {
+      stockData.forEach((row) => {
+        map.set(row.productId, row.currentStock);
+      });
+    }
+    return map;
+  }, [stockData]);
 
-  // Chuyển đổi products thành ShelfProduct[]
-  const shelfProducts: ShelfProduct[] = useMemo(() => {
+  // Làm giàu sản phẩm kèm tồn kho thật
+  const enrichedProducts = useMemo(() => {
     if (!productsData?.items) return [];
-    return productsData.items.map((p) => ({
+    return productsData.items.map((p) => {
+      const realStock = stockMap.has(p.id) ? stockMap.get(p.id)! : 15;
+      return {
+        ...p,
+        stock: realStock,
+        price: p.units?.[0]?.price ?? 0,
+        categoryName: null,
+      };
+    });
+  }, [productsData, stockMap]);
+
+  // Format ShelfProduct[] cho 3D render
+  const shelfProducts: ShelfProduct[] = useMemo(() => {
+    return enrichedProducts.map((p) => ({
       id: p.id,
       name: p.name,
-      price: p.units?.[0]?.price ?? 0,
-      stock: Math.floor(Math.random() * 50), // Mock stock (API chưa trả stock riêng)
-      categoryName: null,
+      price: p.price,
+      stock: p.stock,
+      categoryName: p.categoryName,
+      code: p.code,
+      imageUrl: p.imageUrl,
     }));
-  }, [productsData]);
+  }, [enrichedProducts]);
 
-  // Filter sản phẩm theo search
+  // Lọc sản phẩm theo từ khoá
   const filteredProducts = useMemo(() => {
     if (!searchQuery.trim()) return shelfProducts;
     const q = searchQuery.toLowerCase();
-    return shelfProducts.filter((p) => p.name.toLowerCase().includes(q));
+    return shelfProducts.filter(
+      (p) =>
+        p.name.toLowerCase().includes(q) ||
+        (p.code && p.code.toLowerCase().includes(q)),
+    );
   }, [shelfProducts, searchQuery]);
 
-  // Số đơn nháp (pending)
+  // Chia sản phẩm cho Kệ A (Trái) và Kệ B (Phải)
+  const shelfAProducts = useMemo(() => {
+    return filteredProducts.slice(0, 20);
+  }, [filteredProducts]);
+
+  const shelfBProducts = useMemo(() => {
+    return filteredProducts.slice(20, 40).length > 0
+      ? filteredProducts.slice(20, 40)
+      : filteredProducts.slice(5, 25);
+  }, [filteredProducts]);
+
+  // Số đơn chờ duyệt (draft)
   const pendingCount = useMemo(() => {
     if (!ordersData?.items) return 0;
     return ordersData.items.filter((o) => o.status === "draft").length;
@@ -215,100 +165,213 @@ export default function Store3DPage() {
     if (!ordersData?.items) return 0;
     const today = new Date().toISOString().slice(0, 10);
     return ordersData.items
-      .filter(
-        (o) =>
-          o.status === "confirmed" &&
-          o.createdAt.slice(0, 10) === today,
-      )
+      .filter((o) => o.status === "confirmed" && o.createdAt.slice(0, 10) === today)
       .reduce((sum, o) => sum + o.finalAmount, 0);
   }, [ordersData]);
 
-  // ── Callbacks ──────────────────────────────────────────────
+  // Tổng số lượng mặt hàng trong đơn
+  const totalOrderCount = useMemo(() => {
+    return orderLines.reduce((s, it) => s + it.quantity, 0);
+  }, [orderLines]);
 
-  const handleSelectProduct = useCallback((productId: string) => {
-    const product = shelfProducts.find((p) => p.id === productId);
-    if (product) {
-      setNotifications((prev) => [
-        `📦 Đã chọn: ${product.name}`,
-        ...prev.slice(0, 2),
-      ]);
-      // Auto-clear notification after 3s
-      setTimeout(() => {
-        setNotifications((prev) => prev.slice(0, -1));
-      }, 3000);
-    }
-  }, [shelfProducts]);
+  // ── Callbacks Mua Sắm & Tương Tác ──────────────────────────
 
-  const handleOpenOrders = useCallback(() => {
-    setShowOrders(true);
+  const handleSelectProduct = useCallback(
+    (productId: string) => {
+      const fullProduct = enrichedProducts.find((p) => p.id === productId);
+      if (fullProduct) {
+        setSelectedProductForDetail(fullProduct);
+      }
+    },
+    [enrichedProducts],
+  );
+
+  const handleAddToOrder = useCallback((item: CartItem3D) => {
+    setOrderLines((prev) => {
+      const idx = prev.findIndex(
+        (it) => it.productId === item.productId && it.unitId === item.unitId,
+      );
+      if (idx >= 0) {
+        const updated = [...prev];
+        updated[idx] = {
+          ...updated[idx],
+          quantity: updated[idx].quantity + item.quantity,
+        };
+        return updated;
+      }
+      return [...prev, item];
+    });
+
+    setNotifications((prev) => [
+      `🛒 Đã thêm ${item.quantity}x ${item.productName} vào đơn hàng`,
+      ...prev.slice(0, 2),
+    ]);
+    setTimeout(() => {
+      setNotifications((prev) => prev.slice(0, -1));
+    }, 3500);
+  }, []);
+
+  // Khi click Tạo đơn & Thanh toán ngay từ modal sản phẩm kệ:
+  // Thêm vào đơn và bay thẳng camera vào màn hình máy tính POS để thanh toán
+  const handleBuyNow = useCallback(
+    (item: CartItem3D) => {
+      handleAddToOrder(item);
+      setSelectedProductForDetail(null);
+      setCameraPreset("posScreen");
+      setIsPOSActive(true);
+    },
+    [handleAddToOrder],
+  );
+
+  const handleUpdateQuantity = useCallback(
+    (productId: string, unitId: string, quantity: number) => {
+      setOrderLines((prev) =>
+        prev.map((it) =>
+          it.productId === productId && it.unitId === unitId
+            ? { ...it, quantity }
+            : it,
+        ),
+      );
+    },
+    [],
+  );
+
+  const handleRemoveOrderItem = useCallback(
+    (productId: string, unitId: string) => {
+      setOrderLines((prev) =>
+        prev.filter(
+          (it) => !(it.productId === productId && it.unitId === unitId),
+        ),
+      );
+    },
+    [],
+  );
+
+  const handleClearOrder = useCallback(() => {
+    setOrderLines([]);
+  }, []);
+
+  const handleOrderSuccess = useCallback((order: Order) => {
+    setCreatedOrder(order);
+    setOrderLines([]);
   }, []);
 
   const handleToggle2D = useCallback(() => {
     router.push("/");
   }, [router]);
 
+  // ── Mở & Đóng Màn Hình Máy Tính POS ─────────────────────────
+  const handleOpenPOS = useCallback(() => {
+    setCameraPreset("posScreen");
+    setIsPOSActive(true);
+  }, []);
+
+  const handleExitPOS = useCallback(() => {
+    setCameraPreset("overview");
+    setIsPOSActive(false);
+  }, []);
+
+  const handleSelectPreset = useCallback((preset: CameraPreset) => {
+    setCameraPreset(preset);
+    if (preset === "posScreen") {
+      setIsPOSActive(true);
+    } else {
+      setIsPOSActive(false);
+    }
+  }, []);
+
   // ── Render ─────────────────────────────────────────────────
 
   return (
     <>
-      {/* CSS cho loading animation */}
+      {/* Animation loading CSS */}
       <style jsx global>{`
         @keyframes loading {
-          0% { width: 0%; margin-left: 0; }
-          50% { width: 70%; margin-left: 15%; }
-          100% { width: 0%; margin-left: 100%; }
+          0% {
+            width: 0%;
+            margin-left: 0;
+          }
+          50% {
+            width: 70%;
+            margin-left: 15%;
+          }
+          100% {
+            width: 0%;
+            margin-left: 100%;
+          }
         }
       `}</style>
 
-      <div className="fixed inset-0 z-40">
+      <div className="fixed inset-0 z-40 bg-[#090d16]">
         {/* ── 3D Scene ──────────────────────────────────── */}
         <Suspense fallback={<SceneLoading />}>
-          <StoreViewer height="100vh">
-            {/* Kệ hàng — bên trái tường sau */}
+          <StoreViewer
+            height="100vh"
+            currentPreset={cameraPreset}
+          >
+            {/* Kệ hàng A — bên trái tường sau */}
             <ProductShelf
-              products={filteredProducts}
+              products={shelfAProducts}
               onSelectProduct={handleSelectProduct}
               position={[-3.5, 0, -4.5]}
+              title="KỆ HÀNG A • NỔI BẬT"
             />
 
-            {/* Kệ hàng 2 — bên phải tường sau */}
+            {/* Kệ hàng B — bên phải tường sau */}
             <ProductShelf
-              products={filteredProducts.slice(5)}
+              products={shelfBProducts}
               onSelectProduct={handleSelectProduct}
               position={[3.5, 0, -4.5]}
+              title="KỆ HÀNG B • BÁCH HÓA"
             />
 
-            {/* Quầy tính tiền — phía trước */}
+            {/* Quầy tính tiền — phía trước. Màn hình máy tính chứa giao diện POS nhúng trực tiếp */}
             <Counter
               pendingCount={pendingCount}
               recentTotal={todayRevenue}
-              onOpenOrders={handleOpenOrders}
+              onOpenPOS={handleOpenPOS}
+              onOpenOrders={handleOpenPOS}
+              queryClient={queryClient}
+              isPOSActive={isPOSActive}
+              onExitPOS={handleExitPOS}
+              orderLines={orderLines}
+              onAddProduct={handleAddToOrder}
+              onUpdateQuantity={handleUpdateQuantity}
+              onRemoveItem={handleRemoveOrderItem}
+              onClearOrder={handleClearOrder}
+              onOrderSuccess={handleOrderSuccess}
+              recentOrders={ordersData?.items ?? []}
               position={[0, 0, 2]}
             />
 
-            {/* Avatar AI — cạnh quầy */}
+            {/* Trợ lý AI Robot — cạnh quầy */}
             <Avatar3D
               isProcessing={false}
-              message={pendingCount > 0 ? `Có ${pendingCount} đơn chờ duyệt!` : null}
+              message={
+                pendingCount > 0
+                  ? `Có ${pendingCount} đơn hàng chờ duyệt tại quầy!`
+                  : null
+              }
               position={[2.5, 0, 2.5]}
-              rotation={[0, -0.3, 0]}
+              rotation={[0, -0.35, 0]}
+              onClick={() => setCameraPreset("avatar")}
             />
           </StoreViewer>
         </Suspense>
 
         {/* ── Overlay UI ────────────────────────────────── */}
-        <div className="pointer-events-none absolute inset-0 z-10">
+        <div className="pointer-events-none absolute inset-0 z-10 flex flex-col justify-between p-4">
           {/* Top bar */}
-          <div className="pointer-events-auto flex items-center justify-between gap-3 px-4 py-3">
-            {/* Search bar */}
-            <div className="relative w-72">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <div className="pointer-events-auto flex items-center justify-between gap-3">
+            {/* Thanh tìm kiếm sản phẩm 3D */}
+            <div className="relative w-64 sm:w-80">
+              <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
-                placeholder="Tìm sản phẩm..."
+                placeholder="Tìm kiếm sản phẩm trên kệ..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full rounded-xl border border-white/10 bg-black/50 py-2.5 pl-10 pr-4 text-sm text-white placeholder-slate-400 shadow-xl backdrop-blur-md transition-colors focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+                className="w-full rounded-2xl border border-white/15 bg-slate-900/80 py-2.5 pl-10 pr-9 text-xs text-white placeholder-slate-400 shadow-2xl backdrop-blur-xl transition-all focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
               />
               {searchQuery && (
                 <button
@@ -320,85 +383,104 @@ export default function Store3DPage() {
               )}
             </div>
 
-            {/* Right controls */}
+            {/* Right Controls Header */}
             <div className="flex items-center gap-2">
-              {/* Mini cart badge */}
+              {/* Nút Tạo Đơn Hàng (Zoom camera vào màn hình máy tính quầy POS) */}
               <button
-                onClick={() => setShowOrders(true)}
-                className="relative rounded-xl border border-white/10 bg-black/50 p-2.5 text-white shadow-xl backdrop-blur-md transition-colors hover:bg-white/10"
+                type="button"
+                onClick={handleOpenPOS}
+                className="relative flex items-center gap-2 rounded-2xl border border-emerald-500/40 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 px-4 py-2.5 text-xs font-bold text-white shadow-xl shadow-emerald-500/25 backdrop-blur-xl transition-all hover:scale-105"
               >
-                <ShoppingCart className="h-5 w-5" />
+                <CreditCard className="h-4 w-4 text-white" />
+                <span>Tạo Đơn Hàng</span>
+                {totalOrderCount > 0 && (
+                  <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-white px-1.5 text-[10px] font-black text-emerald-800 shadow-md animate-pulse">
+                    {totalOrderCount}
+                  </span>
+                )}
+              </button>
+
+              {/* Lịch sử đơn hàng (chuyển góc nhìn đến màn hình máy tính tab lịch sử) */}
+              <button
+                type="button"
+                onClick={handleOpenPOS}
+                title="Lịch sử đơn hàng"
+                className="relative rounded-2xl border border-white/15 bg-slate-900/80 p-2.5 text-white shadow-2xl backdrop-blur-xl transition-all hover:bg-white/10"
+              >
+                <Receipt className="h-4 w-4" />
                 {pendingCount > 0 && (
-                  <span className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white shadow">
+                  <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-amber-500 text-[9px] font-black text-white shadow">
                     {pendingCount}
                   </span>
                 )}
               </button>
 
-              {/* Notifications bell */}
-              <button className="relative rounded-xl border border-white/10 bg-black/50 p-2.5 text-white shadow-xl backdrop-blur-md transition-colors hover:bg-white/10">
-                <Bell className="h-5 w-5" />
-                {notifications.length > 0 && (
-                  <span className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-amber-500 text-[10px] font-bold text-white shadow">
-                    {notifications.length}
-                  </span>
-                )}
-              </button>
-
-              {/* Toggle 2D view */}
+              {/* Nút Chuyển về Dashboard 2D */}
               <button
+                type="button"
                 onClick={handleToggle2D}
-                className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/50 px-4 py-2.5 text-sm font-medium text-white shadow-xl backdrop-blur-md transition-colors hover:bg-white/10"
+                className="flex items-center gap-1.5 rounded-2xl border border-white/15 bg-slate-900/80 px-3.5 py-2.5 text-xs font-semibold text-slate-200 shadow-2xl backdrop-blur-xl transition-all hover:bg-white/10 hover:text-white"
               >
-                <LayoutDashboard className="h-4 w-4" />
-                Dashboard 2D
+                <LayoutDashboard className="h-4 w-4 text-indigo-400" />
+                <span className="hidden sm:inline">Dashboard 2D</span>
               </button>
             </div>
           </div>
 
-          {/* Bottom info bar */}
-          <div className="pointer-events-auto absolute bottom-4 left-4 right-4 flex items-center justify-between">
-            {/* Product count */}
-            <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/50 px-4 py-2 text-sm text-white shadow-xl backdrop-blur-md">
-              <Package className="h-4 w-4 text-emerald-400" />
-              <span>
-                {productsLoading
-                  ? "Đang tải..."
-                  : `${filteredProducts.length} sản phẩm`}
-              </span>
-              {searchQuery && (
-                <span className="text-slate-400">
-                  (tìm: &quot;{searchQuery}&quot;)
-                </span>
-              )}
-            </div>
-
-            {/* Controls hint */}
-            <div className="rounded-xl border border-white/10 bg-black/50 px-4 py-2 text-xs text-slate-400 shadow-xl backdrop-blur-md">
-              🖱️ Kéo để xoay • Cuộn để zoom • Click sản phẩm để xem chi tiết
-            </div>
-          </div>
-
-          {/* Notifications toast stack */}
-          <div className="pointer-events-none absolute right-4 top-16 flex flex-col gap-2">
+          {/* Toast notifications */}
+          <div className="pointer-events-none absolute right-4 top-18 flex flex-col gap-2 z-50">
             {notifications.map((msg, i) => (
               <div
                 key={`${msg}-${i}`}
-                className="animate-in slide-in-from-right pointer-events-auto rounded-xl border border-white/10 bg-black/60 px-4 py-2.5 text-sm text-white shadow-xl backdrop-blur-md"
+                className="animate-in slide-in-from-right pointer-events-auto rounded-2xl border border-indigo-400/30 bg-slate-900/90 px-4 py-2.5 text-xs font-semibold text-white shadow-2xl backdrop-blur-xl flex items-center gap-2"
               >
+                <Sparkles className="h-3.5 w-3.5 text-amber-400" />
                 {msg}
               </div>
             ))}
           </div>
+
+          {/* Bottom Control Bar */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4">
+            {/* Camera Presets Bar (Bao gồm nút Màn Hình POS) */}
+            <CameraPresetsBar
+              currentPreset={cameraPreset}
+              onSelectPreset={handleSelectPreset}
+            />
+
+            {/* Thông tin số lượng & Hướng dẫn điều khiển */}
+            <div className="pointer-events-auto flex items-center gap-2 rounded-2xl border border-white/15 bg-slate-900/80 px-4 py-2 text-xs text-slate-300 shadow-2xl backdrop-blur-xl">
+              <Package className="h-3.5 w-3.5 text-emerald-400" />
+              <span>
+                {productsLoading
+                  ? "Đang tải sản phẩm..."
+                  : `${filteredProducts.length} sản phẩm`}
+              </span>
+              <span className="hidden lg:inline text-slate-500">•</span>
+              <span className="hidden lg:inline text-slate-400">
+                {isPOSActive
+                  ? "🖥️ Đang tương tác trên Màn Hình POS [ESC để rời quầy]"
+                  : "🖱️ Click màn hình máy tính để lên đơn như ngoài đời thực"}
+              </span>
+            </div>
+          </div>
         </div>
 
-        {/* ── Order summary modal ───────────────────────── */}
-        {showOrders && (
-          <OrderSummaryOverlay
-            orders={ordersData?.items ?? []}
-            onClose={() => setShowOrders(false)}
-          />
-        )}
+        {/* ── Product Detail Modal 3D ─────────────────────── */}
+        <ProductDetailModal3D
+          product={selectedProductForDetail}
+          isOpen={!!selectedProductForDetail}
+          onClose={() => setSelectedProductForDetail(null)}
+          onAddToCart={handleAddToOrder}
+          onBuyNow={handleBuyNow}
+        />
+
+        {/* ── Order Success Modal (In Hoá Đơn PDF Dự Phòng) ─ */}
+        <OrderSuccessModal
+          order={createdOrder}
+          isOpen={!!createdOrder && !isPOSActive}
+          onClose={() => setCreatedOrder(null)}
+        />
       </div>
     </>
   );

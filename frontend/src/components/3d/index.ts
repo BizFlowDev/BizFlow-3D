@@ -6,6 +6,9 @@ export { default as StoreViewer } from "./StoreViewer";
 export { default as ProductShelf } from "./ProductShelf";
 export { default as Counter } from "./Counter";
 export { default as Avatar3D } from "./Avatar3D";
+export { CameraController, CAMERA_PRESETS } from "./CameraController";
+export { StoreDecorations } from "./StoreDecorations";
 
 // Re-export types
 export type { ShelfProduct } from "./ProductShelf";
+export type { CameraPreset, CameraPresetConfig } from "./CameraController";

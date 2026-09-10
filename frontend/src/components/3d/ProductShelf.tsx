@@ -1,11 +1,11 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
-import { Html } from "@react-three/drei";
+import { useMemo, useState } from "react";
+import { Html, Text } from "@react-three/drei";
 import { useSpring, animated } from "@react-spring/three";
-import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { LOW_STOCK_THRESHOLD } from "@/lib/dashboard-keys";
+import { ShoppingBag, AlertTriangle, CheckCircle2, Eye } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -15,6 +15,8 @@ export interface ShelfProduct {
   price: number;
   stock: number;
   categoryName?: string | null;
+  code?: string;
+  imageUrl?: string | null;
 }
 
 interface ProductShelfProps {
@@ -26,34 +28,50 @@ interface ProductShelfProps {
   position?: [number, number, number];
   /** Xoay kệ (radian) */
   rotation?: [number, number, number];
+  /** Tiêu đề bảng tên kệ */
+  title?: string;
 }
 
-// ── Hằng số kệ hàng ──────────────────────────────────────────────────────────
+// ── Hằng số cấu hình kệ hàng ──────────────────────────────────────────────────
 
 const ROWS = 4;
 const COLS = 5;
 const MAX_SLOTS = ROWS * COLS;
 
-const SHELF_WIDTH = 5.5;
+const SHELF_WIDTH = 5.6;
 const SHELF_DEPTH = 1.0;
 const SHELF_HEIGHT = 3.8;
 
 const ROW_GAP = SHELF_HEIGHT / (ROWS + 1);
 const COL_GAP = SHELF_WIDTH / (COLS + 1);
 
-const PRODUCT_SIZE: [number, number, number] = [0.55, 0.45, 0.45];
+const PRODUCT_SIZE: [number, number, number] = [0.58, 0.48, 0.48];
 
-const WOOD_COLOR = "#8B5E3C";
-const WOOD_DARK = "#6B4226";
+// Bảng màu bao bì bán lẻ sang trọng (Retail Packaging Palettes)
+const PACKAGING_PALETTES = [
+  { main: "#3b82f6", accent: "#93c5fd", label: "Blue" },
+  { main: "#10b981", accent: "#a7f3d0", label: "Green" },
+  { main: "#8b5cf6", accent: "#c4b5fd", label: "Purple" },
+  { main: "#f59e0b", accent: "#fde68a", label: "Amber" },
+  { main: "#ec4899", accent: "#fbcfe8", label: "Rose" },
+  { main: "#06b6d4", accent: "#a5f3fc", label: "Cyan" },
+];
+
+function getPalette(seed: string) {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) {
+    hash = (hash << 5) - hash + seed.charCodeAt(i);
+    hash |= 0;
+  }
+  const idx = Math.abs(hash) % PACKAGING_PALETTES.length;
+  return PACKAGING_PALETTES[idx];
+}
 
 // ── Helper: tọa độ từng slot ──────────────────────────────────────────────────
 
-function slotPosition(
-  row: number,
-  col: number,
-): [number, number, number] {
+function slotPosition(row: number, col: number): [number, number, number] {
   const x = -SHELF_WIDTH / 2 + (col + 1) * COL_GAP;
-  const y = (row + 1) * ROW_GAP;
+  const y = (row + 1) * ROW_GAP + PRODUCT_SIZE[1] / 2 + 0.04;
   const z = 0;
   return [x, y, z];
 }
@@ -68,186 +86,174 @@ function formatVND(amount: number): string {
   }).format(amount);
 }
 
-// ── InstancedProducts: dùng InstancedMesh cho sản phẩm đủ hàng ───────────────
+// ── Single Product Box on Shelf (Sản phẩm bán lẻ 3D đơn lẻ) ─────────────────
 
-function InstancedProducts({
-  products,
-  onSelectProduct,
-}: {
-  products: { product: ShelfProduct; pos: [number, number, number]; index: number }[];
-  onSelectProduct?: (id: string) => void;
-}) {
-  const meshRef = useRef<THREE.InstancedMesh>(null);
-  const [hovered, setHovered] = useState<number | null>(null);
-  const [selected, setSelected] = useState<string | null>(null);
-
-  const tempObj = useMemo(() => new THREE.Object3D(), []);
-  const tempColor = useMemo(() => new THREE.Color(), []);
-
-  // Cập nhật instance transforms và màu
-  useFrame(() => {
-    if (!meshRef.current) return;
-
-    products.forEach(({ pos }, i) => {
-      tempObj.position.set(pos[0], pos[1], pos[2]);
-      const scale = hovered === i ? 1.1 : 1.0;
-      tempObj.scale.set(scale, scale, scale);
-      tempObj.updateMatrix();
-      meshRef.current!.setMatrixAt(i, tempObj.matrix);
-
-      // Màu: xanh lá mặc định, sáng hơn khi hover
-      if (hovered === i) {
-        tempColor.set("#4ade80");
-      } else {
-        tempColor.set("#10b981");
-      }
-      meshRef.current!.setColorAt(i, tempColor);
-    });
-
-    meshRef.current.instanceMatrix.needsUpdate = true;
-    if (meshRef.current.instanceColor)
-      meshRef.current.instanceColor.needsUpdate = true;
-  });
-
-  return (
-    <>
-      <instancedMesh
-        ref={meshRef}
-        args={[undefined, undefined, products.length]}
-        onPointerOver={(e) => {
-          e.stopPropagation();
-          const idx = e.instanceId;
-          if (idx !== undefined) setHovered(idx);
-        }}
-        onPointerOut={() => setHovered(null)}
-        onClick={(e) => {
-          e.stopPropagation();
-          const idx = e.instanceId;
-          if (idx !== undefined) {
-            const p = products[idx].product;
-            setSelected((prev) => (prev === p.id ? null : p.id));
-            onSelectProduct?.(p.id);
-          }
-        }}
-      >
-        <boxGeometry args={PRODUCT_SIZE} />
-        <meshStandardMaterial
-          roughness={0.5}
-          metalness={0.05}
-        />
-      </instancedMesh>
-
-      {/* Popup cho sản phẩm được chọn */}
-      {selected &&
-        (() => {
-          const entry = products.find((p) => p.product.id === selected);
-          if (!entry) return null;
-          const { product, pos } = entry;
-          return (
-            <Html
-              position={[pos[0], pos[1] + PRODUCT_SIZE[1] + 0.35, pos[2] + 0.3]}
-              center
-              zIndexRange={[50, 0]}
-              style={{ pointerEvents: "auto" }}
-            >
-              <div
-                className="min-w-[180px] rounded-xl border border-border bg-background/95 p-3 text-sm shadow-2xl backdrop-blur-md"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="mb-1 font-bold text-foreground">
-                  {product.name}
-                </div>
-                {product.categoryName && (
-                  <div className="mb-1 text-xs text-muted-foreground">
-                    {product.categoryName}
-                  </div>
-                )}
-                <div className="flex items-center justify-between gap-3">
-                  <span className="font-semibold text-emerald-600 tabular-nums">
-                    {formatVND(product.price)}
-                  </span>
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-xs font-bold ${
-                      product.stock <= 0
-                        ? "bg-gray-200 text-gray-500"
-                        : product.stock <= LOW_STOCK_THRESHOLD
-                          ? "bg-red-100 text-red-700"
-                          : "bg-emerald-100 text-emerald-700"
-                    }`}
-                  >
-                    Tồn: {product.stock}
-                  </span>
-                </div>
-                <button
-                  className="mt-2 w-full rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground transition-colors hover:opacity-90"
-                  onClick={() => setSelected(null)}
-                >
-                  Đóng
-                </button>
-              </div>
-            </Html>
-          );
-        })()}
-    </>
-  );
-}
-
-// ── OutOfStockProduct: sản phẩm hết hàng — xám + trong suốt ──────────────────
-
-function OutOfStockProduct({
+function ProductBoxItem({
   product,
-  position: pos,
+  position,
   onSelect,
 }: {
   product: ShelfProduct;
   position: [number, number, number];
   onSelect?: (id: string) => void;
 }) {
-  const [showPopup, setShowPopup] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const palette = useMemo(() => getPalette(product.id), [product.id]);
+
+  const isOutOfStock = product.stock <= 0;
+  const isLowStock = !isOutOfStock && product.stock <= LOW_STOCK_THRESHOLD;
+
+  // Spring animation khi hover: nhấc bổng nhẹ lên và tăng tỉ lệ
+  const { posY, scale, glowIntensity } = useSpring({
+    posY: hovered ? position[1] + 0.08 : position[1],
+    scale: hovered ? 1.06 : 1.0,
+    glowIntensity: hovered ? 0.6 : isLowStock ? 0.35 : 0.0,
+    config: { tension: 350, friction: 20 },
+  });
+
+  // Low stock pulsing loop
+  const { lowStockGlow } = useSpring({
+    from: { lowStockGlow: 0.2 },
+    to: { lowStockGlow: isLowStock ? 0.9 : 0.2 },
+    loop: isLowStock ? { reverse: true } : false,
+    config: { duration: 700 },
+  });
 
   return (
-    <group position={pos}>
-      <mesh
+    <group position={[position[0], 0, position[2]]}>
+      {/* Khối sản phẩm chính */}
+      <animated.group
+        position-y={posY}
+        scale={scale}
         onClick={(e) => {
           e.stopPropagation();
-          setShowPopup((v) => !v);
           onSelect?.(product.id);
         }}
+        onPointerOver={(e) => {
+          e.stopPropagation();
+          setHovered(true);
+          document.body.style.cursor = "pointer";
+        }}
+        onPointerOut={() => {
+          setHovered(false);
+          document.body.style.cursor = "default";
+        }}
       >
-        <boxGeometry args={PRODUCT_SIZE} />
-        <meshStandardMaterial
-          color="#9ca3af"
-          transparent
-          opacity={0.3}
-          roughness={0.8}
-        />
+        {/* Vỏ hộp sản phẩm */}
+        <mesh castShadow receiveShadow>
+          <boxGeometry args={PRODUCT_SIZE} />
+          <animated.meshStandardMaterial
+            color={
+              isOutOfStock
+                ? "#64748b"
+                : isLowStock
+                  ? "#ea580c"
+                  : palette.main
+            }
+            roughness={0.35}
+            metalness={0.15}
+            transparent={isOutOfStock}
+            opacity={isOutOfStock ? 0.45 : 1}
+            emissive={
+              isLowStock
+                ? "#ef4444"
+                : hovered
+                  ? palette.accent
+                  : "#000000"
+            }
+            emissiveIntensity={isLowStock ? lowStockGlow : glowIntensity}
+          />
+        </mesh>
+
+        {/* Dải nẹp trang trí bao bì (Branding Stripe) */}
+        {!isOutOfStock && (
+          <mesh position={[0, 0, PRODUCT_SIZE[2] / 2 + 0.005]}>
+            <planeGeometry args={[PRODUCT_SIZE[0] * 0.9, PRODUCT_SIZE[1] * 0.38]} />
+            <meshStandardMaterial
+              color="#ffffff"
+              roughness={0.2}
+              metalness={0.1}
+            />
+          </mesh>
+        )}
+
+        {/* Nắp đỉnh hộp sản phẩm */}
+        {!isOutOfStock && (
+          <mesh position={[0, PRODUCT_SIZE[1] / 2 + 0.002, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+            <planeGeometry args={[PRODUCT_SIZE[0] * 0.85, PRODUCT_SIZE[2] * 0.85]} />
+            <meshStandardMaterial
+              color={palette.accent}
+              roughness={0.3}
+            />
+          </mesh>
+        )}
+
+        {/* Vòng hào quang dưới đáy khi hover */}
+        {hovered && (
+          <mesh position={[0, -PRODUCT_SIZE[1] / 2 - 0.03, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+            <ringGeometry args={[0.2, 0.45, 32]} />
+            <meshBasicMaterial
+              color="#38bdf8"
+              transparent
+              opacity={0.7}
+              side={THREE.DoubleSide}
+            />
+          </mesh>
+        )}
+      </animated.group>
+
+      {/* Thẻ giá gắn ở gờ kệ (Shelf Price Tag) */}
+      <mesh position={[0, position[1] - PRODUCT_SIZE[1] / 2 - 0.04, PRODUCT_SIZE[2] / 2 + 0.04]}>
+        <boxGeometry args={[0.42, 0.06, 0.02]} />
+        <meshStandardMaterial color="#0f172a" roughness={0.3} />
       </mesh>
 
-      {showPopup && (
+      {/* Floating Card khi hover sản phẩm */}
+      {hovered && (
         <Html
-          position={[0, PRODUCT_SIZE[1] + 0.35, 0.3]}
+          occlude
+          position={[0, position[1] + PRODUCT_SIZE[1] / 2 + 0.4, 0.3]}
           center
+          distanceFactor={5.2}
           zIndexRange={[50, 0]}
-          style={{ pointerEvents: "auto" }}
+          style={{ pointerEvents: "none" }}
         >
-          <div className="min-w-[180px] rounded-xl border border-border bg-background/95 p-3 text-sm shadow-2xl backdrop-blur-md">
-            <div className="mb-1 font-bold text-foreground">
-              {product.name}
+          <div className="animate-in fade-in zoom-in-95 pointer-events-none flex min-w-[190px] flex-col rounded-xl border border-white/20 bg-slate-900/95 p-3 text-white shadow-2xl backdrop-blur-xl">
+            <div className="flex items-start justify-between gap-2">
+              <span className="line-clamp-1 font-bold text-xs text-white">
+                {product.name}
+              </span>
+              <span
+                className={`flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold ${
+                  isOutOfStock
+                    ? "bg-red-500/20 text-red-400 border border-red-500/30"
+                    : isLowStock
+                      ? "bg-amber-500/20 text-amber-400 border border-amber-500/30"
+                      : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                }`}
+              >
+                {isOutOfStock ? (
+                  "Hết hàng"
+                ) : (
+                  <>
+                    <CheckCircle2 className="h-2.5 w-2.5" /> Tồn: {product.stock}
+                  </>
+                )}
+              </span>
             </div>
-            <div className="flex items-center justify-between gap-3">
-              <span className="font-semibold text-muted-foreground tabular-nums">
+
+            <div className="mt-1.5 flex items-center justify-between">
+              <span className="font-extrabold text-sm text-emerald-400">
                 {formatVND(product.price)}
               </span>
-              <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs font-bold text-gray-500">
-                Hết hàng
+              <span className="flex items-center gap-1 text-[10px] text-sky-300">
+                <Eye className="h-3 w-3" /> Bấm để xem
               </span>
             </div>
-            <button
-              className="mt-2 w-full rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground transition-colors hover:opacity-90"
-              onClick={() => setShowPopup(false)}
-            >
-              Đóng
-            </button>
+
+            <div className="mt-2 flex items-center justify-center gap-1 rounded-lg bg-indigo-600/80 py-1 text-[10px] font-semibold text-white">
+              <ShoppingBag className="h-3 w-3" /> Chi tiết &amp; Mua hàng
+            </div>
           </div>
         </Html>
       )}
@@ -255,74 +261,99 @@ function OutOfStockProduct({
   );
 }
 
-// ── LowStockProduct: sản phẩm sắp hết — nhấp nháy đỏ ────────────────────────
+// ── ShelfFrame: Khung Kệ Kim Loại & Gỗ Sồi Hiện Đại Kèm Đèn LED Tầng ────────
 
-function LowStockProduct({
-  product,
-  position: pos,
-  onSelect,
-}: {
-  product: ShelfProduct;
-  position: [number, number, number];
-  onSelect?: (id: string) => void;
-}) {
-  const [showPopup, setShowPopup] = useState(false);
-
-  const { opacity } = useSpring({
-    from: { opacity: 0.4 },
-    to: { opacity: 1 },
-    loop: { reverse: true },
-    config: { duration: 800 },
-  });
+function ShelfFrame({ title }: { title: string }) {
+  const metalColor = "#1e293b";
+  const woodColor = "#78350f"; // Gỗ sồi ấm áp
 
   return (
-    <group position={pos}>
-      <animated.mesh
-        onClick={(e) => {
-          e.stopPropagation();
-          setShowPopup((v) => !v);
-          onSelect?.(product.id);
-        }}
-      >
-        <boxGeometry args={PRODUCT_SIZE} />
-        <animated.meshStandardMaterial
-          color="#ef4444"
-          transparent
-          opacity={opacity}
-          emissive="#ef4444"
-          emissiveIntensity={0.2}
-          roughness={0.5}
-        />
-      </animated.mesh>
+    <group>
+      {/* Cột trụ kim loại góc trước - trái */}
+      <mesh position={[-SHELF_WIDTH / 2, SHELF_HEIGHT / 2, SHELF_DEPTH / 2 - 0.05]}>
+        <boxGeometry args={[0.08, SHELF_HEIGHT, 0.08]} />
+        <meshStandardMaterial color={metalColor} metalness={0.8} roughness={0.25} />
+      </mesh>
+      {/* Cột trụ kim loại góc sau - trái */}
+      <mesh position={[-SHELF_WIDTH / 2, SHELF_HEIGHT / 2, -SHELF_DEPTH / 2 + 0.05]}>
+        <boxGeometry args={[0.08, SHELF_HEIGHT, 0.08]} />
+        <meshStandardMaterial color={metalColor} metalness={0.8} roughness={0.25} />
+      </mesh>
 
-      {showPopup && (
-        <Html
-          position={[0, PRODUCT_SIZE[1] + 0.35, 0.3]}
-          center
-          zIndexRange={[50, 0]}
-          style={{ pointerEvents: "auto" }}
+      {/* Cột trụ kim loại góc trước - phải */}
+      <mesh position={[SHELF_WIDTH / 2, SHELF_HEIGHT / 2, SHELF_DEPTH / 2 - 0.05]}>
+        <boxGeometry args={[0.08, SHELF_HEIGHT, 0.08]} />
+        <meshStandardMaterial color={metalColor} metalness={0.8} roughness={0.25} />
+      </mesh>
+      {/* Cột trụ kim loại góc sau - phải */}
+      <mesh position={[SHELF_WIDTH / 2, SHELF_HEIGHT / 2, -SHELF_DEPTH / 2 + 0.05]}>
+        <boxGeometry args={[0.08, SHELF_HEIGHT, 0.08]} />
+        <meshStandardMaterial color={metalColor} metalness={0.8} roughness={0.25} />
+      </mesh>
+
+      {/* Thanh giằng chéo sau lưng kệ */}
+      <mesh position={[0, SHELF_HEIGHT / 2, -SHELF_DEPTH / 2 + 0.02]} rotation={[0, 0, 0.35]}>
+        <boxGeometry args={[SHELF_WIDTH * 1.1, 0.03, 0.03]} />
+        <meshStandardMaterial color={metalColor} metalness={0.7} />
+      </mesh>
+      <mesh position={[0, SHELF_HEIGHT / 2, -SHELF_DEPTH / 2 + 0.02]} rotation={[0, 0, -0.35]}>
+        <boxGeometry args={[SHELF_WIDTH * 1.1, 0.03, 0.03]} />
+        <meshStandardMaterial color={metalColor} metalness={0.7} />
+      </mesh>
+
+      {/* Các tầng mặt kệ gỗ sồi & dải LED hắt sáng âm tầng */}
+      {Array.from({ length: ROWS + 1 }, (_, i) => {
+        const y = (i + 1) * ROW_GAP;
+        return (
+          <group key={i} position={[0, y, 0]}>
+            {/* Đợt kệ gỗ */}
+            <mesh position={[0, 0, 0]} receiveShadow>
+              <boxGeometry args={[SHELF_WIDTH + 0.1, 0.07, SHELF_DEPTH]} />
+              <meshStandardMaterial color={woodColor} roughness={0.6} />
+            </mesh>
+
+            {/* Dải LED âm tầng chiếu sáng sản phẩm hàng dưới */}
+            {i > 0 && (
+              <mesh position={[0, -0.04, 0]}>
+                <boxGeometry args={[SHELF_WIDTH * 0.96, 0.02, 0.04]} />
+                <meshStandardMaterial
+                  color="#fef08a"
+                  emissive="#fde047"
+                  emissiveIntensity={1.4}
+                />
+              </mesh>
+            )}
+          </group>
+        );
+      })}
+
+      {/* Bảng tên danh mục trên đỉnh kệ (Header Marquee Sign) */}
+      <group position={[0, SHELF_HEIGHT + 0.35, 0]}>
+        {/* Khung biển tên */}
+        <mesh>
+          <boxGeometry args={[3.2, 0.42, 0.08]} />
+          <meshStandardMaterial color="#0f172a" metalness={0.6} roughness={0.3} />
+        </mesh>
+        {/* Viền LED */}
+        <mesh position={[0, 0, 0.045]}>
+          <planeGeometry args={[3.1, 0.34]} />
+          <meshStandardMaterial
+            color="#3b82f6"
+            emissive="#1d4ed8"
+            emissiveIntensity={0.5}
+          />
+        </mesh>
+        <Text
+          position={[0, 0, 0.055]}
+          fontSize={0.16}
+          color="#e0f2fe"
+          anchorX="center"
+          anchorY="middle"
+          letterSpacing={0.06}
         >
-          <div className="min-w-[180px] rounded-xl border border-border bg-background/95 p-3 text-sm shadow-2xl backdrop-blur-md">
-            <div className="mb-1 font-bold text-foreground">
-              {product.name}
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <span className="font-semibold text-orange-600 tabular-nums">
-                {formatVND(product.price)}
-              </span>
-              <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-bold text-red-700">
-                Tồn: {product.stock}
-              </span>
-            </div>
-            <button
-              className="mt-2 w-full rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground transition-colors hover:opacity-90"
-              onClick={() => setShowPopup(false)}
-            >
-              Đóng
-            </button>
-          </div>
-        </Html>
-      )}
+          {title}
+        </Text>
+      </group>
     </group>
   );
 }
@@ -330,123 +361,38 @@ function LowStockProduct({
 // ── ProductShelf (main) ───────────────────────────────────────────────────────
 
 /**
- * ProductShelf — Kệ hàng 3D đầy đủ (4 tầng × 5 cột = 20 slot).
- *
- * - InstancedMesh cho sản phẩm đủ hàng (tối ưu draw calls)
- * - Sản phẩm hết hàng: màu xám, opacity 0.3
- * - Sản phẩm sắp hết (≤ LOW_STOCK_THRESHOLD): nhấp nháy đỏ
- * - Click → popup hiển thị name, price, stock
+ * ProductShelf — Kệ hàng bán lẻ 3D thông minh và hiện đại.
+ * - Khung thép sơn tĩnh điện đen + đợt gỗ sồi cao cấp + đèn LED hắt sáng từng tầng.
+ * - Hộp sản phẩm có bao bì phong phú theo màu danh mục, hiệu ứng nhấc bổng khi hover.
+ * - Nhấp vào sản phẩm gọi callback mở modal chi tiết sản phẩm và thêm vào giỏ hàng.
  */
 export default function ProductShelf({
   products,
   onSelectProduct,
   position = [0, 0, 0],
   rotation = [0, 0, 0],
+  title = "KỆ HÀNG TRƯNG BÀY",
 }: ProductShelfProps) {
   const visible = products.slice(0, MAX_SLOTS);
 
-  // Phân loại sản phẩm
-  const { normalProducts, lowStockProducts, outOfStockProducts } = useMemo(() => {
-    const normal: { product: ShelfProduct; pos: [number, number, number]; index: number }[] = [];
-    const low: { product: ShelfProduct; pos: [number, number, number] }[] = [];
-    const out: { product: ShelfProduct; pos: [number, number, number] }[] = [];
-
-    visible.forEach((product, index) => {
-      const row = Math.floor(index / COLS);
-      const col = index % COLS;
-      const pos = slotPosition(row, col);
-
-      if (product.stock <= 0) {
-        out.push({ product, pos });
-      } else if (product.stock <= LOW_STOCK_THRESHOLD) {
-        low.push({ product, pos });
-      } else {
-        normal.push({ product, pos, index });
-      }
-    });
-
-    return { normalProducts: normal, lowStockProducts: low, outOfStockProducts: out };
-  }, [visible]);
-
   return (
     <group position={position} rotation={rotation}>
-      {/* Khung kệ gỗ */}
-      <ShelfFrame />
+      {/* Khung kệ hiện đại */}
+      <ShelfFrame title={title} />
 
-      {/* Sản phẩm đủ hàng — InstancedMesh */}
-      {normalProducts.length > 0 && (
-        <InstancedProducts
-          products={normalProducts}
-          onSelectProduct={onSelectProduct}
-        />
-      )}
+      {/* Từng hộp sản phẩm bán lẻ */}
+      {visible.map((product, index) => {
+        const row = Math.floor(index / COLS);
+        const col = index % COLS;
+        const pos = slotPosition(row, col);
 
-      {/* Sản phẩm sắp hết — nhấp nháy đỏ */}
-      {lowStockProducts.map(({ product, pos }) => (
-        <LowStockProduct
-          key={product.id}
-          product={product}
-          position={pos}
-          onSelect={onSelectProduct}
-        />
-      ))}
-
-      {/* Sản phẩm hết hàng — xám trong suốt */}
-      {outOfStockProducts.map(({ product, pos }) => (
-        <OutOfStockProduct
-          key={product.id}
-          product={product}
-          position={pos}
-          onSelect={onSelectProduct}
-        />
-      ))}
-
-      {/* Nhãn kệ */}
-      <Html
-        position={[0, SHELF_HEIGHT + 0.3, 0.5]}
-        center
-        zIndexRange={[20, 0]}
-        style={{ pointerEvents: "none" }}
-      >
-        <div className="whitespace-nowrap rounded-lg bg-primary/90 px-3 py-1 text-xs font-bold text-primary-foreground shadow-lg">
-          Kệ hàng ({visible.length} sản phẩm)
-        </div>
-      </Html>
-    </group>
-  );
-}
-
-// ── ShelfFrame: khung kệ gỗ ──────────────────────────────────────────────────
-
-function ShelfFrame() {
-  return (
-    <group>
-      {/* Cột trái */}
-      <mesh position={[-SHELF_WIDTH / 2 - 0.06, SHELF_HEIGHT / 2, 0]}>
-        <boxGeometry args={[0.12, SHELF_HEIGHT, SHELF_DEPTH]} />
-        <meshStandardMaterial color={WOOD_COLOR} roughness={0.8} />
-      </mesh>
-
-      {/* Cột phải */}
-      <mesh position={[SHELF_WIDTH / 2 + 0.06, SHELF_HEIGHT / 2, 0]}>
-        <boxGeometry args={[0.12, SHELF_HEIGHT, SHELF_DEPTH]} />
-        <meshStandardMaterial color={WOOD_COLOR} roughness={0.8} />
-      </mesh>
-
-      {/* Tấm lưng kệ */}
-      <mesh position={[0, SHELF_HEIGHT / 2, -SHELF_DEPTH / 2 - 0.04]}>
-        <boxGeometry args={[SHELF_WIDTH + 0.24, SHELF_HEIGHT, 0.06]} />
-        <meshStandardMaterial color={WOOD_DARK} roughness={0.9} />
-      </mesh>
-
-      {/* Các tầng kệ (bao gồm sàn kệ dưới cùng) */}
-      {Array.from({ length: ROWS + 1 }, (_, i) => {
-        const y = i * ROW_GAP;
         return (
-          <mesh key={i} position={[0, y, 0]}>
-            <boxGeometry args={[SHELF_WIDTH + 0.24, 0.08, SHELF_DEPTH]} />
-            <meshStandardMaterial color={WOOD_COLOR} roughness={0.8} />
-          </mesh>
+          <ProductBoxItem
+            key={product.id}
+            product={product}
+            position={pos}
+            onSelect={onSelectProduct}
+          />
         );
       })}
     </group>
