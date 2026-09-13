@@ -29,6 +29,8 @@ export function CameraPresetsBar({
       { id: "overview", label: "Toàn cảnh", icon: Globe, shortLabel: "Toàn cảnh" },
       { id: "shelfLeft", label: "Kệ hàng Trái (A)", icon: Package, shortLabel: "Kệ A" },
       { id: "shelfRight", label: "Kệ hàng Phải (B)", icon: Package, shortLabel: "Kệ B" },
+      { id: "shelfSideLeft", label: "Kệ Hông Trái (C)", icon: Package, shortLabel: "Kệ C" },
+      { id: "shelfSideRight", label: "Kệ Hông Phải (D)", icon: Package, shortLabel: "Kệ D" },
       { id: "posScreen", label: "Màn hình POS", icon: CreditCard, shortLabel: "Màn Hình POS" },
       { id: "avatar", label: "Trợ lý AI", icon: Bot, shortLabel: "Trợ lý AI" },
     ];

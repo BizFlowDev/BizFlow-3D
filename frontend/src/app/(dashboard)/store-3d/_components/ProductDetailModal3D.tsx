@@ -125,7 +125,7 @@ export function ProductDetailModal3D({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-md animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-md animate-in fade-in duration-200">
       <div className="relative w-full max-w-xl overflow-hidden rounded-3xl border border-white/20 bg-slate-900/95 shadow-2xl backdrop-blur-2xl">
         {/* Header viền gradient */}
         <div className="relative flex items-center justify-between border-b border-white/10 bg-slate-800/60 px-6 py-4">

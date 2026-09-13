@@ -5,7 +5,14 @@ import { Html, Text } from "@react-three/drei";
 import { useSpring, animated } from "@react-spring/three";
 import * as THREE from "three";
 import { LOW_STOCK_THRESHOLD } from "@/lib/dashboard-keys";
-import { ShoppingBag, AlertTriangle, CheckCircle2, Eye } from "lucide-react";
+import {
+  ShoppingBag,
+  AlertTriangle,
+  CheckCircle2,
+  Eye,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -14,6 +21,7 @@ export interface ShelfProduct {
   name: string;
   price: number;
   stock: number;
+  categoryId?: string | null;
   categoryName?: string | null;
   code?: string;
   imageUrl?: string | null;
@@ -30,6 +38,18 @@ interface ProductShelfProps {
   rotation?: [number, number, number];
   /** Tiêu đề bảng tên kệ */
   title?: string;
+  /** Trang cục bộ hiện tại của kệ này */
+  shelfCurrentPage?: number;
+  /** Tổng số trang cục bộ của kệ này */
+  shelfTotalPages?: number;
+  /** Chuyển về trang trước của kệ này */
+  onPrevShelfPage?: () => void;
+  /** Chuyển sang trang sau của kệ này */
+  onNextShelfPage?: () => void;
+  /** Cờ cho biết kệ hàng này có đang được người dùng ấn vào xem hay không */
+  isFocused?: boolean;
+  /** Callback khi click vào kệ để chuyển góc nhìn đến kệ đó */
+  onClickShelf?: () => void;
 }
 
 // ── Hằng số cấu hình kệ hàng ──────────────────────────────────────────────────
@@ -215,7 +235,7 @@ function ProductBoxItem({
           position={[0, position[1] + PRODUCT_SIZE[1] / 2 + 0.4, 0.3]}
           center
           distanceFactor={5.2}
-          zIndexRange={[50, 0]}
+          zIndexRange={[15, 0]}
           style={{ pointerEvents: "none" }}
         >
           <div className="animate-in fade-in zoom-in-95 pointer-events-none flex min-w-[190px] flex-col rounded-xl border border-white/20 bg-slate-900/95 p-3 text-white shadow-2xl backdrop-blur-xl">
@@ -224,13 +244,12 @@ function ProductBoxItem({
                 {product.name}
               </span>
               <span
-                className={`flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold ${
-                  isOutOfStock
-                    ? "bg-red-500/20 text-red-400 border border-red-500/30"
-                    : isLowStock
-                      ? "bg-amber-500/20 text-amber-400 border border-amber-500/30"
-                      : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-                }`}
+                className={`flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold ${isOutOfStock
+                  ? "bg-red-500/20 text-red-400 border border-red-500/30"
+                  : isLowStock
+                    ? "bg-amber-500/20 text-amber-400 border border-amber-500/30"
+                    : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                  }`}
               >
                 {isOutOfStock ? (
                   "Hết hàng"
@@ -263,7 +282,17 @@ function ProductBoxItem({
 
 // ── ShelfFrame: Khung Kệ Kim Loại & Gỗ Sồi Hiện Đại Kèm Đèn LED Tầng ────────
 
-function ShelfFrame({ title }: { title: string }) {
+function ShelfFrame({
+  title,
+  shelfCurrentPage,
+  shelfTotalPages,
+  isFocused = false,
+}: {
+  title: string;
+  shelfCurrentPage?: number;
+  shelfTotalPages?: number;
+  isFocused?: boolean;
+}) {
   const metalColor = "#1e293b";
   const woodColor = "#78350f"; // Gỗ sồi ấm áp
 
@@ -328,31 +357,61 @@ function ShelfFrame({ title }: { title: string }) {
       })}
 
       {/* Bảng tên danh mục trên đỉnh kệ (Header Marquee Sign) */}
-      <group position={[0, SHELF_HEIGHT + 0.35, 0]}>
+      <group position={[0, SHELF_HEIGHT + 0.38, 0]}>
         {/* Khung biển tên */}
         <mesh>
-          <boxGeometry args={[3.2, 0.42, 0.08]} />
+          <boxGeometry args={[3.8, 0.48, 0.08]} />
           <meshStandardMaterial color="#0f172a" metalness={0.6} roughness={0.3} />
         </mesh>
-        {/* Viền LED */}
+        {/* Viền LED phát sáng */}
         <mesh position={[0, 0, 0.045]}>
-          <planeGeometry args={[3.1, 0.34]} />
+          <planeGeometry args={[3.7, 0.40]} />
           <meshStandardMaterial
-            color="#3b82f6"
-            emissive="#1d4ed8"
-            emissiveIntensity={0.5}
+            color={isFocused ? "#0284c7" : "#3b82f6"}
+            emissive={isFocused ? "#38bdf8" : "#1d4ed8"}
+            emissiveIntensity={isFocused ? 0.9 : 0.5}
           />
         </mesh>
-        <Text
-          position={[0, 0, 0.055]}
-          fontSize={0.16}
-          color="#e0f2fe"
-          anchorX="center"
-          anchorY="middle"
-          letterSpacing={0.06}
+
+        {/* Biển hiệu LED 3D cố định trên mặt biển hiệu (transform), không xoay theo camera, chữ có viền đen */}
+        <Html
+          transform
+          position={[0, 0, 0.048]}
+          center
+          distanceFactor={5.5}
+          zIndexRange={[18, 0]}
+          style={{ pointerEvents: "none", userSelect: "none" }}
         >
-          {title}
-        </Text>
+          <div
+            className="flex select-none items-center justify-center gap-2.5 px-3 py-1 font-black"
+            style={{
+              whiteSpace: "nowrap",
+              color: "#ffffff",
+              WebkitTextStroke: "0.4px #000000",
+            }}
+          >
+            <span className="text-sm font-black tracking-wider text-white">
+              {title}
+            </span>
+            {shelfTotalPages && shelfTotalPages > 1 && (
+              <span
+                className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-black shadow-md border ${isFocused
+                  ? "border-amber-300 bg-amber-500/90 text-white ring-2 ring-amber-400"
+                  : "border-white/30 bg-slate-900/85 text-amber-300"
+                  }`}
+                style={{
+                  WebkitTextStroke: "0.6px #000000",
+                  textShadow: "1px 1px 0 #000, -1px -1px 0 #000",
+                }}
+              >
+                <span>Trang</span>
+                <span className="text-white font-black">{shelfCurrentPage}</span>
+                <span>/</span>
+                <span>{shelfTotalPages}</span>
+              </span>
+            )}
+          </div>
+        </Html>
       </group>
     </group>
   );
@@ -365,6 +424,7 @@ function ShelfFrame({ title }: { title: string }) {
  * - Khung thép sơn tĩnh điện đen + đợt gỗ sồi cao cấp + đèn LED hắt sáng từng tầng.
  * - Hộp sản phẩm có bao bì phong phú theo màu danh mục, hiệu ứng nhấc bổng khi hover.
  * - Nhấp vào sản phẩm gọi callback mở modal chi tiết sản phẩm và thêm vào giỏ hàng.
+ * - Mũi tên phân trang (label nổi) CHỈ HIỂN THỊ KHI ĐANG ẤN VÀO XEM KỆ ĐÓ.
  */
 export default function ProductShelf({
   products,
@@ -372,13 +432,116 @@ export default function ProductShelf({
   position = [0, 0, 0],
   rotation = [0, 0, 0],
   title = "KỆ HÀNG TRƯNG BÀY",
+  shelfCurrentPage,
+  shelfTotalPages,
+  onPrevShelfPage,
+  onNextShelfPage,
+  isFocused = false,
+  onClickShelf,
 }: ProductShelfProps) {
   const visible = products.slice(0, MAX_SLOTS);
+  // Mũi tên chuyển trang chỉ hiển thị khi có > 1 trang VÀ người dùng đang ấn vào xem kệ hàng đó
+  const hasMultiplePages = Boolean(shelfTotalPages && shelfTotalPages > 1);
+  const showPagination = hasMultiplePages && isFocused;
 
   return (
-    <group position={position} rotation={rotation}>
+    <group
+      position={position}
+      rotation={rotation}
+      onClick={(e) => {
+        // Khi click vào kệ hàng (không phải hộp sản phẩm) và chưa focus, chuyển góc nhìn đến kệ này
+        if (!isFocused && onClickShelf) {
+          e.stopPropagation();
+          onClickShelf();
+        }
+      }}
+    >
       {/* Khung kệ hiện đại */}
-      <ShelfFrame title={title} />
+      <ShelfFrame
+        title={title}
+        shelfCurrentPage={shelfCurrentPage}
+        shelfTotalPages={shelfTotalPages}
+        isFocused={isFocused}
+      />
+
+      {/* ── Label nổi phân trang Trái & Phải Kệ Hàng: CHỈ HIỂN THỊ KHI ĐANG ẤN VÀO XEM KỆ ĐÓ ── */}
+      {showPagination && (
+        <>
+          {/* Label Nổi Bên Trái: [ ◀ Trang trước ] */}
+          <Html
+            position={[-SHELF_WIDTH / 2 - 0.42, 1.45, 0.2]}
+            center
+            distanceFactor={7.5}
+            zIndexRange={[22, 0]}
+            style={{ pointerEvents: "auto", userSelect: "none" }}
+          >
+            <button
+              type="button"
+              disabled={!shelfCurrentPage || shelfCurrentPage <= 1}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onPrevShelfPage?.();
+              }}
+              onPointerDown={(e) => e.stopPropagation()}
+              className={`group flex items-center gap-2 rounded-2xl border px-3 py-2 shadow-2xl backdrop-blur-xl transition-all duration-200 ${!shelfCurrentPage || shelfCurrentPage <= 1
+                ? "border-white/10 bg-slate-900/70 text-slate-500 opacity-35 cursor-not-allowed"
+                : "border-sky-400/60 bg-slate-950/90 text-white shadow-[0_0_20px_rgba(56,189,248,0.35)] hover:scale-110 hover:border-sky-300 hover:bg-sky-600/90 active:scale-95 cursor-pointer"
+                }`}
+              title="Xem trang trước của kệ này"
+            >
+              <ChevronLeft className="h-5 w-5 text-sky-400 group-hover:text-white transition-colors" />
+              <div className="flex flex-col text-left leading-tight">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-sky-300 group-hover:text-sky-100">
+                  Trang trước
+                </span>
+                <span className="text-xs font-black text-white">
+                  {shelfCurrentPage && shelfCurrentPage > 1
+                    ? `Trang ${shelfCurrentPage - 1}`
+                    : `Trang 1`}
+                </span>
+              </div>
+            </button>
+          </Html>
+
+          {/* Label Nổi Bên Phải: [ Trang sau ▶ ] */}
+          <Html
+            position={[SHELF_WIDTH / 2 + 0.42, 1.45, 0.2]}
+            center
+            distanceFactor={7.5}
+            zIndexRange={[22, 0]}
+            style={{ pointerEvents: "auto", userSelect: "none" }}
+          >
+            <button
+              type="button"
+              disabled={!shelfCurrentPage || shelfCurrentPage >= (shelfTotalPages || 1)}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onNextShelfPage?.();
+              }}
+              onPointerDown={(e) => e.stopPropagation()}
+              className={`group flex items-center gap-2 rounded-2xl border px-3 py-2 shadow-2xl backdrop-blur-xl transition-all duration-200 ${!shelfCurrentPage || shelfCurrentPage >= (shelfTotalPages || 1)
+                ? "border-white/10 bg-slate-900/70 text-slate-500 opacity-35 cursor-not-allowed"
+                : "border-sky-400/60 bg-slate-950/90 text-white shadow-[0_0_20px_rgba(56,189,248,0.35)] hover:scale-110 hover:border-sky-300 hover:bg-sky-600/90 active:scale-95 cursor-pointer"
+                }`}
+              title="Xem trang sau của kệ này"
+            >
+              <div className="flex flex-col text-right leading-tight">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-sky-300 group-hover:text-sky-100">
+                  Trang sau
+                </span>
+                <span className="text-xs font-black text-white">
+                  {shelfCurrentPage && shelfCurrentPage < (shelfTotalPages || 1)
+                    ? `Trang ${shelfCurrentPage + 1}`
+                    : `Trang ${shelfTotalPages}`}
+                </span>
+              </div>
+              <ChevronRight className="h-5 w-5 text-sky-400 group-hover:text-white transition-colors" />
+            </button>
+          </Html>
+        </>
+      )}
 
       {/* Từng hộp sản phẩm bán lẻ */}
       {visible.map((product, index) => {

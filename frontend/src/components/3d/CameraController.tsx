@@ -9,6 +9,8 @@ export type CameraPreset =
   | "overview"
   | "shelfLeft"
   | "shelfRight"
+  | "shelfSideLeft"
+  | "shelfSideRight"
   | "counter"
   | "posScreen"
   | "avatar";
@@ -34,6 +36,16 @@ export const CAMERA_PRESETS: Record<CameraPreset, CameraPresetConfig> = {
     position: [3.7, 2.4, -0.6],
     target: [3.5, 1.8, -4.5],
     label: "Kệ hàng Phải (B)",
+  },
+  shelfSideLeft: {
+    position: [-2.8, 2.2, -0.5],
+    target: [-7.0, 1.8, -0.5],
+    label: "Kệ Hông Trái (C)",
+  },
+  shelfSideRight: {
+    position: [2.8, 2.2, -0.5],
+    target: [7.0, 1.8, -0.5],
+    label: "Kệ Hông Phải (D)",
   },
   counter: {
     position: [0, 2.1, 4.8],

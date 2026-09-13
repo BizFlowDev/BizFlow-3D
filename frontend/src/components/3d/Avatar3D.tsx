@@ -20,6 +20,8 @@ interface Avatar3DProps {
   rotation?: [number, number, number];
   /** Callback khi click vào AI Bot */
   onClick?: () => void;
+  /** Ẩn bong bóng thoại khi đang mở modal hoặc màn hình POS */
+  hideBubble?: boolean;
 }
 
 // ── Hằng số cấu tạo Robot ───────────────────────────────────────────────────
@@ -42,6 +44,7 @@ export default function Avatar3D({
   position = [0, 0, 0],
   rotation = [0, 0, 0],
   onClick,
+  hideBubble = false,
 }: Avatar3DProps) {
   const groupRef = useRef<Group>(null);
   const haloRef = useRef<Group>(null);
@@ -205,31 +208,33 @@ export default function Avatar3D({
         </animated.group>
 
         {/* ── Bong Bóng Thoại Tương Tác (Speech Bubble) ──────────────── */}
-        <Html
-          occlude
-          position={[0, HEAD_RADIUS + 0.45, 0]}
-          center
-          distanceFactor={5.2}
-          zIndexRange={[70, 0]}
-          style={{ pointerEvents: "auto" }}
-        >
-          <div
-            onClick={handleBotClick}
-            className="animate-in fade-in zoom-in-95 group flex max-w-[220px] cursor-pointer items-start gap-2 rounded-2xl border border-indigo-400/40 bg-slate-900/95 p-3 text-white shadow-2xl backdrop-blur-xl transition-all hover:scale-105 hover:border-indigo-400"
+        {!hideBubble && (
+          <Html
+            occlude
+            position={[0, HEAD_RADIUS + 0.45, 0]}
+            center
+            distanceFactor={5.2}
+            zIndexRange={[15, 0]}
+            style={{ pointerEvents: "auto" }}
           >
-            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-indigo-500/20 text-indigo-400">
-              <Bot className="h-3.5 w-3.5 animate-pulse" />
-            </div>
-            <div className="text-left">
-              <div className="flex items-center gap-1 font-bold text-[10px] text-indigo-300">
-                AI Assistant <Sparkles className="h-2.5 w-2.5 text-amber-400" />
+            <div
+              onClick={handleBotClick}
+              className="animate-in fade-in zoom-in-95 group flex max-w-[220px] cursor-pointer items-start gap-2 rounded-2xl border border-indigo-400/40 bg-slate-900/95 p-3 text-white shadow-2xl backdrop-blur-xl transition-all hover:scale-105 hover:border-indigo-400"
+            >
+              <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-indigo-500/20 text-indigo-400">
+                <Bot className="h-3.5 w-3.5 animate-pulse" />
               </div>
-              <p className="mt-0.5 text-xs leading-relaxed text-slate-100">
-                {currentSpeech}
-              </p>
+              <div className="text-left">
+                <div className="flex items-center gap-1 font-bold text-[10px] text-indigo-300">
+                  AI Assistant <Sparkles className="h-2.5 w-2.5 text-amber-400" />
+                </div>
+                <p className="mt-0.5 text-xs leading-relaxed text-slate-100">
+                  {currentSpeech}
+                </p>
+              </div>
             </div>
-          </div>
-        </Html>
+          </Html>
+        )}
       </group>
 
       {/* ── Vệt bóng đổ dưới sàn (Floor Shadow Ring) ─────────────────── */}

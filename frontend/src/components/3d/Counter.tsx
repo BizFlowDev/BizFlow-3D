@@ -221,6 +221,7 @@ export default function Counter({
             occlude
             distanceFactor={0.62}
             position={[0, 0, 0.03]}
+            zIndexRange={[10, 0]}
             style={{ pointerEvents: "auto" }}
           >
             <QueryClientProvider client={queryClient || fallbackQueryClient}>
@@ -229,11 +230,11 @@ export default function Counter({
                 onActivate={() => onOpenPOS?.()}
                 onExit={() => onExitPOS?.()}
                 orderLines={orderLines}
-                onAddProduct={onAddProduct || (() => {})}
-                onUpdateQuantity={onUpdateQuantity || (() => {})}
-                onRemoveItem={onRemoveItem || (() => {})}
-                onClearOrder={onClearOrder || (() => {})}
-                onOrderSuccess={onOrderSuccess || (() => {})}
+                onAddProduct={onAddProduct || (() => { })}
+                onUpdateQuantity={onUpdateQuantity || (() => { })}
+                onRemoveItem={onRemoveItem || (() => { })}
+                onClearOrder={onClearOrder || (() => { })}
+                onOrderSuccess={onOrderSuccess || (() => { })}
                 recentOrders={recentOrders}
               />
             </QueryClientProvider>
@@ -337,23 +338,6 @@ export default function Counter({
               <span className="relative inline-flex h-2 w-2 rounded-full bg-white" />
             </span>
             {pendingCount} đơn hàng chờ xử lý
-          </div>
-        </Html>
-      )}
-
-      {/* ── Tooltip khi hover quầy ─────────────────────────────────── */}
-      {hovered && (
-        <Html
-          occlude
-          position={[0, COUNTER_H + 0.75, 0.4]}
-          center
-          distanceFactor={5.2}
-          zIndexRange={[60, 0]}
-          style={{ pointerEvents: "none" }}
-        >
-          <div className="animate-in fade-in zoom-in-95 flex items-center gap-1.5 rounded-xl border border-emerald-400/30 bg-emerald-600 px-3.5 py-2 text-xs font-bold text-white shadow-2xl">
-            <CreditCard className="h-4 w-4" />
-            Quầy Thu Ngân • Bấm để Tạo đơn &amp; Thanh toán
           </div>
         </Html>
       )}

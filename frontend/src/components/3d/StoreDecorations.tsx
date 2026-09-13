@@ -119,10 +119,10 @@ export function StoreDecorations() {
       <PottedPlant position={[-6.8, 0, 4.5]} scale={1.1} />
 
       {/* Cây cảnh góc sau bên trái gần kệ A */}
-      <PottedPlant position={[-6.8, 0, -4.8]} scale={0.95} />
+      <PottedPlant position={[-7.0, 0, -5.5]} scale={0.95} />
 
       {/* Cây cảnh góc sau bên phải gần kệ B */}
-      <PottedPlant position={[6.8, 0, -4.8]} scale={0.95} />
+      <PottedPlant position={[7.0, 0, -5.5]} scale={0.95} />
 
       {/* Cây cảnh góc trước bên phải */}
       <PottedPlant position={[6.8, 0, 4.5]} scale={1.1} />

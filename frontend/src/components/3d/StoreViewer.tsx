@@ -251,6 +251,22 @@ function StoreCeilingAndLights() {
         color="#fffbeb"
       />
 
+      {/* Đèn điểm tập trung chiếu sáng Kệ C (hông trái) */}
+      <pointLight
+        position={[-5.2, STORE_HEIGHT - 0.5, -0.5]}
+        intensity={20}
+        distance={9}
+        color="#fffbeb"
+      />
+
+      {/* Đèn điểm tập trung chiếu sáng Kệ D (hông phải) */}
+      <pointLight
+        position={[5.2, STORE_HEIGHT - 0.5, -0.5]}
+        intensity={20}
+        distance={9}
+        color="#fffbeb"
+      />
+
       {/* Đèn điểm chiếu sáng Quầy thu ngân */}
       <pointLight
         position={[0, STORE_HEIGHT - 0.5, 2]}
