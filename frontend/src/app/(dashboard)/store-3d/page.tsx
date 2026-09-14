@@ -16,6 +16,8 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronDown,
+  ChevronUp,
+  ArrowLeft,
   Check,
   Layers,
   Filter,
@@ -84,6 +86,8 @@ export default function Store3DPage() {
   // Camera preset & Chế độ màn hình POS 3D
   const [cameraPreset, setCameraPreset] = useState<CameraPreset>("overview");
   const [isPOSActive, setIsPOSActive] = useState(false);
+  // Trạng thái thu gọn các nút điều khiển (tự động bật khi vào màn hình máy tính POS)
+  const [isHUDCollapsed, setIsHUDCollapsed] = useState(false);
 
   // Order Lines State (Các mặt hàng trong đơn)
   const [orderLines, setOrderLines] = useState<CartItem3D[]>([]);
@@ -376,10 +380,10 @@ export default function Store3DPage() {
     const searchFiltered = !q
       ? shelfProducts
       : shelfProducts.filter(
-          (p) =>
-            p.name.toLowerCase().includes(q) ||
-            (p.code && p.code.toLowerCase().includes(q)),
-        );
+        (p) =>
+          p.name.toLowerCase().includes(q) ||
+          (p.code && p.code.toLowerCase().includes(q)),
+      );
 
     // ── KỊCH BẢN C: Khi đã chọn 1 danh mục cụ thể ──
     if (selectedCategory !== "all") {
@@ -641,6 +645,7 @@ export default function Store3DPage() {
       setSelectedProductForDetail(null);
       setCameraPreset("posScreen");
       setIsPOSActive(true);
+      setIsHUDCollapsed(true);
     },
     [handleAddToOrder],
   );
@@ -686,19 +691,23 @@ export default function Store3DPage() {
   const handleOpenPOS = useCallback(() => {
     setCameraPreset("posScreen");
     setIsPOSActive(true);
+    setIsHUDCollapsed(true);
   }, []);
 
   const handleExitPOS = useCallback(() => {
     setCameraPreset("overview");
     setIsPOSActive(false);
+    setIsHUDCollapsed(false);
   }, []);
 
   const handleSelectPreset = useCallback((preset: CameraPreset) => {
     setCameraPreset(preset);
     if (preset === "posScreen") {
       setIsPOSActive(true);
+      setIsHUDCollapsed(true);
     } else {
       setIsPOSActive(false);
+      setIsHUDCollapsed(false);
     }
   }, []);
 
@@ -709,7 +718,7 @@ export default function Store3DPage() {
     "shelfSideRight",
   ].includes(cameraPreset);
 
-  // Phím tắt ESC để thoát quầy POS hoặc thoát góc nhìn xem kệ
+  // Phím tắt ESC để thoát quầy POS, thoát góc nhìn xem kệ hoặc mở lại HUD
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -717,12 +726,14 @@ export default function Store3DPage() {
           handleExitPOS();
         } else if (isViewingShelf) {
           handleSelectPreset("overview");
+        } else if (isHUDCollapsed) {
+          setIsHUDCollapsed(false);
         }
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isPOSActive, isViewingShelf, handleExitPOS, handleSelectPreset]);
+  }, [isPOSActive, isViewingShelf, isHUDCollapsed, handleExitPOS, handleSelectPreset]);
 
   // ── Render ─────────────────────────────────────────────────
 
@@ -752,6 +763,7 @@ export default function Store3DPage() {
           <StoreViewer
             height="100vh"
             currentPreset={cameraPreset}
+            isPOSActive={isPOSActive}
           >
             {/* Kệ hàng A — bên trái tường sau */}
             <ProductShelf
@@ -859,9 +871,61 @@ export default function Store3DPage() {
         </Suspense>
 
         {/* ── Overlay UI (HUD layer chuẩn z-30) ─────────── */}
-        <div className="pointer-events-none absolute inset-0 z-30 flex flex-col justify-between p-4">
+        <div className="pointer-events-none absolute inset-0 z-30 flex flex-col justify-between p-4 overflow-hidden">
+          {/* Thanh công cụ tinh gọn khi ở Chế độ Màn hình POS hoặc khi thu gọn HUD */}
+          {isHUDCollapsed && (
+            <div className="pointer-events-auto fixed top-3.5 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2.5 rounded-2xl border border-white/20 bg-slate-950/90 px-3.5 py-2 shadow-2xl shadow-black/60 backdrop-blur-2xl animate-in fade-in slide-in-from-top-3 duration-300 ring-1 ring-white/10">
+              {/* Nút Rời Quầy / Toàn cảnh */}
+              <button
+                type="button"
+                onClick={handleExitPOS}
+                className="flex items-center gap-1.5 rounded-xl border border-rose-500/40 bg-gradient-to-r from-rose-600/30 to-pink-600/30 hover:from-rose-600/50 hover:to-pink-600/50 px-3.5 py-1.5 text-xs font-bold text-rose-200 shadow-md backdrop-blur-md transition-all hover:scale-105 active:scale-95"
+                title="Rời khỏi quầy POS hoặc nhấn phím ESC"
+              >
+                <ArrowLeft className="h-3.5 w-3.5" />
+                <span>{isPOSActive ? "Rời Quầy [ESC]" : "Toàn Cảnh [ESC]"}</span>
+              </button>
+
+              <div className="h-4 w-px bg-white/15" />
+
+              {/* Status Badge */}
+              <div className="flex items-center gap-2 px-1 text-xs">
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                </span>
+                <span className="font-bold text-slate-200 hidden sm:inline">
+                  {isPOSActive ? "Màn Hình POS • Trạm #01" : "Showroom 3D"}
+                </span>
+                {totalOrderCount > 0 && (
+                  <span className="flex items-center gap-1 rounded-full bg-emerald-500/20 border border-emerald-400/40 px-2 py-0.5 text-[10px] font-black text-emerald-300">
+                    🛒 {totalOrderCount} món
+                  </span>
+                )}
+              </div>
+
+              <div className="h-4 w-px bg-white/15" />
+
+              {/* Nút Hiện lại thanh công cụ đầy đủ */}
+              <button
+                type="button"
+                onClick={() => setIsHUDCollapsed(false)}
+                className="flex items-center gap-1.5 rounded-xl border border-white/15 bg-white/10 hover:bg-white/20 px-3 py-1.5 text-xs font-semibold text-slate-200 shadow-md transition-all hover:text-white"
+                title="Mở rộng lại thanh tìm kiếm, danh mục và các góc nhìn"
+              >
+                <ChevronDown className="h-3.5 w-3.5 text-indigo-400" />
+                <span className="hidden md:inline">Hiện công cụ</span>
+              </button>
+            </div>
+          )}
+
           {/* Top bar (Cụm điều khiển trên cùng) */}
-          <div className="pointer-events-auto flex flex-col gap-2.5">
+          <div
+            className={`pointer-events-auto flex flex-col gap-2.5 transition-all duration-300 ease-in-out ${isHUDCollapsed
+              ? "-translate-y-[130%] opacity-0 pointer-events-none absolute top-4 left-4 right-4"
+              : "translate-y-0 opacity-100 relative"
+              }`}
+          >
             {/* Hàng 1: Search + Test Button + [Chính Giữa: Điều hướng Phân Trang] + Right Controls */}
             <div className="relative flex items-center justify-between gap-3">
               {/* Cụm Bên Trái: Tìm kiếm sản phẩm & Nút bật Chế độ Test Phân Trang */}
@@ -899,17 +963,15 @@ export default function Store3DPage() {
                       ...prev.slice(0, 2),
                     ]);
                   }}
-                  className={`flex items-center gap-1.5 rounded-2xl border px-3 py-2.5 text-xs font-bold transition-all shadow-xl backdrop-blur-xl ${
-                    isDemoMode
-                      ? "border-amber-400/60 bg-gradient-to-r from-amber-500/25 to-orange-500/25 text-amber-300 ring-2 ring-amber-500/40"
-                      : "border-white/15 bg-slate-900/80 text-slate-300 hover:bg-white/10 hover:text-white"
-                  }`}
+                  className={`flex items-center gap-1.5 rounded-2xl border px-3 py-2.5 text-xs font-bold transition-all shadow-xl backdrop-blur-xl ${isDemoMode
+                    ? "border-amber-400/60 bg-gradient-to-r from-amber-500/25 to-orange-500/25 text-amber-300 ring-2 ring-amber-500/40"
+                    : "border-white/15 bg-slate-900/80 text-slate-300 hover:bg-white/10 hover:text-white"
+                    }`}
                   title="Bật/Tắt dữ liệu giả lập 160 sản phẩm & 6 danh mục để test phân trang"
                 >
                   <Sparkles
-                    className={`h-3.5 w-3.5 ${
-                      isDemoMode ? "text-amber-400 animate-spin" : "text-slate-400"
-                    }`}
+                    className={`h-3.5 w-3.5 ${isDemoMode ? "text-amber-400 animate-spin" : "text-slate-400"
+                      }`}
                   />
                   <span className="hidden md:inline">
                     {isDemoMode ? "Đang Test (160 sp / 6 danh mục)" : "Test Phân Trang (160 sp)"}
@@ -1069,6 +1131,17 @@ export default function Store3DPage() {
                   <LayoutDashboard className="h-4 w-4 text-indigo-400" />
                   <span className="hidden sm:inline">Dashboard 2D</span>
                 </button>
+
+                {/* Nút Thu gọn giao diện */}
+                <button
+                  type="button"
+                  onClick={() => setIsHUDCollapsed(true)}
+                  className="flex items-center gap-1.5 rounded-2xl border border-white/15 bg-slate-900/80 hover:bg-white/10 px-3.5 py-2.5 text-xs font-semibold text-slate-200 shadow-2xl backdrop-blur-xl transition-all hover:text-white"
+                  title="Thu gọn các nút điều khiển để mở rộng tầm nhìn Showroom"
+                >
+                  <ChevronUp className="h-4 w-4 text-indigo-400" />
+                  <span className="hidden xl:inline">Thu gọn</span>
+                </button>
               </div>
             </div>
 
@@ -1081,11 +1154,10 @@ export default function Store3DPage() {
                   setSelectedCategory("all");
                   handleSelectPreset("overview");
                 }}
-                className={`flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition-all shadow-md backdrop-blur-xl ${
-                  selectedCategory === "all"
-                    ? "bg-indigo-600 text-white shadow-indigo-500/25 ring-2 ring-indigo-400/40"
-                    : "border border-white/10 bg-slate-900/80 text-slate-300 hover:bg-white/10 hover:text-white"
-                }`}
+                className={`flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition-all shadow-md backdrop-blur-xl ${selectedCategory === "all"
+                  ? "bg-indigo-600 text-white shadow-indigo-500/25 ring-2 ring-indigo-400/40"
+                  : "border border-white/10 bg-slate-900/80 text-slate-300 hover:bg-white/10 hover:text-white"
+                  }`}
               >
                 <Filter className="h-3.5 w-3.5" />
                 <span>Tất cả danh mục</span>
@@ -1105,13 +1177,12 @@ export default function Store3DPage() {
                       setSelectedCategory(cat.id);
                       handleSelectPreset("shelfLeft");
                     }}
-                    className={`flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition-all shadow-md backdrop-blur-xl ${
-                      isActive
-                        ? "bg-gradient-to-r from-sky-500 to-indigo-600 text-white shadow-sky-500/25 ring-2 ring-sky-400/40 scale-105"
-                        : isOnShelf
+                    className={`flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition-all shadow-md backdrop-blur-xl ${isActive
+                      ? "bg-gradient-to-r from-sky-500 to-indigo-600 text-white shadow-sky-500/25 ring-2 ring-sky-400/40 scale-105"
+                      : isOnShelf
                         ? "border border-amber-400/40 bg-slate-900/90 text-amber-300 ring-1 ring-amber-400/30 hover:bg-white/10"
                         : "border border-white/10 bg-slate-900/80 text-slate-300 hover:bg-white/10 hover:text-white"
-                    }`}
+                      }`}
                   >
                     <span>{cat.name}</span>
                     {isOnShelf && (
@@ -1130,13 +1201,12 @@ export default function Store3DPage() {
                   <button
                     type="button"
                     onClick={() => setIsExtraCategoriesOpen((prev) => !prev)}
-                    className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition-all shadow-md backdrop-blur-xl ${
-                      activeExtraCategory
-                        ? "bg-gradient-to-r from-sky-500 to-indigo-600 text-white shadow-sky-500/25 ring-2 ring-sky-400/40 scale-105"
-                        : isExtraCategoriesOpen
+                    className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition-all shadow-md backdrop-blur-xl ${activeExtraCategory
+                      ? "bg-gradient-to-r from-sky-500 to-indigo-600 text-white shadow-sky-500/25 ring-2 ring-sky-400/40 scale-105"
+                      : isExtraCategoriesOpen
                         ? "border border-white/30 bg-white/15 text-white"
                         : "border border-white/10 bg-slate-900/80 text-slate-300 hover:bg-white/10 hover:text-white"
-                    }`}
+                      }`}
                     title="Nhấn để chọn các danh mục còn lại"
                   >
                     <span>
@@ -1145,9 +1215,8 @@ export default function Store3DPage() {
                         : `+${extraCategories.length} Danh mục khác`}
                     </span>
                     <ChevronDown
-                      className={`h-3.5 w-3.5 transition-transform duration-200 ${
-                        isExtraCategoriesOpen ? "rotate-180" : ""
-                      }`}
+                      className={`h-3.5 w-3.5 transition-transform duration-200 ${isExtraCategoriesOpen ? "rotate-180" : ""
+                        }`}
                     />
                   </button>
 
@@ -1174,11 +1243,10 @@ export default function Store3DPage() {
                               handleSelectPreset("shelfLeft");
                               setIsExtraCategoriesOpen(false);
                             }}
-                            className={`flex items-center justify-between rounded-xl px-3 py-2 text-xs font-bold transition-all text-left ${
-                              isCatActive
-                                ? "bg-gradient-to-r from-sky-500 to-indigo-600 text-white shadow-md"
-                                : "text-slate-300 hover:bg-white/10 hover:text-white"
-                            }`}
+                            className={`flex items-center justify-between rounded-xl px-3 py-2 text-xs font-bold transition-all text-left ${isCatActive
+                              ? "bg-gradient-to-r from-sky-500 to-indigo-600 text-white shadow-md"
+                              : "text-slate-300 hover:bg-white/10 hover:text-white"
+                              }`}
                           >
                             <span className="flex items-center gap-2">
                               {cat.name}
@@ -1216,7 +1284,12 @@ export default function Store3DPage() {
           </div>
 
           {/* Bottom Control Bar */}
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4">
+          <div
+            className={`flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 transition-all duration-300 ease-in-out ${isHUDCollapsed
+              ? "translate-y-[150%] opacity-0 pointer-events-none absolute bottom-4 left-4 right-4"
+              : "translate-y-0 opacity-100 relative"
+              }`}
+          >
             {/* Camera Presets Bar (Bao gồm các góc nhìn kệ và Màn Hình POS) */}
             <CameraPresetsBar
               currentPreset={cameraPreset}
@@ -1240,15 +1313,15 @@ export default function Store3DPage() {
                   (Nhóm Kệ {categoryGroupPage}/{totalCategoryGroups})
                 </span>
               )}
-                <span className="hidden lg:inline text-slate-500">•</span>
-                <span className="hidden lg:inline text-slate-400">
-                  {isPOSActive
-                    ? "🖥️ Đang tương tác trên Màn Hình POS [ESC để rời quầy]"
-                    : "🖱️ Click màn hình máy tính để lên đơn như ngoài đời thực"}
-                </span>
-              </div>
+              <span className="hidden lg:inline text-slate-500">•</span>
+              <span className="hidden lg:inline text-slate-400">
+                {isPOSActive
+                  ? "🖥️ Đang tương tác trên Màn Hình POS [ESC để rời quầy]"
+                  : "🖱️ Click màn hình máy tính để lên đơn như ngoài đời thực"}
+              </span>
             </div>
           </div>
+        </div>
 
         {/* ── Product Detail Modal 3D ─────────────────────── */}
         <ProductDetailModal3D

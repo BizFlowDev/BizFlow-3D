@@ -16,6 +16,8 @@ interface StoreViewerProps {
   height?: string;
   /** Preset góc nhìn camera */
   currentPreset?: CameraPreset;
+  /** Trạng thái đang ở màn hình thanh toán POS */
+  isPOSActive?: boolean;
   /** Tọa độ mục tiêu cần focus (khi chọn sản phẩm cụ thể) */
   targetFocusPoint?: [number, number, number] | null;
 }
@@ -323,9 +325,11 @@ export default function StoreViewer({
   children,
   height = "100vh",
   currentPreset = "overview",
+  isPOSActive = false,
   targetFocusPoint = null,
 }: StoreViewerProps) {
   const controlsRef = useRef<OrbitControlsImpl>(null);
+  const isInteractingWithPOS = isPOSActive || currentPreset === "posScreen";
 
   return (
     <div style={{ width: "100%", height, position: "relative" }}>
@@ -364,7 +368,7 @@ export default function StoreViewer({
           targetFocusPoint={targetFocusPoint}
         />
 
-        {/* OrbitControls có giới hạn góc xoay để không xuyên tường */}
+        {/* OrbitControls: Tự động khóa xoay khi đang ở màn hình POS để người dùng thao tác bấm nút thoải mái */}
         <OrbitControls
           ref={controlsRef}
           target={[0, 1.2, 0]}
@@ -374,7 +378,8 @@ export default function StoreViewer({
           maxDistance={18}
           enableDamping
           dampingFactor={0.08}
-          enablePan
+          enablePan={!isInteractingWithPOS}
+          enableRotate={!isInteractingWithPOS}
           panSpeed={0.5}
         />
 

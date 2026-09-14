@@ -171,17 +171,17 @@ export default function Counter({
 
       {/* ── Thiết Bị Bán Hàng Trên Quầy ───────────────────────────── */}
 
-      {/* 1. Máy POS tính tiền cảm ứng màn hình lớn */}
-      <group position={[0.55, COUNTER_H + 0.04, -0.05]}>
-        {/* Chân đế máy POS xoay */}
-        <mesh position={[0, 0.08, 0]}>
-          <cylinderGeometry args={[0.14, 0.18, 0.16, 24]} />
+      {/* 1. Máy POS tính tiền cảm ứng màn hình lớn (kích thước lớn tương đương modal bán hàng) */}
+      <group position={[0.45, COUNTER_H + 0.04, -0.05]}>
+        {/* Chân đế máy POS xoay vững chắc */}
+        <mesh position={[0, 0.12, 0]}>
+          <cylinderGeometry args={[0.2, 0.26, 0.24, 24]} />
           <meshStandardMaterial color="#1e293b" metalness={0.7} roughness={0.3} />
         </mesh>
 
-        {/* Khung viền màn hình cảm ứng nghiêng 40 độ — bấm vào mở giao diện bán hàng */}
+        {/* Khung viền màn hình cảm ứng nghiêng 20 độ — to bằng modal bán hàng */}
         <group
-          position={[0, 0.32, 0]}
+          position={[0, 0.62, 0]}
           rotation={[-0.35, 0, 0]}
           onPointerOver={(e) => {
             e.stopPropagation();
@@ -197,8 +197,9 @@ export default function Counter({
             onOpenPOS?.();
           }}
         >
+          {/* Vỏ khung màn hình viền mỏng bo góc */}
           <mesh castShadow>
-            <boxGeometry args={[0.75, 0.48, 0.04]} />
+            <boxGeometry args={[1.6, 1.024, 0.05]} />
             <meshStandardMaterial
               color={screenHovered ? "#1e40af" : "#090d16"}
               metalness={0.5}
@@ -206,8 +207,8 @@ export default function Counter({
             />
           </mesh>
           {/* Màn hình phát sáng hiển thị giao diện bán hàng */}
-          <mesh position={[0, 0, 0.025]}>
-            <planeGeometry args={[0.7, 0.43]} />
+          <mesh position={[0, 0, 0.026]}>
+            <planeGeometry args={[1.40, 0.875]} />
             <animated.meshStandardMaterial
               color="#0284c7"
               emissive={screenHovered ? "#38bdf8" : hasPending ? "#10b981" : "#0284c7"}
@@ -215,11 +216,11 @@ export default function Counter({
             />
           </mesh>
 
-          {/* Giao diện UI màn hình máy tính 3D (POS nhúng trực tiếp như ngoài đời) */}
+          {/* Giao diện UI màn hình máy tính 3D (POS nhúng trực tiếp chuẩn tỷ lệ modal 1200x750) */}
           <Html
             transform
             occlude
-            distanceFactor={0.62}
+            distanceFactor={0.52}
             position={[0, 0, 0.03]}
             zIndexRange={[10, 0]}
             style={{ pointerEvents: "auto" }}
@@ -243,7 +244,7 @@ export default function Counter({
       </group>
 
       {/* 2. Máy in hoá đơn nhiệt (Receipt Thermal Printer) */}
-      <group position={[-0.25, COUNTER_H + 0.1, -0.2]}>
+      <group position={[-0.55, COUNTER_H + 0.1, -0.2]}>
         <mesh castShadow>
           <boxGeometry args={[0.32, 0.2, 0.35]} />
           <meshStandardMaterial color="#1e293b" roughness={0.4} metalness={0.3} />
@@ -261,7 +262,7 @@ export default function Counter({
       </group>
 
       {/* 3. Máy quét mã vạch để bàn (Barcode Scanner) */}
-      <group position={[1.25, COUNTER_H + 0.12, 0.1]}>
+      <group position={[1.38, COUNTER_H + 0.12, 0.1]}>
         {/* Giá cắm máy quét */}
         <mesh position={[0, 0, 0]}>
           <cylinderGeometry args={[0.07, 0.09, 0.22, 16]} />
@@ -280,7 +281,7 @@ export default function Counter({
       </group>
 
       {/* 4. Đế cắm bảng VietQR thanh toán (QR Stand) */}
-      <group position={[-1.15, COUNTER_H + 0.14, 0.18]} rotation={[0, 0.2, 0]}>
+      <group position={[-1.30, COUNTER_H + 0.14, 0.18]} rotation={[0, 0.2, 0]}>
         {/* Đế mica trong */}
         <mesh position={[0, 0, 0]}>
           <boxGeometry args={[0.24, 0.02, 0.12]} />
@@ -301,7 +302,7 @@ export default function Counter({
       {/* ── Màn Hình Phụ Hướng Ra Khách Hàng (Customer Display) ─────── */}
       <Html
         occlude
-        position={[-0.6, COUNTER_H + 0.35, 0.45]}
+        position={[-0.85, COUNTER_H + 0.35, 0.45]}
         center
         distanceFactor={4.8}
         zIndexRange={[40, 0]}

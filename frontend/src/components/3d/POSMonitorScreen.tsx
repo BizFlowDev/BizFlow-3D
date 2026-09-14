@@ -54,7 +54,7 @@ function formatVND(amount: number): string {
   }).format(amount);
 }
 
-const CASH_PRESETS = [50000, 100000, 200000, 500000];
+const CASH_PRESETS = [10000, 20000, 50000, 100000, 200000, 500000];
 
 class ScreenErrorBoundary extends React.Component<
   { children: React.ReactNode },
@@ -73,7 +73,7 @@ class ScreenErrorBoundary extends React.Component<
   render() {
     if (this.state.hasError) {
       return (
-        <div className="flex h-[550px] w-[900px] flex-col justify-between rounded-xl bg-slate-950 p-6 text-white border border-red-500/50">
+        <div className="flex h-[750px] w-[1200px] flex-col justify-between rounded-2xl bg-slate-950 p-8 text-white border border-red-500/50">
           <div className="text-red-400 font-bold text-sm">
             ⚠️ Giao diện POS đang gặp sự cố:
           </div>
@@ -321,7 +321,7 @@ function POSMonitorScreenInner({
       onError: (err: any) => {
         setErrorMessage(
           err?.response?.data?.message ||
-            "Không thể tạo đơn hàng. Vui lòng kiểm tra lại tồn kho!",
+          "Không thể tạo đơn hàng. Vui lòng kiểm tra lại tồn kho!",
         );
       },
     });
@@ -345,7 +345,7 @@ function POSMonitorScreenInner({
           e.stopPropagation();
           onActivate();
         }}
-        className="flex h-[550px] w-[900px] cursor-pointer flex-col justify-between rounded-xl bg-gradient-to-b from-slate-950 via-slate-900 to-[#090d16] p-7 text-white shadow-2xl select-none transition-all hover:ring-4 hover:ring-sky-400/50"
+        className="flex h-[750px] w-[1200px] cursor-pointer flex-col justify-between rounded-2xl bg-gradient-to-b from-slate-950 via-slate-900 to-[#090d16] p-10 text-white shadow-2xl select-none transition-all hover:ring-4 hover:ring-sky-400/50"
       >
         {/* Thanh trạng thái Standby */}
         <div className="flex items-center justify-between border-b border-white/10 pb-4">
@@ -394,7 +394,7 @@ function POSMonitorScreenInner({
 
         {/* Chân màn hình chờ */}
         <div className="flex items-center justify-between border-t border-white/10 pt-4 text-xs text-slate-400">
-          <span>Giao diện POS mô phỏng trực tiếp ngoài đời thực</span>
+          <span>Bizflow</span>
           <span className="font-mono text-emerald-400">STATUS: READY (OK)</span>
         </div>
       </div>
@@ -407,10 +407,10 @@ function POSMonitorScreenInner({
   return (
     <div
       onClick={(e) => e.stopPropagation()}
-      className="flex h-[550px] w-[900px] flex-col overflow-hidden rounded-xl bg-slate-950 text-white shadow-2xl select-none border border-slate-700/60"
+      className="flex h-[750px] w-[1200px] flex-col overflow-hidden rounded-2xl bg-slate-950 text-white shadow-2xl select-none border border-slate-700/60"
     >
       {/* ── 1. Top Bar của Hệ Thống POS ─────────────────────────────────── */}
-      <div className="flex h-12 shrink-0 items-center justify-between border-b border-white/10 bg-slate-900/90 px-4">
+      <div className="flex h-14 shrink-0 items-center justify-between border-b border-white/10 bg-slate-900/90 px-6">
         {/* Nút Rời Quầy [ESC] */}
         <div className="flex items-center gap-3">
           <button
@@ -438,11 +438,10 @@ function POSMonitorScreenInner({
             <button
               type="button"
               onClick={() => setActiveTab("pos")}
-              className={`flex items-center gap-1.5 rounded-lg px-3 py-1 font-bold transition-all ${
-                activeTab === "pos"
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-1 font-bold transition-all ${activeTab === "pos"
                   ? "bg-emerald-600 text-white shadow"
                   : "text-slate-400 hover:text-white"
-              }`}
+                }`}
             >
               <CreditCard className="h-3.5 w-3.5" />
               Bán Hàng ({orderLines.reduce((s, it) => s + it.quantity, 0)})
@@ -450,11 +449,10 @@ function POSMonitorScreenInner({
             <button
               type="button"
               onClick={() => setActiveTab("history")}
-              className={`flex items-center gap-1.5 rounded-lg px-3 py-1 font-bold transition-all ${
-                activeTab === "history"
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-1 font-bold transition-all ${activeTab === "history"
                   ? "bg-sky-600 text-white shadow"
                   : "text-slate-400 hover:text-white"
-              }`}
+                }`}
             >
               <History className="h-3.5 w-3.5" />
               Lịch Sử Đơn ({recentOrders.length})
@@ -579,8 +577,8 @@ function POSMonitorScreenInner({
       ) : (
         /* ── 4. Giao diện Bán Hàng POS Chia 2 Cột Chuẩn Mực ───────────── */
         <div className="flex flex-1 overflow-hidden">
-          {/* ── CỘT TRÁI: DANH MỤC & TÌM KIẾM SẢN PHẨM (54%) ─────────── */}
-          <div className="flex w-[54%] flex-col border-r border-white/10 bg-slate-900/40">
+          {/* ── CỘT TRÁI: DANH MỤC & TÌM KIẾM SẢN PHẨM (50%) ─────────── */}
+          <div className="flex w-[50%] flex-col border-r border-white/10 bg-slate-900/40">
             {/* Thanh tìm kiếm & lọc danh mục */}
             <div className="border-b border-white/10 p-3 space-y-2 bg-slate-900/60">
               <div className="relative">
@@ -599,11 +597,10 @@ function POSMonitorScreenInner({
                 <button
                   type="button"
                   onClick={() => setSelectedCategory("all")}
-                  className={`shrink-0 rounded-lg px-2.5 py-1 font-semibold transition-all ${
-                    selectedCategory === "all"
+                  className={`shrink-0 rounded-lg px-2.5 py-1 font-semibold transition-all ${selectedCategory === "all"
                       ? "bg-sky-600 text-white shadow"
                       : "bg-slate-800 text-slate-300 hover:bg-slate-700"
-                  }`}
+                    }`}
                 >
                   Tất cả ({allProducts.length})
                 </button>
@@ -612,11 +609,10 @@ function POSMonitorScreenInner({
                     key={c.id}
                     type="button"
                     onClick={() => setSelectedCategory(c.id)}
-                    className={`shrink-0 rounded-lg px-2.5 py-1 font-semibold transition-all ${
-                      selectedCategory === c.id
+                    className={`shrink-0 rounded-lg px-2.5 py-1 font-semibold transition-all ${selectedCategory === c.id
                         ? "bg-sky-600 text-white shadow"
                         : "bg-slate-800 text-slate-300 hover:bg-slate-700"
-                    }`}
+                      }`}
                   >
                     {c.name}
                   </button>
@@ -636,7 +632,7 @@ function POSMonitorScreenInner({
                   Không tìm thấy sản phẩm nào phù hợp.
                 </div>
               ) : (
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 lg:grid-cols-3 gap-2.5">
                   {filteredProducts.map((p) => {
                     const defaultUnit = p.units?.find((u) => u.isDefault) || p.units?.[0];
                     const price = defaultUnit?.price ?? 0;
@@ -644,38 +640,44 @@ function POSMonitorScreenInner({
                       <div
                         key={p.id}
                         onClick={() => handleAddProductCard(p)}
-                        className="group flex cursor-pointer items-center gap-2.5 rounded-xl border border-white/10 bg-slate-800/60 p-2 text-left hover:border-emerald-500/50 hover:bg-slate-800 transition-all hover:scale-[1.01]"
+                        className="group flex flex-col justify-between rounded-xl border border-white/10 bg-slate-800/60 p-2.5 text-left hover:border-emerald-500/50 hover:bg-slate-800 transition-all hover:scale-[1.02] cursor-pointer shadow-sm"
                       >
-                        <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-slate-700/60 flex items-center justify-center">
+                        <div className="relative h-18 w-full shrink-0 overflow-hidden rounded-lg bg-slate-700/60 flex items-center justify-center mb-1.5">
                           {p.imageUrl ? (
                             /* eslint-disable-next-line @next/next/no-img-element */
                             <img
                               src={p.imageUrl}
                               alt={p.name}
-                              className="h-full w-full object-cover rounded-lg"
+                              className="h-full w-full object-cover rounded-lg group-hover:scale-105 transition-transform"
                             />
                           ) : (
-                            <Package className="h-6 w-6 text-slate-400" />
+                            <Package className="h-7 w-7 text-slate-400" />
                           )}
                         </div>
 
                         <div className="min-w-0 flex-1">
-                          <div className="truncate text-xs font-bold text-white group-hover:text-emerald-400 transition-colors">
+                          <div className="line-clamp-1 text-xs font-bold text-white group-hover:text-emerald-400 transition-colors">
                             {p.name}
                           </div>
                           <div className="font-mono text-[10px] text-slate-400">
                             {p.code}
                           </div>
-                          <div className="mt-0.5 text-xs font-bold text-emerald-400 tabular-nums">
-                            {formatVND(price)}
+                          <div className="mt-1 flex items-center justify-between">
+                            <span className="text-xs font-extrabold text-emerald-400 tabular-nums">
+                              {formatVND(price)}
+                            </span>
+                            <span className="text-[10px] text-slate-400">
+                              /{defaultUnit?.unitName || "Cái"}
+                            </span>
                           </div>
                         </div>
 
                         <button
                           type="button"
-                          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-emerald-600/30 text-emerald-400 group-hover:bg-emerald-600 group-hover:text-white transition-all shadow"
+                          className="mt-2 flex w-full items-center justify-center gap-1 rounded-lg bg-emerald-600/20 py-1 text-[11px] font-semibold text-emerald-300 group-hover:bg-emerald-600 group-hover:text-white transition-all shadow"
                         >
-                          <Plus className="h-4 w-4" />
+                          <Plus className="h-3.5 w-3.5" />
+                          <span>Thêm món</span>
                         </button>
                       </div>
                     );
@@ -685,8 +687,8 @@ function POSMonitorScreenInner({
             </div>
           </div>
 
-          {/* ── CỘT PHẢI: HÓA ĐƠN BÁN HÀNG & THANH TOÁN (46%) ───────── */}
-          <div className="flex w-[46%] flex-col bg-slate-950/60">
+          {/* ── CỘT PHẢI: HÓA ĐƠN BÁN HÀNG & THANH TOÁN (50%) ───────── */}
+          <div className="flex w-[50%] flex-col bg-slate-950/60">
             {/* Chọn khách hàng & Công nợ */}
             <div className="border-b border-white/10 p-2.5 bg-slate-900/40 space-y-1.5">
               <div className="flex items-center justify-between text-[11px]">
@@ -853,7 +855,7 @@ function POSMonitorScreenInner({
               {/* Tổng tiền thanh toán */}
               <div className="flex items-center justify-between border-t border-white/10 pt-1.5">
                 <span className="text-xs font-bold text-slate-200">TỔNG CỘNG:</span>
-                <span className="text-lg font-black text-emerald-400 tabular-nums">
+                <span className="text-xl font-black text-emerald-400 tabular-nums">
                   {formatVND(finalAmount)}
                 </span>
               </div>
@@ -863,33 +865,30 @@ function POSMonitorScreenInner({
                 <button
                   type="button"
                   onClick={() => setPaymentMethod("cash")}
-                  className={`flex items-center justify-center gap-1 py-1 rounded font-bold transition-all ${
-                    paymentMethod === "cash"
+                  className={`flex items-center justify-center gap-1 py-1 rounded font-bold transition-all ${paymentMethod === "cash"
                       ? "bg-emerald-600 text-white"
                       : "bg-slate-800 text-slate-400 hover:text-white"
-                  }`}
+                    }`}
                 >
                   <Banknote className="h-3 w-3" /> Tiền mặt
                 </button>
                 <button
                   type="button"
                   onClick={() => setPaymentMethod("qr_code")}
-                  className={`flex items-center justify-center gap-1 py-1 rounded font-bold transition-all ${
-                    paymentMethod === "qr_code"
+                  className={`flex items-center justify-center gap-1 py-1 rounded font-bold transition-all ${paymentMethod === "qr_code"
                       ? "bg-sky-600 text-white"
                       : "bg-slate-800 text-slate-400 hover:text-white"
-                  }`}
+                    }`}
                 >
                   <QrCode className="h-3 w-3" /> VietQR
                 </button>
                 <button
                   type="button"
                   onClick={() => setPaymentMethod("debt")}
-                  className={`flex items-center justify-center gap-1 py-1 rounded font-bold transition-all ${
-                    paymentMethod === "debt"
+                  className={`flex items-center justify-center gap-1 py-1 rounded font-bold transition-all ${paymentMethod === "debt"
                       ? "bg-purple-600 text-white"
                       : "bg-slate-800 text-slate-400 hover:text-white"
-                  }`}
+                    }`}
                 >
                   <Tag className="h-3 w-3" /> Ghi nợ
                 </button>
@@ -988,7 +987,7 @@ function POSMonitorScreenInner({
                 type="button"
                 onClick={handleCheckout}
                 disabled={orderLines.length === 0 || createOrderMutation.isPending}
-                className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 py-2.5 font-bold text-xs text-white shadow-lg shadow-emerald-500/20 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 py-3 font-bold text-sm text-white shadow-lg shadow-emerald-500/20 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {createOrderMutation.isPending ? (
                   <>

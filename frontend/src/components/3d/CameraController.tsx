@@ -28,22 +28,22 @@ export const CAMERA_PRESETS: Record<CameraPreset, CameraPresetConfig> = {
     label: "Toàn cảnh Showroom",
   },
   shelfLeft: {
-    position: [-3.7, 2.4, -0.6],
-    target: [-3.5, 1.8, -4.5],
+    position: [-3.7, 2.4, 2],
+    target: [-3.5, 1.8, -5.5],
     label: "Kệ hàng Trái (A)",
   },
   shelfRight: {
-    position: [3.7, 2.4, -0.6],
-    target: [3.5, 1.8, -4.5],
+    position: [3.7, 2.4, 2],
+    target: [3.5, 1.8, -5.5],
     label: "Kệ hàng Phải (B)",
   },
   shelfSideLeft: {
-    position: [-2.8, 2.2, -0.5],
+    position: [0, 2.2, -0.5],
     target: [-7.0, 1.8, -0.5],
     label: "Kệ Hông Trái (C)",
   },
   shelfSideRight: {
-    position: [2.8, 2.2, -0.5],
+    position: [0, 2.2, -0.5],
     target: [7.0, 1.8, -0.5],
     label: "Kệ Hông Phải (D)",
   },
@@ -53,8 +53,8 @@ export const CAMERA_PRESETS: Record<CameraPreset, CameraPresetConfig> = {
     label: "Quầy Thu Ngân",
   },
   posScreen: {
-    position: [0.55, 1.98, 3],
-    target: [0.55, 1.50, 1.95],
+    position: [0.45, 2.2, 3.25],
+    target: [0.45, 1.73, 1.95],
     label: "Màn hình POS",
   },
   avatar: {
@@ -123,7 +123,7 @@ export function CameraController({
       ? controlsRef.current.target.distanceTo(desiredTargetRef.current)
       : 0;
 
-    if (posDist < 0.05 && targetDist < 0.05) {
+    if (posDist < 0.2 && targetDist < 0.05) {
       isTransitioningRef.current = false;
     }
   });
