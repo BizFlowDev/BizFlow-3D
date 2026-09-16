@@ -44,8 +44,9 @@ export interface Order {
   createdAt: string;
   updatedAt: string;
   items?: OrderItem[];
-  /** Enriched client-side: tên khách hàng để hiển thị */
+  /** Enriched client-side hoặc API trả về: tên và SĐT khách hàng để hiển thị */
   customerName?: string | null;
+  customerPhone?: string | null;
 }
 
 export interface CreateOrderData {
@@ -394,6 +395,47 @@ function getProductCatalog(): Promise<Map<string, CatalogProduct>> {
   return catalogPromise;
 }
 
+// ── Customer catalog (để gắn tên/SĐT khách hàng nếu API chưa join) ─────────
+
+interface CatalogCustomer {
+  id: string;
+  name: string;
+  phone?: string | null;
+}
+
+let customerCatalogPromise: Promise<Map<string, CatalogCustomer>> | null = null;
+
+export function invalidateCustomerCatalog(): void {
+  customerCatalogPromise = null;
+}
+
+/** Fetch danh mục khách hàng một lần, cache lại. Giới hạn 2s nếu backend không phản hồi. */
+function getCustomerCatalog(): Promise<Map<string, CatalogCustomer>> {
+  if (!customerCatalogPromise) {
+    const fetchCatalog = (async () => {
+      const map = new Map<string, CatalogCustomer>();
+      try {
+        const { data } = await apiClient.get<
+          ApiResponseData<PaginatedResponse<CatalogCustomer>>
+        >("/customers", { params: { page: 1, limit: 200 } });
+        for (const c of data.data?.items ?? []) {
+          map.set(c.id, { id: c.id, name: c.name, phone: c.phone });
+        }
+      } catch {
+        // Fallback
+      }
+      return map;
+    })();
+    customerCatalogPromise = Promise.race([
+      fetchCatalog,
+      new Promise<Map<string, CatalogCustomer>>((resolve) =>
+        setTimeout(() => resolve(new Map()), 2000),
+      ),
+    ]);
+  }
+  return customerCatalogPromise;
+}
+
 /** Tạo mã đơn dạng DH-YYYYMMDD-SEQ từ id & createdAt */
 export function getOrderCode(order: Pick<Order, "id" | "createdAt">): string {
   const d = new Date(order.createdAt);
@@ -406,9 +448,21 @@ export function getOrderCode(order: Pick<Order, "id" | "createdAt">): string {
 }
 
 async function enrichOrder(order: Order): Promise<Order> {
-  const customerName = order.customerId
-    ? order.customerName ?? MOCK_CUSTOMER_NAMES[order.customerId] ?? null
-    : null;
+  let customerName = order.customerName ?? null;
+  let customerPhone = order.customerPhone ?? null;
+
+  if (!customerName && order.customerId) {
+    customerName = MOCK_CUSTOMER_NAMES[order.customerId] ?? null;
+    if (!customerName) {
+      const customerCatalog = await getCustomerCatalog();
+      const matched = customerCatalog.get(order.customerId);
+      if (matched) {
+        customerName = matched.name;
+        customerPhone = matched.phone ?? null;
+      }
+    }
+  }
+
   const rawItems = order.items ?? [];
   const needsCatalog = rawItems.some(
     (item) => !item.productName || !item.unitName,
@@ -433,7 +487,7 @@ async function enrichOrder(order: Order): Promise<Order> {
         "Cái",
     };
   });
-  return { ...order, customerName, items };
+  return { ...order, customerName, customerPhone, items };
 }
 
 /** Xử lý shape { order, items } mà backend trả cho create/detail */
@@ -524,8 +578,10 @@ export function useCreateOrder() {
       return enrichOrder(order);
     },
     onSuccess: () => {
+      invalidateCustomerCatalog();
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["customers"] });
     },
   });
 }

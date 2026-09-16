@@ -167,6 +167,7 @@ export default function NewOrderPage() {
   const [customerSearch, setCustomerSearch] = useState("");
   const [customerMenuOpen, setCustomerMenuOpen] = useState(false);
   const [discountInput, setDiscountInput] = useState("");
+  const [discountType, setDiscountType] = useState<"amount" | "percent">("amount");
   const [note, setNote] = useState("");
 
   // ── State: Phương thức thanh toán ──
@@ -219,7 +220,15 @@ export default function NewOrderPage() {
 
   // ── Tính toán số tiền ──
   const subtotal = cart.reduce((s, l) => s + l.price * l.quantity, 0);
-  const discount = Math.max(0, parseFloat(discountInput) || 0);
+  const discount = useMemo(() => {
+    const rawVal = parseFloat(discountInput) || 0;
+    if (rawVal <= 0) return 0;
+    if (discountType === "percent") {
+      const pct = Math.min(100, Math.max(0, rawVal));
+      return Math.round((subtotal * pct) / 100);
+    }
+    return Math.min(subtotal, Math.max(0, rawVal));
+  }, [subtotal, discountInput, discountType]);
   const finalAmount = Math.max(0, subtotal - discount);
   const totalQty = cart.reduce((s, l) => s + l.quantity, 0);
 
@@ -295,6 +304,7 @@ export default function NewOrderPage() {
   const clearCart = useCallback(() => {
     setCart([]);
     setDiscountInput("");
+    setDiscountType("amount");
     setCashGivenInput("");
     setNote("");
     setCustomer(null);
@@ -735,17 +745,90 @@ export default function NewOrderPage() {
             {/* Giảm giá + Ghi chú */}
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <Label className="text-xs font-medium text-muted-foreground">Giảm giá</Label>
-                <div className="relative mt-1">
+                <div className="flex items-center justify-between mb-1">
+                  <Label className="text-xs font-medium text-muted-foreground">Giảm giá</Label>
+                  <div className="flex items-center rounded-md border bg-muted/60 p-0.5 text-[10px] font-semibold">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDiscountType("amount");
+                        setDiscountInput("");
+                      }}
+                      className={cn(
+                        "rounded px-1.5 py-0.5 transition-colors",
+                        discountType === "amount"
+                          ? "bg-background text-foreground shadow-xs font-bold"
+                          : "text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      VNĐ
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDiscountType("percent");
+                        setDiscountInput("");
+                      }}
+                      className={cn(
+                        "rounded px-1.5 py-0.5 transition-colors",
+                        discountType === "percent"
+                          ? "bg-blue-600 text-white shadow-xs font-bold"
+                          : "text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      %
+                    </button>
+                  </div>
+                </div>
+                <div className="relative">
                   <BadgePercent className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
                   <Input
                     type="number"
                     min={0}
+                    max={discountType === "percent" ? 100 : undefined}
                     value={discountInput}
                     onChange={(e) => setDiscountInput(e.target.value)}
-                    className="h-8 pl-8 text-xs font-mono"
-                    placeholder="0"
+                    className="h-8 pl-8 pr-8 text-xs font-mono"
+                    placeholder={discountType === "percent" ? "0 %" : "0 đ"}
                   />
+                  <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] font-bold text-muted-foreground">
+                    {discountType === "percent" ? "%" : "đ"}
+                  </span>
+                </div>
+                {/* Nút chọn nhanh */}
+                <div className="mt-1 flex flex-wrap items-center gap-1">
+                  {discountType === "percent" ? (
+                    [5, 10, 15, 20].map((pct) => (
+                      <button
+                        key={pct}
+                        type="button"
+                        onClick={() => setDiscountInput(String(pct))}
+                        className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground hover:bg-muted/80 hover:text-foreground"
+                      >
+                        {pct}%
+                      </button>
+                    ))
+                  ) : (
+                    [20000, 50000, 100000].map((amt) => (
+                      <button
+                        key={amt}
+                        type="button"
+                        onClick={() => setDiscountInput(String(amt))}
+                        className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground hover:bg-muted/80 hover:text-foreground"
+                      >
+                        {amt / 1000}k
+                      </button>
+                    ))
+                  )}
+                  {discountInput && (
+                    <button
+                      type="button"
+                      onClick={() => setDiscountInput("")}
+                      className="ml-auto text-[10px] text-muted-foreground hover:text-red-500"
+                    >
+                      Xóa
+                    </button>
+                  )}
                 </div>
               </div>
               <div>
@@ -767,8 +850,10 @@ export default function NewOrderPage() {
               </div>
               {discount > 0 && (
                 <div className="flex justify-between text-muted-foreground">
-                  <span>Giảm giá</span>
-                  <span className="font-mono tabular-nums text-emerald-600">
+                  <span>
+                    Giảm giá {discountType === "percent" && discountInput ? `(${discountInput}%)` : ""}
+                  </span>
+                  <span className="font-mono tabular-nums text-emerald-600 dark:text-emerald-400">
                     −{formatCurrency(discount)}
                   </span>
                 </div>

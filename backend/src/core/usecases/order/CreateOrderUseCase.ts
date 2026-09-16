@@ -104,13 +104,14 @@ export class CreateOrderUseCase {
     const createdItems = await this.orderRepo.createItems(orderItems);
 
     // 6. Emit real-time event: new order created
+    const finalOrder = (await this.orderRepo.findById(createdOrder.id)) ?? createdOrder;
     appEventEmitter.emit('order:created', {
       storeId: data.storeId,
-      orderId: createdOrder.id,
-      customerName: null, // Customer name resolved at controller level if needed
-      totalAmount: createdOrder.totalAmount,
+      orderId: finalOrder.id,
+      customerName: finalOrder.customerName ?? null,
+      totalAmount: finalOrder.totalAmount,
     });
 
-    return { order: createdOrder, items: createdItems };
+    return { order: finalOrder, items: createdItems };
   }
 }

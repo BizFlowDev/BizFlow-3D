@@ -7,6 +7,8 @@ export const OrderSchema = z.object({
   id: z.string().uuid(),
   storeId: z.string().uuid(),
   customerId: z.string().uuid().nullish(),
+  customerName: z.string().nullish(),
+  customerPhone: z.string().nullish(),
   userId: z.string().uuid().nullish(),
   orderType: z.enum(['counter', 'ai_generated']),
   status: z.enum(['draft', 'confirmed', 'cancelled']),
@@ -33,6 +35,8 @@ export class Order {
   readonly id: string;
   readonly storeId: string;
   readonly customerId: string | null;
+  customerName?: string | null;
+  customerPhone?: string | null;
   readonly userId: string | null;
   readonly orderType: 'counter' | 'ai_generated';
   readonly status: 'draft' | 'confirmed' | 'cancelled';
@@ -56,6 +60,8 @@ export class Order {
     this.id = props.id;
     this.storeId = props.storeId;
     this.customerId = props.customerId ?? null;
+    this.customerName = props.customerName ?? null;
+    this.customerPhone = props.customerPhone ?? null;
     this.userId = props.userId ?? null;
     this.orderType = props.orderType;
     this.status = props.status;

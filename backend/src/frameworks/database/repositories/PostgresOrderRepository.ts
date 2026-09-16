@@ -6,7 +6,13 @@ import { mapToCamelCase } from '../mapper.js';
 
 export class PostgresOrderRepository implements IOrderRepository {
   async findById(id: string): Promise<Order | null> {
-    const res = await query('SELECT * FROM orders WHERE id = $1', [id]);
+    const res = await query(
+      `SELECT o.*, c.name AS customer_name, c.phone AS customer_phone
+       FROM orders o
+       LEFT JOIN customers c ON c.id = o.customer_id
+       WHERE o.id = $1`,
+      [id]
+    );
     if (res.rowCount === 0) return null;
     const order = Order.fromPersistence(mapToCamelCase(res.rows[0]));
     order.items = await this.findItemsByOrderId(id);
@@ -14,12 +20,26 @@ export class PostgresOrderRepository implements IOrderRepository {
   }
 
   async findByStoreId(storeId: string): Promise<Order[]> {
-    const res = await query('SELECT * FROM orders WHERE store_id = $1 ORDER BY created_at DESC', [storeId]);
+    const res = await query(
+      `SELECT o.*, c.name AS customer_name, c.phone AS customer_phone
+       FROM orders o
+       LEFT JOIN customers c ON c.id = o.customer_id
+       WHERE o.store_id = $1
+       ORDER BY o.created_at DESC`,
+      [storeId]
+    );
     return res.rows.map(row => Order.fromPersistence(mapToCamelCase(row)));
   }
 
   async findByCustomerId(customerId: string): Promise<Order[]> {
-    const res = await query('SELECT * FROM orders WHERE customer_id = $1 ORDER BY created_at DESC', [customerId]);
+    const res = await query(
+      `SELECT o.*, c.name AS customer_name, c.phone AS customer_phone
+       FROM orders o
+       LEFT JOIN customers c ON c.id = o.customer_id
+       WHERE o.customer_id = $1
+       ORDER BY o.created_at DESC`,
+      [customerId]
+    );
     return res.rows.map(row => Order.fromPersistence(mapToCamelCase(row)));
   }
 
@@ -56,8 +76,7 @@ export class PostgresOrderRepository implements IOrderRepository {
         order.updatedAt,
       ];
       
-      const res = await txQuery(text, values);
-      const savedOrder = Order.fromPersistence(mapToCamelCase(res.rows[0]));
+      await txQuery(text, values);
 
       if (order.items && order.items.length > 0) {
         for (const item of order.items) {
@@ -81,6 +100,14 @@ export class PostgresOrderRepository implements IOrderRepository {
         }
       }
 
+      const orderRes = await txQuery(
+        `SELECT o.*, c.name AS customer_name, c.phone AS customer_phone
+         FROM orders o
+         LEFT JOIN customers c ON c.id = o.customer_id
+         WHERE o.id = $1`,
+        [order.id]
+      );
+      const savedOrder = Order.fromPersistence(mapToCamelCase(orderRes.rows[0]));
       savedOrder.items = await this.findItemsByOrderId(savedOrder.id);
       return savedOrder;
     });
@@ -121,8 +148,8 @@ export class PostgresOrderRepository implements IOrderRepository {
 
     const res = await query(text, values);
     if (res.rowCount === 0) throw new Error('Order not found');
-    const order = Order.fromPersistence(mapToCamelCase(res.rows[0]));
-    order.items = await this.findItemsByOrderId(id);
+    const order = await this.findById(id);
+    if (!order) throw new Error('Order not found');
     return order;
   }
 
@@ -135,40 +162,40 @@ export class PostgresOrderRepository implements IOrderRepository {
       [confirmedBy, new Date(), id]
     );
     if (res.rowCount === 0) throw new Error('Order not found');
-    const order = Order.fromPersistence(mapToCamelCase(res.rows[0]));
-    order.items = await this.findItemsByOrderId(id);
+    const order = await this.findById(id);
+    if (!order) throw new Error('Order not found');
     return order;
   }
 
   async search(filter: OrderFilter): Promise<PaginatedResult<Order>> {
-    const conditions: string[] = ['store_id = $1'];
+    const conditions: string[] = ['o.store_id = $1'];
     const params: any[] = [filter.storeId];
     let idx = 2;
 
     if (filter.status) {
-      conditions.push(`status = $${idx++}`);
+      conditions.push(`o.status = $${idx++}`);
       params.push(filter.status);
     }
     if (filter.customerId) {
-      conditions.push(`customer_id = $${idx++}`);
+      conditions.push(`o.customer_id = $${idx++}`);
       params.push(filter.customerId);
     }
     if (filter.orderType) {
-      conditions.push(`order_type = $${idx++}`);
+      conditions.push(`o.order_type = $${idx++}`);
       params.push(filter.orderType);
     }
     if (filter.fromDate) {
-      conditions.push(`created_at >= $${idx++}`);
+      conditions.push(`o.created_at >= $${idx++}`);
       params.push(filter.fromDate);
     }
     if (filter.toDate) {
-      conditions.push(`created_at <= $${idx++}`);
+      conditions.push(`o.created_at <= $${idx++}`);
       params.push(filter.toDate);
     }
 
     const whereClause = `WHERE ${conditions.join(' AND ')}`;
     
-    const countRes = await query(`SELECT COUNT(*) FROM orders ${whereClause}`, params);
+    const countRes = await query(`SELECT COUNT(*) FROM orders o ${whereClause}`, params);
     const total = parseInt(countRes.rows[0].count, 10);
 
     const page = filter.page || 1;
@@ -176,7 +203,12 @@ export class PostgresOrderRepository implements IOrderRepository {
     const offset = (page - 1) * limit;
 
     const dataRes = await query(
-      `SELECT * FROM orders ${whereClause} ORDER BY created_at DESC LIMIT $${idx++} OFFSET $${idx}`,
+      `SELECT o.*, c.name AS customer_name, c.phone AS customer_phone
+       FROM orders o
+       LEFT JOIN customers c ON c.id = o.customer_id
+       ${whereClause}
+       ORDER BY o.created_at DESC
+       LIMIT $${idx++} OFFSET $${idx}`,
       [...params, limit, offset]
     );
 

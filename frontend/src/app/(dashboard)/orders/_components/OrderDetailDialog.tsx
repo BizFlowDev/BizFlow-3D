@@ -209,7 +209,11 @@ export default function OrderDetailDialog({
               <InfoItem
                 icon={User}
                 label="Khách hàng"
-                value={order.customerName || "Khách vãng lai"}
+                value={
+                  order.customerName
+                    ? `${order.customerName}${order.customerPhone ? ` (${order.customerPhone})` : ""}`
+                    : "Khách vãng lai"
+                }
               />
               <InfoItem
                 icon={Banknote}

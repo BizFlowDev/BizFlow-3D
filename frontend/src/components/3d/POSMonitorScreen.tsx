@@ -24,12 +24,15 @@ import {
   Tag,
   Copy,
   Check,
+  Percent,
+  Maximize2,
+  X,
 } from "lucide-react";
 import { useCustomerList, type Customer } from "@/hooks/useCustomers";
 import { useProductList, useCategoryList, type Product } from "@/hooks/useProducts";
 import { useCreateOrder, getOrderCode, type Order } from "@/hooks/useOrders";
 import { useCurrentStore } from "@/hooks/useStore";
-import { generateVietQRUrl, formatPaymentMemo } from "@/lib/vietqr";
+import { generateVietQRUrl, getBankByCode, formatPaymentMemo } from "@/lib/vietqr";
 import { printInvoice } from "@/lib/invoice";
 import type { CartItem3D } from "@/app/(dashboard)/store-3d/_components/ProductDetailModal3D";
 
@@ -169,6 +172,7 @@ function POSMonitorScreenInner({
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
   const [customerSearch, setCustomerSearch] = useState("");
   const [discountInput, setDiscountInput] = useState("");
+  const [discountType, setDiscountType] = useState<"amount" | "percent">("amount");
   const [orderNote, setOrderNote] = useState("");
 
   // ── State Thanh Toán ──
@@ -177,6 +181,7 @@ function POSMonitorScreenInner({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [completedOrder, setCompletedOrder] = useState<Order | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [isQrZoomed, setIsQrZoomed] = useState(false);
 
   // Khách hàng hiện tại
   const selectedCustomer = useMemo(() => {
@@ -211,7 +216,16 @@ function POSMonitorScreenInner({
     return orderLines.reduce((sum, it) => sum + it.unitPrice * it.quantity, 0);
   }, [orderLines]);
 
-  const discountAmount = Math.max(0, parseFloat(discountInput) || 0);
+  const discountAmount = useMemo(() => {
+    const rawVal = parseFloat(discountInput) || 0;
+    if (rawVal <= 0) return 0;
+    if (discountType === "percent") {
+      const pct = Math.min(100, Math.max(0, rawVal));
+      return Math.round((subtotal * pct) / 100);
+    }
+    return Math.min(subtotal, Math.max(0, rawVal));
+  }, [subtotal, discountInput, discountType]);
+
   const finalAmount = Math.max(0, subtotal - discountAmount);
 
   const cashGiven = cashGivenInput
@@ -221,6 +235,9 @@ function POSMonitorScreenInner({
 
   // VietQR
   const hasStoreBank = Boolean(storeInfo?.bankCode && storeInfo?.bankAccountNumber);
+  const storeBank = useMemo(() => {
+    return storeInfo?.bankCode ? getBankByCode(storeInfo.bankCode) : undefined;
+  }, [storeInfo?.bankCode]);
   const tempOrderMemo = useMemo(() => {
     return formatPaymentMemo(Math.random().toString(36).substring(2, 8));
   }, [orderLines, finalAmount]);
@@ -301,16 +318,25 @@ function POSMonitorScreenInner({
 
     const payload = {
       customerId: selectedCustomerId || undefined,
+      orderType: "counter" as const,
+      status: "confirmed" as const,
+      paymentMethod,
+      discountAmount,
+      debtAmount: paymentMethod === "debt" ? finalAmount : 0,
+      paidAmount:
+        paymentMethod === "cash"
+          ? cashGiven
+          : paymentMethod === "debt"
+            ? 0
+            : finalAmount,
+      changeAmount: paymentMethod === "cash" ? changeAmount : 0,
+      note: orderNote.trim() || undefined,
       items: orderLines.map((it) => ({
         productId: it.productId,
-        productUnitId: it.unitId,
+        productUnitId: it.unitId !== "default" ? it.unitId : undefined,
         quantity: it.quantity,
         unitPrice: it.unitPrice,
       })),
-      discount: discountAmount,
-      paymentMethod,
-      note: orderNote.trim() || undefined,
-      status: "confirmed" as const,
     };
 
     createOrderMutation.mutate(payload, {
@@ -439,8 +465,8 @@ function POSMonitorScreenInner({
               type="button"
               onClick={() => setActiveTab("pos")}
               className={`flex items-center gap-1.5 rounded-lg px-3 py-1 font-bold transition-all ${activeTab === "pos"
-                  ? "bg-emerald-600 text-white shadow"
-                  : "text-slate-400 hover:text-white"
+                ? "bg-emerald-600 text-white shadow"
+                : "text-slate-400 hover:text-white"
                 }`}
             >
               <CreditCard className="h-3.5 w-3.5" />
@@ -450,8 +476,8 @@ function POSMonitorScreenInner({
               type="button"
               onClick={() => setActiveTab("history")}
               className={`flex items-center gap-1.5 rounded-lg px-3 py-1 font-bold transition-all ${activeTab === "history"
-                  ? "bg-sky-600 text-white shadow"
-                  : "text-slate-400 hover:text-white"
+                ? "bg-sky-600 text-white shadow"
+                : "text-slate-400 hover:text-white"
                 }`}
             >
               <History className="h-3.5 w-3.5" />
@@ -598,8 +624,8 @@ function POSMonitorScreenInner({
                   type="button"
                   onClick={() => setSelectedCategory("all")}
                   className={`shrink-0 rounded-lg px-2.5 py-1 font-semibold transition-all ${selectedCategory === "all"
-                      ? "bg-sky-600 text-white shadow"
-                      : "bg-slate-800 text-slate-300 hover:bg-slate-700"
+                    ? "bg-sky-600 text-white shadow"
+                    : "bg-slate-800 text-slate-300 hover:bg-slate-700"
                     }`}
                 >
                   Tất cả ({allProducts.length})
@@ -610,8 +636,8 @@ function POSMonitorScreenInner({
                     type="button"
                     onClick={() => setSelectedCategory(c.id)}
                     className={`shrink-0 rounded-lg px-2.5 py-1 font-semibold transition-all ${selectedCategory === c.id
-                        ? "bg-sky-600 text-white shadow"
-                        : "bg-slate-800 text-slate-300 hover:bg-slate-700"
+                      ? "bg-sky-600 text-white shadow"
+                      : "bg-slate-800 text-slate-300 hover:bg-slate-700"
                       }`}
                   >
                     {c.name}
@@ -817,39 +843,98 @@ function POSMonitorScreenInner({
             {/* Khối tính toán & Phương thức thanh toán */}
             <div className="p-2.5 bg-slate-900/70 space-y-2">
               {/* Giảm giá */}
-              <div className="flex items-center justify-between gap-2 text-xs">
-                <span className="text-slate-400 text-[11px] shrink-0">Giảm giá:</span>
-                <div className="flex items-center gap-1 w-full justify-end">
-                  <input
-                    type="number"
-                    placeholder="0 đ"
-                    value={discountInput}
-                    onChange={(e) => setDiscountInput(e.target.value)}
-                    className="w-24 rounded border border-white/10 bg-slate-800 py-0.5 px-1.5 text-right font-mono text-[11px] text-white focus:outline-none"
-                  />
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setDiscountInput(
-                        String(Math.max(0, (parseFloat(discountInput) || 0) + 20000)),
-                      )
-                    }
-                    className="rounded bg-white/5 hover:bg-white/10 px-1.5 py-0.5 text-[10px] text-amber-300"
-                  >
-                    +20k
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setDiscountInput(
-                        String(Math.max(0, (parseFloat(discountInput) || 0) + 50000)),
-                      )
-                    }
-                    className="rounded bg-white/5 hover:bg-white/10 px-1.5 py-0.5 text-[10px] text-amber-300"
-                  >
-                    +50k
-                  </button>
+              <div className="space-y-1.5 rounded-lg border border-white/5 bg-slate-800/40 p-2 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400 text-[11px] flex items-center gap-1 font-semibold">
+                    <Percent className="h-3 w-3 text-amber-400" /> Giảm giá:
+                  </span>
+                  <div className="flex items-center rounded border border-white/10 bg-slate-900 p-0.5 text-[9px] font-bold">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDiscountType("amount");
+                        setDiscountInput("");
+                      }}
+                      className={`rounded px-1.5 py-0.5 transition-colors ${discountType === "amount"
+                          ? "bg-slate-700 text-white font-bold"
+                          : "text-slate-400 hover:text-white"
+                        }`}
+                    >
+                      VNĐ
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDiscountType("percent");
+                        setDiscountInput("");
+                      }}
+                      className={`rounded px-1.5 py-0.5 transition-colors ${discountType === "percent"
+                          ? "bg-indigo-600 text-white font-bold"
+                          : "text-slate-400 hover:text-white"
+                        }`}
+                    >
+                      %
+                    </button>
+                  </div>
                 </div>
+
+                <div className="flex items-center gap-1">
+                  <div className="relative flex-1">
+                    <input
+                      type="number"
+                      min={0}
+                      max={discountType === "percent" ? 100 : undefined}
+                      placeholder={discountType === "percent" ? "0 %" : "0 đ"}
+                      value={discountInput}
+                      onChange={(e) => setDiscountInput(e.target.value)}
+                      className="w-full rounded border border-white/10 bg-slate-800 py-1 px-2 pr-6 text-right font-mono text-xs text-white focus:outline-none focus:border-amber-400"
+                    />
+                    <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">
+                      {discountType === "percent" ? "%" : "đ"}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-1">
+                  {discountType === "percent" ? (
+                    [5, 10, 15, 20].map((v) => (
+                      <button
+                        key={v}
+                        type="button"
+                        onClick={() => setDiscountInput(String(v))}
+                        className="rounded bg-white/5 hover:bg-white/10 px-1.5 py-0.5 text-[10px] text-amber-300"
+                      >
+                        {v}%
+                      </button>
+                    ))
+                  ) : (
+                    [10000, 20000, 50000].map((v) => (
+                      <button
+                        key={v}
+                        type="button"
+                        onClick={() => setDiscountInput(String(v))}
+                        className="rounded bg-white/5 hover:bg-white/10 px-1.5 py-0.5 text-[10px] text-amber-300"
+                      >
+                        +{v / 1000}k
+                      </button>
+                    ))
+                  )}
+                  {discountInput && (
+                    <button
+                      type="button"
+                      onClick={() => setDiscountInput("")}
+                      className="ml-auto rounded bg-white/5 px-1.5 py-0.5 text-[10px] text-slate-400 hover:text-red-400"
+                    >
+                      Xóa
+                    </button>
+                  )}
+                </div>
+
+                {discountAmount > 0 && (
+                  <div className="text-[10px] font-semibold text-emerald-400">
+                    Đã giảm: {formatVND(discountAmount)} {discountType === "percent" && `(${discountInput}%)`}
+                  </div>
+                )}
               </div>
 
               {/* Tổng tiền thanh toán */}
@@ -866,8 +951,8 @@ function POSMonitorScreenInner({
                   type="button"
                   onClick={() => setPaymentMethod("cash")}
                   className={`flex items-center justify-center gap-1 py-1 rounded font-bold transition-all ${paymentMethod === "cash"
-                      ? "bg-emerald-600 text-white"
-                      : "bg-slate-800 text-slate-400 hover:text-white"
+                    ? "bg-emerald-600 text-white"
+                    : "bg-slate-800 text-slate-400 hover:text-white"
                     }`}
                 >
                   <Banknote className="h-3 w-3" /> Tiền mặt
@@ -876,8 +961,8 @@ function POSMonitorScreenInner({
                   type="button"
                   onClick={() => setPaymentMethod("qr_code")}
                   className={`flex items-center justify-center gap-1 py-1 rounded font-bold transition-all ${paymentMethod === "qr_code"
-                      ? "bg-sky-600 text-white"
-                      : "bg-slate-800 text-slate-400 hover:text-white"
+                    ? "bg-sky-600 text-white"
+                    : "bg-slate-800 text-slate-400 hover:text-white"
                     }`}
                 >
                   <QrCode className="h-3 w-3" /> VietQR
@@ -886,8 +971,8 @@ function POSMonitorScreenInner({
                   type="button"
                   onClick={() => setPaymentMethod("debt")}
                   className={`flex items-center justify-center gap-1 py-1 rounded font-bold transition-all ${paymentMethod === "debt"
-                      ? "bg-purple-600 text-white"
-                      : "bg-slate-800 text-slate-400 hover:text-white"
+                    ? "bg-purple-600 text-white"
+                    : "bg-slate-800 text-slate-400 hover:text-white"
                     }`}
                 >
                   <Tag className="h-3 w-3" /> Ghi nợ
@@ -936,32 +1021,52 @@ function POSMonitorScreenInner({
               )}
 
               {paymentMethod === "qr_code" && (
-                <div className="rounded-lg border border-white/10 bg-slate-800/80 p-1.5 flex items-center gap-2 text-[10px]">
-                  {vietQrUrl ? (
-                    <div className="h-14 w-14 shrink-0 rounded bg-white p-0.5 flex items-center justify-center">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={vietQrUrl}
-                        alt="VietQR"
-                        className="max-h-full max-w-full object-contain"
-                      />
-                    </div>
-                  ) : (
-                    <div className="h-14 w-14 shrink-0 rounded bg-slate-700 flex items-center justify-center">
-                      <QrCode className="h-6 w-6 text-slate-400" />
-                    </div>
-                  )}
-                  <div className="min-w-0 flex-1 space-y-0.5">
-                    <div className="truncate font-bold text-sky-400">
-                      {storeInfo?.bankCode || "Ngân hàng"} • {storeInfo?.bankAccountNumber || "Chưa cài"}
-                    </div>
-                    <div className="truncate text-slate-400 text-[9px]">
-                      {storeInfo?.bankAccountHolder || "Chủ tài khoản"}
-                    </div>
-                    <div className="text-emerald-400 font-bold tabular-nums">
-                      {formatVND(finalAmount)}
+                <div className="rounded-xl border border-white/10 bg-slate-800/80 p-2 flex flex-col gap-1.5 text-[10px]">
+                  <div className="flex items-center gap-2.5">
+                    {vietQrUrl ? (
+                      <div
+                        onClick={() => setIsQrZoomed(true)}
+                        className="group relative h-14 w-14 shrink-0 rounded bg-white p-0.5 flex items-center justify-center cursor-pointer hover:ring-2 hover:ring-sky-400 transition-all shadow"
+                        title="Bấm để phóng to mã QR cho khách quét"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={vietQrUrl}
+                          alt="VietQR"
+                          className="max-h-full max-w-full object-contain group-hover:scale-105 transition-transform"
+                        />
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center rounded transition-opacity">
+                          <Maximize2 className="h-4 w-4 text-white" />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="h-14 w-14 shrink-0 rounded bg-slate-700 flex items-center justify-center">
+                        <QrCode className="h-6 w-6 text-slate-400" />
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1 space-y-0.5">
+                      <div className="truncate font-bold text-sky-400">
+                        {storeBank?.shortName || storeInfo?.bankCode || "Ngân hàng"} • {storeInfo?.bankAccountNumber || "Chưa cài"}
+                      </div>
+                      <div className="truncate text-slate-400 text-[9px]">
+                        {storeInfo?.bankAccountHolder || "Chủ tài khoản"}
+                      </div>
+                      <div className="text-emerald-400 font-bold tabular-nums">
+                        {formatVND(finalAmount)}
+                      </div>
                     </div>
                   </div>
+
+                  {vietQrUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setIsQrZoomed(true)}
+                      className="w-full rounded-lg bg-sky-600/30 border border-sky-500/40 py-1 px-2 text-center text-[10px] font-semibold text-sky-300 hover:bg-sky-600/50 flex items-center justify-center gap-1 transition-all"
+                    >
+                      <Maximize2 className="h-3 w-3" />
+                      Phóng to mã QR
+                    </button>
+                  )}
                 </div>
               )}
 
@@ -1000,6 +1105,162 @@ function POSMonitorScreenInner({
                     Xác Nhận &amp; Thanh Toán ({formatVND(finalAmount)})
                   </>
                 )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal Phóng To VietQR Đẹp Mắt ── */}
+      {isQrZoomed && vietQrUrl && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm p-6 animate-in fade-in duration-150">
+          <div className="relative w-full max-w-md rounded-2xl border border-white/20 bg-slate-900 p-5 shadow-2xl space-y-3">
+            {/* Header */}
+            <div className="flex items-center justify-between pb-2.5 border-b border-white/10">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-sky-500 text-white shadow">
+                  <QrCode className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white">Thanh toán qua mã VietQR</h3>
+                  <p className="text-[11px] text-slate-400 flex items-center gap-1">
+                    <Sparkles className="h-3 w-3 text-sky-400" />
+                    Quét qua App ngân hàng / MoMo / ZaloPay
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsQrZoomed(false)}
+                className="rounded-full bg-white/10 p-1.5 text-slate-400 hover:bg-white/20 hover:text-white transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* QR Image */}
+            <div className="flex flex-col items-center justify-center rounded-xl border border-white/10 bg-slate-950 p-4 text-center">
+              <div className="relative rounded-xl bg-white p-2.5 shadow-lg ring-2 ring-indigo-500/20">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={vietQrUrl}
+                  alt="Mã VietQR Phóng To"
+                  className="h-52 w-52 object-contain rounded"
+                />
+              </div>
+              <div className="mt-2.5 flex items-center gap-1.5 text-[11px] text-sky-400 font-semibold">
+                <Sparkles className="h-3 w-3" />
+                Napas247 · Chuyển khoản tức thì 24/7
+              </div>
+            </div>
+
+            {/* Chi tiết chuyển khoản */}
+            <div className="space-y-1.5 rounded-xl border border-white/10 bg-slate-800/60 p-3 text-xs">
+              <div className="flex items-center justify-between border-b border-white/5 pb-1.5">
+                <span className="text-slate-400">Ngân hàng:</span>
+                <span className="font-bold text-white">
+                  {storeBank?.shortName || storeInfo?.bankCode || "Chưa thiết lập"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between border-b border-white/5 pb-1.5">
+                <span className="text-slate-400">Số tài khoản:</span>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono font-bold text-white">
+                    {storeInfo?.bankAccountNumber || "N/A"}
+                  </span>
+                  {storeInfo?.bankAccountNumber && (
+                    <button
+                      type="button"
+                      onClick={() => handleCopy(storeInfo.bankAccountNumber!, "acc_pos_zoom")}
+                      className="rounded bg-white/10 p-1 text-slate-300 hover:text-white transition-colors"
+                      title="Sao chép số tài khoản"
+                    >
+                      {copiedField === "acc_pos_zoom" ? (
+                        <Check className="h-3 w-3 text-emerald-400" />
+                      ) : (
+                        <Copy className="h-3 w-3" />
+                      )}
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center justify-between border-b border-white/5 pb-1.5">
+                <span className="text-slate-400">Chủ tài khoản:</span>
+                <span className="font-bold uppercase text-white">
+                  {storeInfo?.bankAccountHolder || "N/A"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between border-b border-white/5 pb-1.5">
+                <span className="text-slate-400">Số tiền:</span>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono font-extrabold text-emerald-400 text-sm">
+                    {formatVND(finalAmount)}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleCopy(String(finalAmount), "amt_pos_zoom")}
+                    className="rounded bg-white/10 p-1 text-slate-300 hover:text-white transition-colors"
+                    title="Sao chép số tiền"
+                  >
+                    {copiedField === "amt_pos_zoom" ? (
+                      <Check className="h-3 w-3 text-emerald-400" />
+                    ) : (
+                      <Copy className="h-3 w-3" />
+                    )}
+                  </button>
+                </div>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">Nội dung CK:</span>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono font-semibold text-slate-200">
+                    {tempOrderMemo}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleCopy(tempOrderMemo, "memo_pos_zoom")}
+                    className="rounded bg-white/10 p-1 text-slate-300 hover:text-white transition-colors"
+                    title="Sao chép nội dung"
+                  >
+                    {copiedField === "memo_pos_zoom" ? (
+                      <Check className="h-3 w-3 text-emerald-400" />
+                    ) : (
+                      <Copy className="h-3 w-3" />
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Nút thao tác */}
+            <div className="grid gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsQrZoomed(false);
+                  handleCheckout();
+                }}
+                disabled={orderLines.length === 0 || createOrderMutation.isPending}
+                className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 py-3 font-bold text-xs text-white shadow-lg shadow-emerald-500/25 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {createOrderMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                    Đang hoàn tất đơn hàng...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="h-4 w-4 mr-1" />
+                    Xác nhận đã nhận tiền & Hoàn tất đơn ({formatVND(finalAmount)})
+                  </>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsQrZoomed(false)}
+                className="w-full rounded-lg py-1.5 text-xs font-semibold text-slate-400 hover:text-white hover:bg-white/5 transition-colors"
+              >
+                Đóng phóng to
               </button>
             </div>
           </div>
