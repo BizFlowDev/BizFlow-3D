@@ -267,24 +267,35 @@ export class PostgresOrderRepository implements IOrderRepository {
 
   // ── Report queries ──
   async getDailyRevenue(storeId: string, fromDate: Date, toDate: Date): Promise<DailyRevenueRow[]> {
-    // Requires a view or explicit grouping. Assuming we have `daily_revenue_view` or similar.
-    // Fallback to explicit grouping on `orders` table for now:
     const text = `
       SELECT 
-        DATE(created_at) as date,
-        SUM(final_amount) as "totalRevenue",
-        COUNT(id) as "orderCount"
+        TO_CHAR(created_at AT TIME ZONE 'Asia/Ho_Chi_Minh', 'YYYY-MM-DD') AS date,
+        SUM(final_amount) AS "totalRevenue",
+        COUNT(id) AS "orderCount"
       FROM orders
       WHERE store_id = $1 AND status = 'confirmed' AND created_at >= $2 AND created_at <= $3
-      GROUP BY DATE(created_at)
+      GROUP BY TO_CHAR(created_at AT TIME ZONE 'Asia/Ho_Chi_Minh', 'YYYY-MM-DD')
       ORDER BY date ASC
     `;
     const res = await query(text, [storeId, fromDate, toDate]);
-    return res.rows.map(row => ({
-      date: row.date.toISOString ? row.date.toISOString().split('T')[0] : String(row.date),
-      totalRevenue: parseFloat(row.totalRevenue) || 0,
-      orderCount: parseInt(row.orderCount, 10) || 0,
-    }));
+    return res.rows.map(row => {
+      let dateStr = '';
+      if (typeof row.date === 'string') {
+        dateStr = row.date.slice(0, 10);
+      } else if (row.date instanceof Date) {
+        const y = row.date.getFullYear();
+        const m = String(row.date.getMonth() + 1).padStart(2, '0');
+        const d = String(row.date.getDate()).padStart(2, '0');
+        dateStr = `${y}-${m}-${d}`;
+      } else {
+        dateStr = String(row.date).slice(0, 10);
+      }
+      return {
+        date: dateStr,
+        totalRevenue: parseFloat(row.totalRevenue) || 0,
+        orderCount: parseInt(row.orderCount, 10) || 0,
+      };
+    });
   }
 
   async getTopProducts(storeId: string, limit: number): Promise<TopProductRow[]> {
@@ -368,14 +379,14 @@ export class PostgresOrderRepository implements IOrderRepository {
     revenue: number;
   }[]> {
     const res = await query(
-      `SELECT to_char(DATE_TRUNC('month', created_at), 'YYYY-MM') AS month,
+      `SELECT to_char(DATE_TRUNC('month', created_at AT TIME ZONE 'Asia/Ho_Chi_Minh'), 'YYYY-MM') AS month,
               COALESCE(SUM(final_amount), 0)::float8 AS revenue
        FROM orders
        WHERE status = 'confirmed'
          AND ($1::uuid IS NULL OR store_id = $1)
-         AND created_at >= DATE_TRUNC('month', NOW()) - ($2::int - 1) * INTERVAL '1 month'
-       GROUP BY DATE_TRUNC('month', created_at)
-       ORDER BY DATE_TRUNC('month', created_at)`,
+         AND created_at >= DATE_TRUNC('month', NOW() AT TIME ZONE 'Asia/Ho_Chi_Minh') - ($2::int - 1) * INTERVAL '1 month'
+       GROUP BY DATE_TRUNC('month', created_at AT TIME ZONE 'Asia/Ho_Chi_Minh')
+       ORDER BY DATE_TRUNC('month', created_at AT TIME ZONE 'Asia/Ho_Chi_Minh')`,
       [storeId, months],
     );
     return res.rows.map(row => ({

@@ -1,6 +1,6 @@
 "use client";
 
-import { Receipt } from "lucide-react";
+import { Eye, Receipt } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -9,6 +9,7 @@ import {
   SheetDescription,
 } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -25,21 +26,24 @@ import {
   fmtFullDate,
   type RevenueBucket,
 } from "@/lib/report-utils";
+import { cn } from "@/lib/utils";
 
 interface PeriodTransactionsSheetProps {
   /** Trạm đang được chọn (null = đóng) */
   station: RevenueBucket | null;
   onClose: () => void;
+  onSelectOrder?: (orderId: string) => void;
 }
 
 /**
  * Sheet chi tiết giao dịch của một ngày/kỳ — mở khi click 1 cột trên
- * Dòng thời gian 3D. Lấy danh sách đơn hàng đã xác nhận trong khoảng
+ * Dòng thời gian 3D hoặc biểu đồ 2D. Lấy danh sách đơn hàng đã xác nhận trong khoảng
  * ngày của trạm đó (GET /orders?fromDate&toDate&status=confirmed).
  */
 export default function PeriodTransactionsSheet({
   station,
   onClose,
+  onSelectOrder,
 }: PeriodTransactionsSheetProps) {
   const open = Boolean(station);
   const { data, isLoading } = usePeriodTransactions(
@@ -132,13 +136,25 @@ export default function PeriodTransactionsSheet({
                     <TableHead className="text-center min-w-[60px]">SL mặt hàng</TableHead>
                     <TableHead className="text-right min-w-[110px]">Tổng tiền</TableHead>
                     <TableHead className="text-right min-w-[90px]">Nợ</TableHead>
+                    {onSelectOrder && (
+                      <TableHead className="text-center min-w-[60px]">Chi tiết</TableHead>
+                    )}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {transactions.map((t) => (
-                    <TableRow key={t.id} className="hover:bg-muted/40">
+                    <TableRow
+                      key={t.id}
+                      className={cn(
+                        "hover:bg-muted/40 transition-colors",
+                        onSelectOrder && "cursor-pointer",
+                      )}
+                      onClick={() => onSelectOrder?.(t.id)}
+                    >
                       <TableCell>
-                        <span className="font-medium">{t.orderCode}</span>
+                        <span className="font-medium text-foreground hover:underline">
+                          {t.orderCode}
+                        </span>
                         <p className="text-xs text-muted-foreground">
                           {formatDateTime(t.createdAt)}
                         </p>
@@ -164,6 +180,18 @@ export default function PeriodTransactionsSheet({
                           <span className="text-muted-foreground">—</span>
                         )}
                       </TableCell>
+                      {onSelectOrder && (
+                        <TableCell className="text-center" onClick={(e) => { e.stopPropagation(); onSelectOrder(t.id); }}>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-muted-foreground hover:text-blue-600 dark:hover:text-blue-400"
+                            title="Xem chi tiết đơn hàng"
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                          </Button>
+                        </TableCell>
+                      )}
                     </TableRow>
                   ))}
                 </TableBody>

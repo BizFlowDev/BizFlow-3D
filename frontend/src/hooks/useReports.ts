@@ -32,6 +32,7 @@ import {
 interface RawOrder {
   id: string;
   customerId: string | null;
+  customerName?: string | null;
   status: "confirmed" | "draft" | "cancelled";
   finalAmount: number;
   debtAmount: number;
@@ -46,7 +47,9 @@ function toPeriodTransaction(order: RawOrder, index: number): PeriodTransaction 
   return {
     id: order.id,
     orderCode: `DH-${dateStr}-${String(index + 1).padStart(3, "0")}`,
-    customerName: order.customerId ? `#${order.customerId.slice(0, 8)}` : "Khách lẻ",
+    customerName:
+      order.customerName ||
+      (order.customerId ? `#${order.customerId.slice(0, 8)}` : "Khách lẻ"),
     itemCount: order.items?.length ?? 0,
     finalAmount: order.finalAmount,
     debtAmount: order.debtAmount,
@@ -221,8 +224,8 @@ export function usePeriodTransactions(fromIso: string, toIso: string) {
         ApiResponseData<{ items: RawOrder[] }>
       >("/orders", {
         params: {
-          fromDate: `${fromIso}T00:00:00`,
-          toDate: `${toIso}T23:59:59`,
+          fromDate: `${fromIso}T00:00:00+07:00`,
+          toDate: `${toIso}T23:59:59.999+07:00`,
           status: "confirmed",
           limit: 200,
         },

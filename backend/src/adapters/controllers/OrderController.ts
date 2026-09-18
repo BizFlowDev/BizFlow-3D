@@ -53,13 +53,37 @@ export class OrderController {
       const storeId = req.user?.storeId;
       if (!storeId) throw new AuthenticationError('Store không xác định');
 
+      let fromDate: Date | undefined;
+      if (req.query.fromDate) {
+        const rawFrom = req.query.fromDate as string;
+        if (rawFrom.length === 10) {
+          fromDate = new Date(`${rawFrom}T00:00:00+07:00`);
+        } else if (!rawFrom.endsWith('Z') && !rawFrom.includes('+') && !rawFrom.includes('-', 10)) {
+          fromDate = new Date(`${rawFrom}+07:00`);
+        } else {
+          fromDate = new Date(rawFrom);
+        }
+      }
+
+      let toDate: Date | undefined;
+      if (req.query.toDate) {
+        const rawTo = req.query.toDate as string;
+        if (rawTo.length === 10) {
+          toDate = new Date(`${rawTo}T23:59:59.999+07:00`);
+        } else if (!rawTo.endsWith('Z') && !rawTo.includes('+') && !rawTo.includes('-', 10)) {
+          toDate = new Date(`${rawTo}+07:00`);
+        } else {
+          toDate = new Date(rawTo);
+        }
+      }
+
       const result = await this.listOrdersUseCase.execute({
         storeId,
         status: req.query.status as 'draft' | 'confirmed' | 'cancelled' | undefined,
         customerId: req.query.customerId as string | undefined,
         orderType: req.query.orderType as 'counter' | 'ai_generated' | undefined,
-        fromDate: req.query.fromDate ? new Date(req.query.fromDate as string) : undefined,
-        toDate: req.query.toDate ? new Date(req.query.toDate as string) : undefined,
+        fromDate,
+        toDate,
         page: req.query.page ? parseInt(req.query.page as string, 10) : undefined,
         limit: req.query.limit ? parseInt(req.query.limit as string, 10) : undefined,
       });

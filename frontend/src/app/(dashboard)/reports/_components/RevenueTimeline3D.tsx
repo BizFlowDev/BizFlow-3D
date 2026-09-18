@@ -47,6 +47,7 @@ interface RevenueTimeline3DProps {
   granularity: TimelineGranularity;
   /** Để ExportButton chụp snapshot Canvas khi đang ở chế độ 3D */
   snapshotRef: React.MutableRefObject<(() => string | null) | null>;
+  onSelectOrder?: (orderId: string) => void;
 }
 
 /**
@@ -64,6 +65,7 @@ export default function RevenueTimeline3D({
   stations,
   granularity,
   snapshotRef,
+  onSelectOrder,
 }: RevenueTimeline3DProps) {
   const [webglSupported] = useState(supportsWebGL);
   const [scroll, setScroll] = useState(0); // 0..1
@@ -188,6 +190,7 @@ export default function RevenueTimeline3D({
       <PeriodTransactionsSheet
         station={selected}
         onClose={() => setSelected(null)}
+        onSelectOrder={onSelectOrder}
       />
     </div>
   );

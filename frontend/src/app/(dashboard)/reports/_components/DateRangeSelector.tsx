@@ -13,10 +13,16 @@ import type { ReportRange } from "@/lib/report-utils";
 
 const OPTIONS: { value: ReportRange; label: string }[] = [
   { value: "today", label: "Hôm nay" },
+  { value: "yesterday", label: "Hôm qua" },
   { value: "week", label: "Tuần này" },
+  { value: "last_week", label: "Tuần trước" },
   { value: "month", label: "Tháng này" },
+  { value: "last_month", label: "Tháng trước" },
   { value: "quarter", label: "Quý này" },
+  { value: "last_quarter", label: "Quý trước" },
   { value: "year", label: "Năm nay" },
+  { value: "last_year", label: "Năm trước" },
+  { value: "all", label: "Toàn thời gian" },
   { value: "custom", label: "Tùy chỉnh" },
 ];
 

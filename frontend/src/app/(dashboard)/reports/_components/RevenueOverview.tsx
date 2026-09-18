@@ -22,6 +22,7 @@ import {
   type RevenueBucket,
   type TimelineGranularity,
 } from "@/lib/report-utils";
+import PeriodTransactionsSheet from "./PeriodTransactionsSheet";
 
 // Lazy-load scene 3D (three.js) — chỉ tải khi bật chế độ 3D
 const RevenueTimeline3D = dynamic(
@@ -36,6 +37,8 @@ interface RevenueOverviewProps {
   isLoading: boolean;
   /** Để ExportButton chụp snapshot Canvas khi đang ở chế độ 3D */
   snapshotRef: React.MutableRefObject<(() => string | null) | null>;
+  onSelectStation?: (station: RevenueBucket) => void;
+  onSelectOrder?: (orderId: string) => void;
 }
 
 /**
@@ -50,9 +53,13 @@ export default function RevenueOverview({
   rangeLabel,
   isLoading,
   snapshotRef,
+  onSelectStation,
+  onSelectOrder,
 }: RevenueOverviewProps) {
   const is3DEnabled = useUiPreferencesStore((state) => state.is3DEnabled);
   const [mounted, setMounted] = useState(false);
+  const [selected2DStation, setSelected2DStation] = useState<RevenueBucket | null>(null);
+
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -90,69 +97,89 @@ export default function RevenueOverview({
             stations={stations}
             granularity={granularity}
             snapshotRef={snapshotRef}
+            onSelectOrder={onSelectOrder}
           />
         ) : undefined
       }
     >
-      <LineChart
-        data={chartData}
-        margin={{ top: 8, right: 8, bottom: 0, left: 0 }}
-      >
-        <defs>
-          <linearGradient id="repRevStroke" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#2563eb" stopOpacity={1} />
-            <stop offset="100%" stopColor="#06b6d4" stopOpacity={1} />
-          </linearGradient>
-        </defs>
-        <CartesianGrid
-          strokeDasharray="3 3"
-          stroke="rgba(100, 116, 139, 0.2)"
-          vertical={false}
-        />
-        <XAxis
-          dataKey="label"
-          tick={{ fill: "#94a3b8", fontSize: 11 }}
-          axisLine={false}
-          tickLine={false}
-          interval="preserveStartEnd"
-        />
-        <YAxis
-          tickFormatter={formatCompact}
-          tick={{ fill: "#94a3b8", fontSize: 12 }}
-          axisLine={false}
-          tickLine={false}
-          width={48}
-        />
-        <Tooltip
-          cursor={{ stroke: "rgba(100, 116, 139, 0.3)", strokeDasharray: "4 4" }}
-          content={
-            <ChartTooltip
-              name="Doanh thu"
-              labelFormatter={(label) => {
-                const station = stations.find((s) => s.label === String(label));
-                return station
-                  ? station.startDate === station.endDate
-                    ? fmtFullDate(station.startDate)
-                    : station.label
-                  : String(label);
-              }}
-              valueFormatter={(value) => formatCurrency(value)}
-              footer={(row) => ({
-                label: "Số đơn:",
-                value: String(Number(row.orderCount) || 0),
-              })}
-            />
-          }
-        />
-        <Line
-          type="monotone"
-          dataKey="totalRevenue"
-          stroke="url(#repRevStroke)"
-          strokeWidth={3}
-          dot={{ r: 3.5, fill: "#2563eb", strokeWidth: 0 }}
-          activeDot={{ r: 6 }}
-        />
-      </LineChart>
+      <div className="relative h-full w-full">
+        <LineChart
+          data={chartData}
+          margin={{ top: 8, right: 8, bottom: 0, left: 0 }}
+          onClick={(state) => {
+            if (state && state.activeLabel) {
+              const found = stations.find((s) => s.label === state.activeLabel);
+              if (found) {
+                setSelected2DStation(found);
+                onSelectStation?.(found);
+              }
+            }
+          }}
+        >
+          <defs>
+            <linearGradient id="repRevStroke" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#2563eb" stopOpacity={1} />
+              <stop offset="100%" stopColor="#06b6d4" stopOpacity={1} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid
+            strokeDasharray="3 3"
+            stroke="rgba(100, 116, 139, 0.2)"
+            vertical={false}
+          />
+          <XAxis
+            dataKey="label"
+            tick={{ fill: "#94a3b8", fontSize: 11 }}
+            axisLine={false}
+            tickLine={false}
+            interval="preserveStartEnd"
+          />
+          <YAxis
+            tickFormatter={formatCompact}
+            tick={{ fill: "#94a3b8", fontSize: 12 }}
+            axisLine={false}
+            tickLine={false}
+            width={48}
+          />
+          <Tooltip
+            cursor={{ stroke: "rgba(100, 116, 139, 0.3)", strokeDasharray: "4 4" }}
+            content={
+              <ChartTooltip
+                name="Doanh thu"
+                labelFormatter={(label) => {
+                  const station = stations.find((s) => s.label === String(label));
+                  return station
+                    ? station.startDate === station.endDate
+                      ? fmtFullDate(station.startDate)
+                      : station.label
+                    : String(label);
+                }}
+                valueFormatter={(value) => formatCurrency(value)}
+                footer={(row) => ({
+                  label: "Số đơn (click để xem):",
+                  value: String(Number(row.orderCount) || 0),
+                })}
+              />
+            }
+          />
+          <Line
+            type="monotone"
+            dataKey="totalRevenue"
+            stroke="url(#repRevStroke)"
+            strokeWidth={3}
+            dot={{ r: 4, fill: "#2563eb", strokeWidth: 0, cursor: "pointer" }}
+            activeDot={{ r: 7, cursor: "pointer" }}
+          />
+        </LineChart>
+
+        {!show3D && (
+          <PeriodTransactionsSheet
+            station={selected2DStation}
+            onClose={() => setSelected2DStation(null)}
+            onSelectOrder={onSelectOrder}
+          />
+        )}
+      </div>
     </ChartWrapper>
   );
 }

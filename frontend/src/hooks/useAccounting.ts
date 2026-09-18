@@ -129,8 +129,11 @@ function generateMockRevenueLedger(fromDate: string, toDate: string): RevenueLed
   while (d <= to) {
     const revenue = Math.floor(Math.random() * 8000000) + 2000000;
     const orders = Math.floor(Math.random() * 15) + 3;
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
     rows.push({
-      date: d.toISOString().split("T")[0],
+      date: `${y}-${m}-${day}`,
       totalRevenue: revenue,
       orderCount: orders,
     });

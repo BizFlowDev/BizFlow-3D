@@ -8,10 +8,16 @@ import type { DailyRevenuePoint } from "./dashboard-keys";
 
 export type ReportRange =
   | "today"
+  | "yesterday"
   | "week"
+  | "last_week"
   | "month"
+  | "last_month"
   | "quarter"
+  | "last_quarter"
   | "year"
+  | "last_year"
+  | "all"
   | "custom";
 
 export type TimelineGranularity = "day" | "week" | "month";
@@ -141,22 +147,54 @@ export function getRangeDates(
   switch (range) {
     case "today":
       break;
+    case "yesterday": {
+      const y = addDays(today, -1);
+      from = startOfDay(y);
+      to.setTime(endOfDay(y).getTime());
+      break;
+    }
     case "week": {
       const day = (today.getDay() + 6) % 7; // Thứ 2 = 0
       from = startOfDay(addDays(today, -day));
       break;
     }
+    case "last_week": {
+      const day = (today.getDay() + 6) % 7; // Thứ 2 = 0
+      from = startOfDay(addDays(today, -day - 7));
+      to.setTime(endOfDay(addDays(today, -day - 1)).getTime());
+      break;
+    }
     case "month":
       from = new Date(today.getFullYear(), today.getMonth(), 1);
       break;
+    case "last_month": {
+      from = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+      to.setTime(endOfDay(new Date(today.getFullYear(), today.getMonth(), 0)).getTime());
+      break;
+    }
     case "quarter": {
       const q = Math.floor(today.getMonth() / 3);
       from = new Date(today.getFullYear(), q * 3, 1);
       break;
     }
+    case "last_quarter": {
+      const currentQ = Math.floor(today.getMonth() / 3);
+      from = new Date(today.getFullYear(), (currentQ - 1) * 3, 1);
+      to.setTime(endOfDay(new Date(today.getFullYear(), currentQ * 3, 0)).getTime());
+      break;
+    }
     case "year":
       from = new Date(today.getFullYear(), 0, 1);
       break;
+    case "last_year": {
+      from = new Date(today.getFullYear() - 1, 0, 1);
+      to.setTime(endOfDay(new Date(today.getFullYear() - 1, 11, 31)).getTime());
+      break;
+    }
+    case "all": {
+      from = new Date(2020, 0, 1);
+      break;
+    }
     case "custom": {
       if (customFrom && customTo) {
         from = startOfDay(fromISODate(customFrom));
@@ -204,13 +242,19 @@ export function pickGranularity(
 ): TimelineGranularity {
   switch (range) {
     case "year":
+    case "last_year":
       return "month";
     case "quarter":
+    case "last_quarter":
       return "week";
     case "today":
+    case "yesterday":
     case "week":
+    case "last_week":
     case "month":
+    case "last_month":
       return "day";
+    case "all":
     case "custom":
       if (numDays <= 62) return "day";
       if (numDays <= 185) return "week";

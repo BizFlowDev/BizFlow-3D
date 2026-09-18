@@ -48,12 +48,18 @@ import {
   formatCompact,
   formatCurrency,
   fmtFullDate,
+  formatDateTime,
   toISODate,
   type ReportRange,
+  type RevenueBucket,
 } from "@/lib/report-utils";
 import type { CategoryRevenueRow, MonthlyComparison } from "@/lib/report-keys";
+import { useToast, ToastViewport } from "@/components/ui/toast";
+import { useOrderList, getOrderCode } from "@/hooks/useOrders";
+import OrderDetailDialog from "../orders/_components/OrderDetailDialog";
 import DateRangeSelector from "./_components/DateRangeSelector";
 import RevenueOverview from "./_components/RevenueOverview";
+import ReportOrderHistory from "./_components/ReportOrderHistory";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -98,6 +104,11 @@ export default function ReportsPage() {
   });
   const [customTo, setCustomTo] = useState(() => toISODate(new Date()));
 
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [activeStation, setActiveStation] = useState<RevenueBucket | null>(null);
+  const { toasts, showToast, dismiss } = useToast();
+
   const { stations, granularity, resolved, isLoading } = useRevenueStations(
     range,
     customFrom,
@@ -108,12 +119,34 @@ export default function ReportsPage() {
   const debt = useDebtSummary();
   const monthly = useMonthlyComparison();
 
+  const reportOrdersQuery = useOrderList({
+    fromDate: toISODate(resolved.from),
+    toDate: toISODate(resolved.to),
+    page: 1,
+    limit: 200,
+  });
+  const reportOrders = useMemo(
+    () => reportOrdersQuery.data?.items ?? [],
+    [reportOrdersQuery.data?.items],
+  );
+
   const revenueSnapshotRef = useRef<(() => string | null) | null>(null);
 
   const rangeLabel = useMemo(
     () => `${fmtFullDate(toISODate(resolved.from))} → ${fmtFullDate(toISODate(resolved.to))}`,
     [resolved],
   );
+
+  const handleRangeChange = (val: ReportRange) => {
+    setRange(val);
+    setActiveStation(null);
+  };
+
+  const handleCustomChange = (from: string, to: string) => {
+    setCustomFrom(from);
+    setCustomTo(to);
+    setActiveStation(null);
+  };
 
   const sections = useMemo<ExportSection[]>(() => {
     const list: ExportSection[] = [
@@ -169,8 +202,41 @@ export default function ReportsPage() {
         ],
       });
     }
+    if (reportOrders.length > 0) {
+      list.push({
+        title: "Lịch sử đơn hàng trong kỳ",
+        columns: [
+          "Mã đơn",
+          "Thời gian tạo",
+          "Khách hàng",
+          "Số lượng SP",
+          "Phương thức",
+          "Tổng tiền (VND)",
+          "Nợ (VND)",
+          "Trạng thái",
+        ],
+        rows: reportOrders.map((o) => [
+          getOrderCode(o),
+          formatDateTime(o.createdAt),
+          o.customerName || "Khách lẻ",
+          (o.items ?? []).reduce((s, it) => s + it.quantity, 0),
+          o.paymentMethod === "qr_code"
+            ? "VietQR"
+            : o.paymentMethod === "debt"
+              ? "Ghi nợ"
+              : "Tiền mặt",
+          o.finalAmount,
+          o.debtAmount,
+          o.status === "confirmed"
+            ? "Đã xác nhận"
+            : o.status === "draft"
+              ? "Nháp"
+              : "Đã hủy",
+        ]),
+      });
+    }
     return list;
-  }, [stations, topProducts.data, category.data, debt.data, monthly.data]);
+  }, [stations, topProducts.data, category.data, debt.data, monthly.data, reportOrders]);
 
   return (
     <motion.div
@@ -198,11 +264,8 @@ export default function ReportsPage() {
             value={range}
             customFrom={customFrom}
             customTo={customTo}
-            onValueChange={setRange}
-            onCustomChange={(from, to) => {
-              setCustomFrom(from);
-              setCustomTo(to);
-            }}
+            onValueChange={handleRangeChange}
+            onCustomChange={handleCustomChange}
           />
           <ExportButton
             title="Báo cáo kinh doanh BizFlow 3D"
@@ -224,6 +287,11 @@ export default function ReportsPage() {
             rangeLabel={rangeLabel}
             isLoading={isLoading}
             snapshotRef={revenueSnapshotRef}
+            onSelectStation={(st) => setActiveStation(st)}
+            onSelectOrder={(id) => {
+              setSelectedOrderId(id);
+              setDetailOpen(true);
+            }}
           />
         </motion.div>
 
@@ -255,7 +323,32 @@ export default function ReportsPage() {
             isLoading={monthly.isLoading}
           />
         </motion.div>
+
+        {/* f. Lịch sử đơn hàng trong kỳ */}
+        <motion.div variants={itemVariants} className="lg:col-span-3">
+          <ReportOrderHistory
+            fromDate={toISODate(resolved.from)}
+            toDate={toISODate(resolved.to)}
+            rangeLabel={rangeLabel}
+            activeStation={activeStation}
+            onClearStation={() => setActiveStation(null)}
+            onSelectOrder={(id) => {
+              setSelectedOrderId(id);
+              setDetailOpen(true);
+            }}
+          />
+        </motion.div>
       </div>
+
+      {/* ── Detail dialog ── */}
+      <OrderDetailDialog
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        orderId={selectedOrderId}
+        showToast={showToast}
+      />
+
+      <ToastViewport toasts={toasts} onDismiss={dismiss} />
     </motion.div>
   );
 }

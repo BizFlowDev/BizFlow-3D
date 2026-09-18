@@ -35,10 +35,22 @@ export class ReportController {
         throw new ValidationError('fromDate và toDate là bắt buộc');
       }
 
+      const parsedFrom = fromDate.length === 10
+        ? new Date(`${fromDate}T00:00:00+07:00`)
+        : (!fromDate.endsWith('Z') && !fromDate.includes('+') && !fromDate.includes('-', 10))
+          ? new Date(`${fromDate}+07:00`)
+          : new Date(fromDate);
+
+      const parsedTo = toDate.length === 10
+        ? new Date(`${toDate}T23:59:59.999+07:00`)
+        : (!toDate.endsWith('Z') && !toDate.includes('+') && !toDate.includes('-', 10))
+          ? new Date(`${toDate}+07:00`)
+          : new Date(toDate);
+
       const result = await this.getDailyRevenueUseCase.execute({
         storeId,
-        fromDate: new Date(fromDate),
-        toDate: new Date(toDate),
+        fromDate: parsedFrom,
+        toDate: parsedTo,
       });
 
       const response = ApiResponse.success(result, 'Lấy báo cáo doanh thu thành công');

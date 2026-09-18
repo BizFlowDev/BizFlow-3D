@@ -619,13 +619,21 @@ export function useOrderList(params: OrderListParams = {}) {
         filtered = filtered.filter((o) => o.status === params.status);
       }
       if (params.fromDate) {
-        const from = new Date(`${params.fromDate}T00:00:00`).getTime();
+        const from = new Date(
+          params.fromDate.includes("T")
+            ? params.fromDate
+            : `${params.fromDate}T00:00:00`,
+        ).getTime();
         filtered = filtered.filter(
           (o) => new Date(o.createdAt).getTime() >= from,
         );
       }
       if (params.toDate) {
-        const to = new Date(`${params.toDate}T23:59:59`).getTime();
+        const to = new Date(
+          params.toDate.includes("T")
+            ? params.toDate
+            : `${params.toDate}T23:59:59`,
+        ).getTime();
         filtered = filtered.filter(
           (o) => new Date(o.createdAt).getTime() <= to,
         );
