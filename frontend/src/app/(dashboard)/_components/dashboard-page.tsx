@@ -14,21 +14,9 @@ import {
   Receipt,
   TrendingUp,
 } from "lucide-react";
-import {
-  LineChart,
-  Line,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Cell,
-} from "recharts";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
   TableBody,
@@ -38,14 +26,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { StatCard } from "@/components/shared/StatCard";
-import { ChartWrapper } from "@/components/shared/ChartWrapper";
-import { ChartTooltip } from "@/components/shared/ChartTooltip";
 import { dashboardKeys } from "@/lib/dashboard-keys";
 import { useUiPreferencesStore } from "@/lib/stores/uiPreferences";
 import { useToast, ToastViewport } from "@/components/ui/toast";
 import OrderDetailDialog from "../orders/_components/OrderDetailDialog";
 import TotalDebtWidget from "./TotalDebtWidget";
 import LowStockWidget from "./LowStockWidget";
+import { RevenueComparisonChart } from "./RevenueComparisonChart";
+import { TopProductsWidget } from "./TopProductsWidget";
 import {
   useRevenueData,
   useTopProducts,
@@ -90,50 +78,7 @@ function formatDateTime(dateStr: string): string {
   }).format(new Date(dateStr));
 }
 
-function formatShortDate(dateStr: string): string {
-  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-    const [y, m, d] = dateStr.split("-");
-    return `${d}/${m}`;
-  }
-  return dateStr;
-}
 
-function formatFullDate(label: React.ReactNode): string {
-  const dateStr = String(label ?? "");
-  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-    return new Intl.DateTimeFormat("vi-VN", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    }).format(new Date(`${dateStr}T00:00:00`));
-  }
-  return dateStr;
-}
-
-function shortName(name: string, max = 18): string {
-  return name.length > max ? `${name.slice(0, max)}…` : name;
-}
-
-function weekKey(date: string): string {
-  const d = new Date(`${date}T00:00:00`);
-  const day = (d.getDay() + 6) % 7;
-  const iso = new Date(d);
-  iso.setDate(d.getDate() - day + 3);
-  const yearThursday = new Date(iso.getFullYear(), 0, 4);
-  const week =
-    1 +
-    Math.round(
-      ((iso.getTime() - yearThursday.getTime()) / 864e5 -
-        3 +
-        ((yearThursday.getDay() + 6) % 7)) /
-        7,
-    );
-  return `${d.getFullYear()}-${week}`;
-}
-
-function monthKey(date: string): string {
-  return date.slice(0, 7);
-}
 
 // ── Animation variants ────────────────────────────────────────────────────────
 
@@ -224,35 +169,6 @@ export default function DashboardPage() {
   const yesterdayRevenue = yesterdayPoint?.totalRevenue ?? 0;
   const yesterdayOrders = yesterdayPoint?.orderCount ?? 0;
 
-  // ── Revenue filter (2D mode) ──
-  type RevenueTab = "day" | "week" | "month";
-  const [revenueTab, setRevenueTab] = useState<RevenueTab>("day");
-
-  const aggregateRevenue = (
-    data: typeof points,
-    tab: RevenueTab,
-  ): { date: string; totalRevenue: number; orderCount: number }[] => {
-    if (tab === "day") return data;
-    const groups = new Map<string, { date: string; totalRevenue: number; orderCount: number }>();
-    for (const p of data) {
-      const key = tab === "week" ? weekKey(p.date) : monthKey(p.date);
-      const label =
-        tab === "week"
-          ? `Tuần ${p.date.slice(8, 10)}/${p.date.slice(5, 7)}`
-          : `Thg ${Number(p.date.slice(5, 7))}`;
-      const existing = groups.get(key);
-      if (existing) {
-        existing.totalRevenue += p.totalRevenue;
-        existing.orderCount += p.orderCount;
-      } else {
-        groups.set(key, { date: label, totalRevenue: p.totalRevenue, orderCount: p.orderCount });
-      }
-    }
-    return [...groups.values()];
-  };
-
-  const filteredPoints = aggregateRevenue(points, revenueTab);
-
   const revenueChange =
     yesterdayRevenue > 0
       ? ((revenueToday - yesterdayRevenue) / yesterdayRevenue) * 100
@@ -266,13 +182,6 @@ export default function DashboardPage() {
       : ordersToday > 0
         ? 100
         : 0;
-
-  const topProductsData = [...(topProducts.data ?? [])]
-    .sort((a, b) => b.totalRevenue - a.totalRevenue)
-    .map((p) => ({
-      ...p,
-      displayName: shortName(p.name),
-    }));
 
   const draftCount = pendingDrafts.data ?? 0;
 
@@ -367,132 +276,22 @@ export default function DashboardPage() {
         variants={itemVariants}
         className="grid gap-6 lg:grid-cols-3"
       >
-        {/* Revenue Chart (7 ngày) */}
+        {/* Revenue Comparison Chart */}
         <div className="lg:col-span-2">
-          <ChartWrapper
-            title="Doanh thu 7 ngày gần nhất"
-            subtitle="Doanh thu theo ngày (đơn hàng đã xác nhận)"
-            height={300}
-            isLoading={revenue.isLoading}
-            isEmpty={!revenue.isLoading && points.length === 0}
+          <RevenueComparisonChart
+            is3D={is3D}
             render3D={is3D ? <RevenueChart3D data={points} /> : undefined}
-            action={
-              <div className="flex items-center gap-3">
-                {!is3D && (
-                  <Tabs value={revenueTab} onValueChange={(v) => setRevenueTab(v as RevenueTab)}>
-                    <TabsList className="h-8">
-                      <TabsTrigger value="day" className="px-3 text-xs">Ngày</TabsTrigger>
-                      <TabsTrigger value="week" className="px-3 text-xs">Tuần</TabsTrigger>
-                      <TabsTrigger value="month" className="px-3 text-xs">Tháng</TabsTrigger>
-                    </TabsList>
-                  </Tabs>
-                )}
-                <Badge variant="secondary" className="gap-1 bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
-                  <TrendingUp className="h-3 w-3" />
-                  {formatCurrency(revenueToday)}
-                </Badge>
-              </div>
-            }
-          >
-            <LineChart data={filteredPoints} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
-              <defs>
-                <linearGradient id="revStroke" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#2563eb" stopOpacity={1} />
-                  <stop offset="100%" stopColor="#06b6d4" stopOpacity={1} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid
-                strokeDasharray="3 3"
-                stroke="rgba(100, 116, 139, 0.2)"
-                vertical={false}
-              />
-              <XAxis
-                dataKey="date"
-                tickFormatter={formatShortDate}
-                tick={{ fill: "#94a3b8", fontSize: 12 }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <YAxis
-                tickFormatter={formatCompact}
-                tick={{ fill: "#94a3b8", fontSize: 12 }}
-                axisLine={false}
-                tickLine={false}
-                width={48}
-              />
-              <Tooltip
-                cursor={{ stroke: "rgba(100, 116, 139, 0.3)", strokeDasharray: "4 4" }}
-                content={
-                  <ChartTooltip
-                    name="Doanh thu"
-                    labelFormatter={formatFullDate}
-                    valueFormatter={(value) => formatCurrency(value)}
-                  />
-                }
-              />
-              <Line
-                type="monotone"
-                dataKey="totalRevenue"
-                stroke="url(#revStroke)"
-                strokeWidth={3}
-                dot={{ r: 4, fill: "#2563eb", strokeWidth: 0 }}
-                activeDot={{ r: 6 }}
-              />
-            </LineChart>
-          </ChartWrapper>
+          />
         </div>
 
         {/* Top Products */}
         <div>
-          <ChartWrapper
-            title="Sản phẩm bán chạy"
-            subtitle="Top 5 theo doanh thu"
-            height={300}
-            isLoading={topProducts.isLoading}
-            isEmpty={!topProducts.isLoading && topProductsData.length === 0}
-            render3D={is3D ? <TopProducts3D data={topProducts.data ?? []} /> : undefined}
-          >
-            <BarChart
-              layout="vertical"
-              data={topProductsData}
-              margin={{ top: 4, right: 12, bottom: 0, left: 4 }}
-            >
-              <defs>
-                <linearGradient id="barGrad" x1="0" y1="0" x2="1" y2="0">
-                  <stop offset="0%" stopColor="#8b5cf6" />
-                  <stop offset="100%" stopColor="#06b6d4" />
-                </linearGradient>
-              </defs>
-              <XAxis type="number" hide />
-              <YAxis
-                type="category"
-                dataKey="displayName"
-                width={130}
-                tick={{ fill: "#94a3b8", fontSize: 11 }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <Tooltip
-                cursor={{ fill: "rgba(100, 116, 139, 0.08)" }}
-                content={
-                  <ChartTooltip
-                    name="Doanh thu:"
-                    labelFormatter={(label) => shortName(label, 28)}
-                    valueFormatter={(value) => formatCurrency(Number(value) || 0)}
-                    footer={(row: Record<string, unknown>) => ({
-                      label: "Đã bán:",
-                      value: (row.totalQuantitySold as number).toLocaleString("vi-VN"),
-                    })}
-                  />
-                }
-              />
-              <Bar dataKey="totalRevenue" fill="url(#barGrad)" radius={[0, 6, 6, 0]} barSize={18}>
-                {topProductsData.map((p) => (
-                  <Cell key={p.productId} fill="url(#barGrad)" />
-                ))}
-              </Bar>
-            </BarChart>
-          </ChartWrapper>
+          <TopProductsWidget
+            is3D={is3D}
+            render3D={
+              is3D ? <TopProducts3D data={topProducts.data ?? []} /> : undefined
+            }
+          />
         </div>
       </motion.div>
 

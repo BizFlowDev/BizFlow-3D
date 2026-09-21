@@ -27,6 +27,8 @@ interface ChartWrapperProps {
    * Widget cha chỉ truyền khi is3DEnabled && mounted (tránh hydration mismatch).
    */
   render3D?: React.ReactNode;
+  /** Nếu true, không tự bọc children trong ResponsiveContainer của recharts */
+  noResponsiveContainer?: boolean;
   children: React.ReactNode;
 }
 
@@ -45,6 +47,7 @@ export function ChartWrapper({
   isEmpty = false,
   emptyMessage = "Chưa có dữ liệu",
   render3D,
+  noResponsiveContainer = false,
   children,
 }: ChartWrapperProps) {
   const is3DEnabled = useUiPreferencesStore((state) => state.is3DEnabled);
@@ -84,6 +87,10 @@ export function ChartWrapper({
         ) : show3D ? (
           <div className="w-full" style={{ height }}>
             {render3D}
+          </div>
+        ) : noResponsiveContainer ? (
+          <div className="w-full min-w-0" style={{ minHeight: height }}>
+            {children}
           </div>
         ) : (
           <div className="w-full" style={{ height }}>

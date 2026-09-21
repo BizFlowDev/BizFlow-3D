@@ -65,7 +65,7 @@ export class GenerateFinancialReportUseCase {
   constructor(
     private readonly orderRepo: IOrderRepository,
     private readonly accountingRepo: IAccountingRepository,
-  ) {}
+  ) { }
 
   async execute(
     storeId: string,

@@ -12,7 +12,16 @@ import {
   type RecentOrder,
   type TopProductRow,
 } from "@/lib/dashboard-keys";
-import { fillRevenueDays, lastNDays } from "@/lib/dashboard-utils";
+import {
+  fillRevenueDays,
+  lastNDays,
+  getDashboardRangeDates,
+  buildRevenueComparisonSeries,
+} from "@/lib/dashboard-utils";
+import type {
+  DashboardRevenueRange,
+  RevenueComparisonSummary,
+} from "@/lib/dashboard-keys";
 
 // ── Mock Data (fallback khi API chưa sẵn sàng) ───────────────────────────────
 
@@ -23,6 +32,27 @@ function isoDaysAgo(days: number): string {
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
+}
+
+function generateMockRevenuePoints(from: Date, to: Date): DailyRevenuePoint[] {
+  const result: DailyRevenuePoint[] = [];
+  const cur = new Date(from);
+  while (cur <= to) {
+    const y = cur.getFullYear();
+    const m = String(cur.getMonth() + 1).padStart(2, "0");
+    const d = String(cur.getDate()).padStart(2, "0");
+    const dateStr = `${y}-${m}-${d}`;
+    const seed = (cur.getDate() * 17 + (cur.getMonth() + 1) * 31) % 100;
+    const baseRev = 8_000_000 + seed * 150_000;
+    const orderCount = 5 + Math.floor(seed / 8);
+    result.push({
+      date: dateStr,
+      totalRevenue: baseRev,
+      orderCount,
+    });
+    cur.setDate(cur.getDate() + 1);
+  }
+  return result;
 }
 
 const MOCK_REVENUE: DailyRevenuePoint[] = [
@@ -107,12 +137,12 @@ function toRecentOrder(order: RawOrder, index: number): RecentOrder {
 // ── Hooks ─────────────────────────────────────────────────────────────────────
 
 /**
- * Doanh thu 7 ngày gần nhất (dùng cho Revenue Today, Orders Today & Revenue Chart).
+ * Doanh thu 7 ngày gần nhất (dùng cho Revenue Today, Orders Today & fallback 3D chart).
  * Backend yêu cầu fromDate/toDate (không hỗ trợ range=today).
  */
 export function useRevenueData() {
   return useQuery({
-    queryKey: dashboardKeys.revenue,
+    queryKey: dashboardKeys.revenue("7d"),
     queryFn: async (): Promise<DailyRevenuePoint[]> => {
       try {
         const { fromDate, toDate } = lastNDays(7);
@@ -130,6 +160,45 @@ export function useRevenueData() {
       }
       await delay(400);
       return MOCK_REVENUE;
+    },
+    staleTime: 60_000,
+  });
+}
+
+/**
+ * Hook phân tích doanh thu so sánh cùng kỳ (kỳ này vs kỳ trước) theo khoảng thời gian linh hoạt:
+ * "today" | "7d" | "30d" | "month"
+ */
+export function useRevenueComparison(range: DashboardRevenueRange = "7d") {
+  return useQuery({
+    queryKey: dashboardKeys.revenue(range),
+    queryFn: async (): Promise<RevenueComparisonSummary> => {
+      const { fetchFromDate, fetchToDate, currentDays, previousDays } =
+        getDashboardRangeDates(range);
+
+      let rows: DailyRevenuePoint[] = [];
+      try {
+        const { data } = await apiClient.get<
+          ApiResponseData<DailyRevenuePoint[]>
+        >("/reports/daily-revenue", {
+          params: {
+            fromDate: fetchFromDate.toISOString(),
+            toDate: fetchToDate.toISOString(),
+          },
+        });
+        if (data.data && data.data.length > 0) {
+          rows = data.data;
+        }
+      } catch {
+        // Fallback mock
+      }
+
+      if (rows.length === 0) {
+        await delay(300);
+        rows = generateMockRevenuePoints(fetchFromDate, fetchToDate);
+      }
+
+      return buildRevenueComparisonSeries(rows, currentDays, previousDays);
     },
     staleTime: 60_000,
   });
