@@ -53,8 +53,8 @@ export const CAMERA_PRESETS: Record<CameraPreset, CameraPresetConfig> = {
     label: "Quầy Thu Ngân",
   },
   posScreen: {
-    position: [0.45, 2.2, 3.25],
-    target: [0.45, 1.73, 1.95],
+    position: [0.45, 2.2, 2.95],
+    target: [0.45, 1.85, 1.95],
     label: "Màn hình POS",
   },
   avatar: {

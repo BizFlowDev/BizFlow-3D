@@ -81,7 +81,6 @@ export default function Store3DPage() {
 
   // ── State ──────────────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState("");
-  const [notifications, setNotifications] = useState<string[]>([]);
 
   // Camera preset & Chế độ màn hình POS 3D
   const [cameraPreset, setCameraPreset] = useState<CameraPreset>("overview");
@@ -627,14 +626,6 @@ export default function Store3DPage() {
       }
       return [...prev, item];
     });
-
-    setNotifications((prev) => [
-      `🛒 Đã thêm ${item.quantity}x ${item.productName} vào đơn hàng`,
-      ...prev.slice(0, 2),
-    ]);
-    setTimeout(() => {
-      setNotifications((prev) => prev.slice(0, -1));
-    }, 3500);
   }, []);
 
   // Khi click Tạo đơn & Thanh toán ngay từ modal sản phẩm kệ:
@@ -956,12 +947,6 @@ export default function Store3DPage() {
                     setIsDemoMode((prev) => !prev);
                     setSelectedCategory("all");
                     handleSelectPreset("overview");
-                    setNotifications((prev) => [
-                      !isDemoMode
-                        ? "✨ Đã kích hoạt Demo (160 sp / 6 nhóm danh mục)"
-                        : "🔄 Đã trở về dữ liệu thực tế từ hệ thống",
-                      ...prev.slice(0, 2),
-                    ]);
                   }}
                   className={`flex items-center gap-1.5 rounded-2xl border px-3 py-2.5 text-xs font-bold transition-all shadow-xl backdrop-blur-xl ${isDemoMode
                     ? "border-amber-400/60 bg-gradient-to-r from-amber-500/25 to-orange-500/25 text-amber-300 ring-2 ring-amber-500/40"
@@ -1209,7 +1194,7 @@ export default function Store3DPage() {
                       }`}
                     title="Nhấn để chọn các danh mục còn lại"
                   >
-                    <span>
+                    <span className="max-w-[130px] truncate text-left">
                       {activeExtraCategory
                         ? activeExtraCategory.name
                         : `+${extraCategories.length} Danh mục khác`}
@@ -1223,64 +1208,53 @@ export default function Store3DPage() {
                   {/* Dropdown Menu xổ xuống */}
                   {isExtraCategoriesOpen && (
                     <div className="absolute left-0 top-full mt-2 w-56 rounded-2xl border border-white/15 bg-slate-950/95 p-1.5 shadow-2xl backdrop-blur-2xl z-50 flex flex-col gap-1 animate-in fade-in slide-in-from-top-2 duration-150">
-                      <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b border-white/10 flex items-center justify-between">
+                      <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b border-white/10 flex items-center justify-between shrink-0">
                         <span>Danh mục khác</span>
                         <span className="rounded-full bg-slate-800 px-1.5 py-0.5 text-[9px] text-slate-300 font-bold">
                           {extraCategories.length}
                         </span>
                       </div>
-                      {extraCategories.map((cat) => {
-                        const isCatActive = selectedCategory === cat.id;
-                        const isOnShelf =
-                          selectedCategory === "all" &&
-                          activeShelfCategoryIds.has(cat.id);
-                        return (
-                          <button
-                            key={cat.id}
-                            type="button"
-                            onClick={() => {
-                              setSelectedCategory(cat.id);
-                              handleSelectPreset("shelfLeft");
-                              setIsExtraCategoriesOpen(false);
-                            }}
-                            className={`flex items-center justify-between rounded-xl px-3 py-2 text-xs font-bold transition-all text-left ${isCatActive
-                              ? "bg-gradient-to-r from-sky-500 to-indigo-600 text-white shadow-md"
-                              : "text-slate-300 hover:bg-white/10 hover:text-white"
-                              }`}
-                          >
-                            <span className="flex items-center gap-2">
-                              {cat.name}
-                              {isOnShelf && (
-                                <span
-                                  className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse"
-                                  title="Đang trên kệ"
-                                />
+                      <div className="max-h-56 overflow-y-auto custom-scrollbar flex flex-col gap-1 pr-0.5">
+                        {extraCategories.map((cat) => {
+                          const isCatActive = selectedCategory === cat.id;
+                          const isOnShelf =
+                            selectedCategory === "all" &&
+                            activeShelfCategoryIds.has(cat.id);
+                          return (
+                            <button
+                              key={cat.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedCategory(cat.id);
+                                handleSelectPreset("shelfLeft");
+                                setIsExtraCategoriesOpen(false);
+                              }}
+                              className={`flex items-center justify-between rounded-xl px-3 py-2 text-xs font-bold transition-all text-left ${isCatActive
+                                ? "bg-gradient-to-r from-sky-500 to-indigo-600 text-white shadow-md"
+                                : "text-slate-300 hover:bg-white/10 hover:text-white"
+                                }`}
+                            >
+                              <span className="flex items-center gap-2 min-w-0">
+                                <span className="truncate">{cat.name}</span>
+                                {isOnShelf && (
+                                  <span
+                                    className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400 animate-pulse"
+                                    title="Đang trên kệ"
+                                  />
+                                )}
+                              </span>
+                              {isCatActive && (
+                                <Check className="h-3.5 w-3.5 shrink-0 text-white" />
                               )}
-                            </span>
-                            {isCatActive && (
-                              <Check className="h-3.5 w-3.5 text-white" />
-                            )}
-                          </button>
-                        );
-                      })}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
                 </div>
               )}
             </div>
-          </div>
-
-          {/* Toast notifications (z-[90] phía trên HUD nhưng dưới Modal) */}
-          <div className="pointer-events-none absolute right-4 top-18 flex flex-col gap-2 z-[90]">
-            {notifications.map((msg, i) => (
-              <div
-                key={`${msg}-${i}`}
-                className="animate-in slide-in-from-right pointer-events-auto rounded-2xl border border-indigo-400/30 bg-slate-900/90 px-4 py-2.5 text-xs font-semibold text-white shadow-2xl backdrop-blur-xl flex items-center gap-2"
-              >
-                <Sparkles className="h-3.5 w-3.5 text-amber-400" />
-                {msg}
-              </div>
-            ))}
           </div>
 
           {/* Bottom Control Bar */}
