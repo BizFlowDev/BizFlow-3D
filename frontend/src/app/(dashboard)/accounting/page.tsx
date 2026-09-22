@@ -388,22 +388,28 @@ export default function AccountingPage() {
         {/* Quick range buttons */}
         <div className="flex flex-wrap gap-1.5">
           {[
-            { label: "Tháng này", fn: () => {
-              const n = new Date();
-              setFromDate(toISODate(new Date(n.getFullYear(), n.getMonth(), 1)));
-              setToDate(toISODate(n));
-            }},
-            { label: "Quý này", fn: () => {
-              const n = new Date();
-              const q = Math.floor(n.getMonth() / 3) * 3;
-              setFromDate(toISODate(new Date(n.getFullYear(), q, 1)));
-              setToDate(toISODate(n));
-            }},
-            { label: "Năm nay", fn: () => {
-              const n = new Date();
-              setFromDate(toISODate(new Date(n.getFullYear(), 0, 1)));
-              setToDate(toISODate(n));
-            }},
+            {
+              label: "Tháng này", fn: () => {
+                const n = new Date();
+                setFromDate(toISODate(new Date(n.getFullYear(), n.getMonth(), 1)));
+                setToDate(toISODate(n));
+              }
+            },
+            {
+              label: "Quý này", fn: () => {
+                const n = new Date();
+                const q = Math.floor(n.getMonth() / 3) * 3;
+                setFromDate(toISODate(new Date(n.getFullYear(), q, 1)));
+                setToDate(toISODate(n));
+              }
+            },
+            {
+              label: "Năm nay", fn: () => {
+                const n = new Date();
+                setFromDate(toISODate(new Date(n.getFullYear(), 0, 1)));
+                setToDate(toISODate(n));
+              }
+            },
           ].map((opt) => (
             <Button
               key={opt.label}

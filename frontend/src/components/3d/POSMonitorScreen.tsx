@@ -27,6 +27,8 @@ import {
   Percent,
   Maximize2,
   X,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { useCustomerList, type Customer } from "@/hooks/useCustomers";
 import { useProductList, useCategoryList, type Product } from "@/hooks/useProducts";
@@ -76,7 +78,7 @@ class ScreenErrorBoundary extends React.Component<
   render() {
     if (this.state.hasError) {
       return (
-        <div className="flex h-[750px] w-[1200px] flex-col justify-between rounded-2xl bg-slate-950 p-8 text-white border border-red-500/50">
+        <div className="pos-screen flex h-[750px] w-[1200px] flex-col justify-between rounded-2xl bg-slate-950 p-8 text-white border border-red-500/50">
           <div className="text-red-400 font-bold text-sm">
             ⚠️ Giao diện POS đang gặp sự cố:
           </div>
@@ -210,6 +212,30 @@ function POSMonitorScreenInner({
       return matchCategory && matchSearch;
     });
   }, [allProducts, selectedCategory, productSearch]);
+
+  // ── Phân trang sản phẩm ──
+  const ITEMS_PER_PAGE = 9;
+  const [productPage, setProductPage] = useState(1);
+
+  // Tự động quay về trang 1 khi tìm kiếm hoặc đổi danh mục
+  useEffect(() => {
+    setProductPage(1);
+  }, [productSearch, selectedCategory]);
+
+  const totalProductPages = Math.max(1, Math.ceil(filteredProducts.length / ITEMS_PER_PAGE));
+  const paginatedProducts = useMemo(() => {
+    const start = (productPage - 1) * ITEMS_PER_PAGE;
+    return filteredProducts.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredProducts, productPage]);
+
+  // ── Phân trang lịch sử đơn hàng ──
+  const ORDERS_PER_PAGE = 8;
+  const [historyPage, setHistoryPage] = useState(1);
+  const totalHistoryPages = Math.max(1, Math.ceil(recentOrders.length / ORDERS_PER_PAGE));
+  const paginatedOrders = useMemo(() => {
+    const start = (historyPage - 1) * ORDERS_PER_PAGE;
+    return recentOrders.slice(start, start + ORDERS_PER_PAGE);
+  }, [recentOrders, historyPage]);
 
   // Tài chính
   const subtotal = useMemo(() => {
@@ -433,7 +459,7 @@ function POSMonitorScreenInner({
   return (
     <div
       onClick={(e) => e.stopPropagation()}
-      className="flex h-[750px] w-[1200px] flex-col overflow-hidden rounded-2xl bg-slate-950 text-white shadow-2xl select-none border border-slate-700/60"
+      className="pos-screen flex h-[752px] w-[1200px] flex-col overflow-hidden rounded-2xl bg-slate-950 text-white shadow-2xl select-none border border-slate-700/60"
     >
       {/* ── 1. Top Bar của Hệ Thống POS ─────────────────────────────────── */}
       <div className="flex h-14 shrink-0 items-center justify-between border-b border-white/10 bg-slate-900/90 px-6">
@@ -448,14 +474,6 @@ function POSMonitorScreenInner({
             Rời Quầy [ESC]
           </button>
 
-          <div className="h-4 w-px bg-white/10" />
-
-          <div className="flex items-center gap-2">
-            <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-400" />
-            <span className="font-bold text-xs tracking-wide text-sky-400">
-              BizFlow POS Trạm #01
-            </span>
-          </div>
         </div>
 
         {/* Tab & Đồng hồ */}
@@ -493,50 +511,87 @@ function POSMonitorScreenInner({
 
       {/* ── 2. Nội dung Tab Lịch Sử ────────────────────────────────────── */}
       {activeTab === "history" ? (
-        <div className="flex-1 overflow-y-auto p-4 space-y-2.5 bg-slate-900/40">
-          <div className="flex items-center justify-between pb-2 border-b border-white/10">
-            <h3 className="text-sm font-bold text-white flex items-center gap-2">
-              <Receipt className="h-4 w-4 text-sky-400" />
-              Các đơn hàng gần nhất
-            </h3>
-            <button
-              type="button"
-              onClick={() => setActiveTab("pos")}
-              className="text-xs text-sky-400 hover:underline"
-            >
-              Quay lại màn hình bán hàng →
-            </button>
+        <div className="flex-1 flex flex-col overflow-hidden bg-slate-900/40">
+          <div className="flex-1 overflow-y-auto p-4 space-y-2.5 pos-screen">
+            <div className="flex items-center justify-between pb-2 border-b border-white/10">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <Receipt className="h-4 w-4 text-sky-400" />
+                Các đơn hàng gần nhất
+              </h3>
+              <span className="text-xs text-slate-400">
+                Tổng cộng: <span className="font-bold text-white">{recentOrders.length}</span> đơn
+              </span>
+            </div>
+
+            {recentOrders.length === 0 ? (
+              <div className="py-16 text-center text-slate-400 text-xs">
+                Chưa có đơn hàng nào được ghi nhận.
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-2.5">
+                {paginatedOrders.map((ord) => (
+                  <div
+                    key={ord.id}
+                    className="rounded-xl border border-white/10 bg-slate-800/60 p-3 text-xs space-y-1.5"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono font-bold text-sky-400">
+                        {getOrderCode(ord)}
+                      </span>
+                      <span className="rounded-md bg-emerald-500/20 text-emerald-400 px-2 py-0.5 text-[10px] font-bold">
+                        {ord.status === "confirmed" ? "Hoàn thành" : ord.status}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-slate-400">
+                      <span>{ord.customerName || "Khách lẻ"}</span>
+                      <span>{ord.items?.length ?? 0} mặt hàng</span>
+                    </div>
+                    <div className="flex items-center justify-between pt-1 border-t border-white/5 font-bold">
+                      <span className="text-slate-300">Tổng:</span>
+                      <span className="text-emerald-400">{formatVND(ord.finalAmount)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
-          {recentOrders.length === 0 ? (
-            <div className="py-16 text-center text-slate-400 text-xs">
-              Chưa có đơn hàng nào được ghi nhận.
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-2.5">
-              {recentOrders.map((ord) => (
-                <div
-                  key={ord.id}
-                  className="rounded-xl border border-white/10 bg-slate-800/60 p-3 text-xs space-y-1.5"
+          {/* Phân trang tab Lịch sử */}
+          {recentOrders.length > ORDERS_PER_PAGE && (
+            <div className="flex items-center justify-between border-t border-white/10 bg-slate-900/80 px-4 py-2 shrink-0 text-xs">
+              <div className="text-[11px] text-slate-400">
+                Hiển thị <span className="font-bold text-white">{(historyPage - 1) * ORDERS_PER_PAGE + 1}</span> -{" "}
+                <span className="font-bold text-white">
+                  {Math.min(historyPage * ORDERS_PER_PAGE, recentOrders.length)}
+                </span>{" "}
+                / <span className="font-bold text-sky-400">{recentOrders.length}</span> đơn
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={historyPage <= 1}
+                  onClick={() => setHistoryPage((p) => Math.max(1, p - 1))}
+                  className="flex h-7 w-7 items-center justify-center rounded-lg border border-white/10 bg-slate-800 text-slate-300 hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                  title="Trang trước"
                 >
-                  <div className="flex items-center justify-between">
-                    <span className="font-mono font-bold text-sky-400">
-                      {getOrderCode(ord)}
-                    </span>
-                    <span className="rounded-md bg-emerald-500/20 text-emerald-400 px-2 py-0.5 text-[10px] font-bold">
-                      {ord.status === "confirmed" ? "Hoàn thành" : ord.status}
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-slate-400">
-                    <span>{ord.customerName || "Khách lẻ"}</span>
-                    <span>{ord.items?.length ?? 0} mặt hàng</span>
-                  </div>
-                  <div className="flex items-center justify-between pt-1 border-t border-white/5 font-bold">
-                    <span className="text-slate-300">Tổng:</span>
-                    <span className="text-emerald-400">{formatVND(ord.finalAmount)}</span>
-                  </div>
-                </div>
-              ))}
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+
+                <span className="font-mono text-[11px] font-bold text-sky-400 px-1">
+                  {historyPage} / {totalHistoryPages}
+                </span>
+
+                <button
+                  type="button"
+                  disabled={historyPage >= totalHistoryPages}
+                  onClick={() => setHistoryPage((p) => Math.min(totalHistoryPages, p + 1))}
+                  className="flex h-7 w-7 items-center justify-center rounded-lg border border-white/10 bg-slate-800 text-slate-300 hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                  title="Trang tiếp theo"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -619,7 +674,7 @@ function POSMonitorScreenInner({
               </div>
 
               {/* Chips danh mục cuộn ngang */}
-              <div className="flex gap-1.5 overflow-x-auto pb-0.5 text-[11px] scrollbar-none">
+              <div className="flex gap-1.5 overflow-x-auto pb-0.5 text-[11px] pos-screen">
                 <button
                   type="button"
                   onClick={() => setSelectedCategory("all")}
@@ -647,7 +702,7 @@ function POSMonitorScreenInner({
             </div>
 
             {/* Grid sản phẩm */}
-            <div className="flex-1 overflow-y-auto p-3">
+            <div className="flex-1 overflow-y-auto p-3 pos-screen">
               {productsLoading ? (
                 <div className="flex h-full items-center justify-center text-xs text-slate-400">
                   <Loader2 className="h-5 w-5 animate-spin text-sky-400 mr-2" />
@@ -659,7 +714,7 @@ function POSMonitorScreenInner({
                 </div>
               ) : (
                 <div className="grid grid-cols-2 lg:grid-cols-3 gap-2.5">
-                  {filteredProducts.map((p) => {
+                  {paginatedProducts.map((p) => {
                     const defaultUnit = p.units?.find((u) => u.isDefault) || p.units?.[0];
                     const price = defaultUnit?.price ?? 0;
                     return (
@@ -711,6 +766,45 @@ function POSMonitorScreenInner({
                 </div>
               )}
             </div>
+
+            {/* ── Thanh Phân Trang Cố Định Ở Đáy Cột Sản Phẩm ── */}
+            {filteredProducts.length > ITEMS_PER_PAGE && (
+              <div className="flex items-center justify-between border-t border-white/10 bg-slate-900/80 px-3 py-2 shrink-0 text-xs">
+                <div className="text-[11px] text-slate-400">
+                  Hiển thị <span className="font-bold text-white">{(productPage - 1) * ITEMS_PER_PAGE + 1}</span> -{" "}
+                  <span className="font-bold text-white">
+                    {Math.min(productPage * ITEMS_PER_PAGE, filteredProducts.length)}
+                  </span>{" "}
+                  / <span className="font-bold text-sky-400">{filteredProducts.length}</span> món
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    disabled={productPage <= 1}
+                    onClick={() => setProductPage((p) => Math.max(1, p - 1))}
+                    className="flex h-7 w-7 items-center justify-center rounded-lg border border-white/10 bg-slate-800 text-slate-300 hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                    title="Trang trước"
+                  >
+                    <ChevronLeft className="h-3.5 w-3.5" />
+                  </button>
+
+                  <span className="font-mono text-[11px] font-bold text-sky-400 px-1">
+                    {productPage} / {totalProductPages}
+                  </span>
+
+                  <button
+                    type="button"
+                    disabled={productPage >= totalProductPages}
+                    onClick={() => setProductPage((p) => Math.min(totalProductPages, p + 1))}
+                    className="flex h-7 w-7 items-center justify-center rounded-lg border border-white/10 bg-slate-800 text-slate-300 hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                    title="Trang tiếp theo"
+                  >
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* ── CỘT PHẢI: HÓA ĐƠN BÁN HÀNG & THANH TOÁN (50%) ───────── */}
@@ -856,8 +950,8 @@ function POSMonitorScreenInner({
                         setDiscountInput("");
                       }}
                       className={`rounded px-1.5 py-0.5 transition-colors ${discountType === "amount"
-                          ? "bg-slate-700 text-white font-bold"
-                          : "text-slate-400 hover:text-white"
+                        ? "bg-slate-700 text-white font-bold"
+                        : "text-slate-400 hover:text-white"
                         }`}
                     >
                       VNĐ
@@ -869,8 +963,8 @@ function POSMonitorScreenInner({
                         setDiscountInput("");
                       }}
                       className={`rounded px-1.5 py-0.5 transition-colors ${discountType === "percent"
-                          ? "bg-indigo-600 text-white font-bold"
-                          : "text-slate-400 hover:text-white"
+                        ? "bg-indigo-600 text-white font-bold"
+                        : "text-slate-400 hover:text-white"
                         }`}
                     >
                       %

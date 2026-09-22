@@ -113,7 +113,7 @@ export async function prefetchDashboard(queryClient: QueryClient): Promise<void>
       fromDate: fromDate.toISOString(),
       toDate: toDate.toISOString(),
     });
-    queryClient.setQueryData(dashboardKeys.revenue, fillRevenueDays(rows));
+    queryClient.setQueryData(dashboardKeys.revenue("7d"), fillRevenueDays(rows));
   } catch {
     // Bỏ qua — client sẽ tự fetch
   }

@@ -375,6 +375,7 @@ function ShelfFrame({
 
         {/* Biển hiệu LED 3D cố định trên mặt biển hiệu (transform), không xoay theo camera, chữ có viền đen */}
         <Html
+          occlude
           transform
           position={[0, 0, 0.048]}
           center

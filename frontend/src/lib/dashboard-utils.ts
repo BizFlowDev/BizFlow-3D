@@ -1,6 +1,11 @@
 // ── Dashboard date & normalization helpers (pure, dùng chung server + client) ──
 
-import type { DailyRevenuePoint } from "./dashboard-keys";
+import type {
+  DailyRevenuePoint,
+  DashboardRevenueRange,
+  RevenueComparisonPoint,
+  RevenueComparisonSummary,
+} from "./dashboard-keys";
 
 export function startOfDay(d: Date): Date {
   const x = new Date(d);
@@ -28,6 +33,14 @@ export function toISODate(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
+export function formatShortDate(dateStr: string): string {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    const [, m, d] = dateStr.split("-");
+    return `${d}/${m}`;
+  }
+  return dateStr;
+}
+
 export interface DateRange {
   fromDate: Date;
   toDate: Date;
@@ -51,3 +64,171 @@ export function fillRevenueDays(rows: DailyRevenuePoint[]): DailyRevenuePoint[] 
     return map.get(key) ?? { date: key, totalRevenue: 0, orderCount: 0 };
   });
 }
+
+export interface ComparisonRangeResult {
+  fetchFromDate: Date;
+  fetchToDate: Date;
+  currentDays: Date[];
+  previousDays: Date[];
+  rangeLabel: string;
+}
+
+export function getDashboardRangeDates(
+  range: DashboardRevenueRange,
+): ComparisonRangeResult {
+  const today = startOfDay(new Date());
+  const now = endOfDay(today);
+
+  if (range === "today") {
+    const yesterday = addDays(today, -1);
+    return {
+      fetchFromDate: yesterday,
+      fetchToDate: now,
+      currentDays: [today],
+      previousDays: [yesterday],
+      rangeLabel: "Hôm nay vs Hôm qua",
+    };
+  }
+
+  if (range === "7d") {
+    const curStart = addDays(today, -6);
+    const prevStart = addDays(today, -13);
+
+    const currentDays = Array.from({ length: 7 }, (_, i) =>
+      addDays(curStart, i),
+    );
+    const previousDays = Array.from({ length: 7 }, (_, i) =>
+      addDays(prevStart, i),
+    );
+
+    return {
+      fetchFromDate: prevStart,
+      fetchToDate: now,
+      currentDays,
+      previousDays,
+      rangeLabel: "7 ngày qua vs 7 ngày trước",
+    };
+  }
+
+  if (range === "30d") {
+    const curStart = addDays(today, -29);
+    const prevStart = addDays(today, -59);
+
+    const currentDays = Array.from({ length: 30 }, (_, i) =>
+      addDays(curStart, i),
+    );
+    const previousDays = Array.from({ length: 30 }, (_, i) =>
+      addDays(prevStart, i),
+    );
+
+    return {
+      fetchFromDate: prevStart,
+      fetchToDate: now,
+      currentDays,
+      previousDays,
+      rangeLabel: "30 ngày qua vs 30 ngày trước",
+    };
+  }
+
+  // range === "month": từ mùng 1 tháng này đến hôm nay, so sánh với cùng các ngày tháng trước
+  const year = today.getFullYear();
+  const month = today.getMonth();
+  const dayOfMonth = today.getDate();
+
+  const currentDays: Date[] = [];
+  for (let d = 1; d <= dayOfMonth; d++) {
+    currentDays.push(new Date(year, month, d));
+  }
+
+  const prevMonthDate = new Date(year, month - 1, 1);
+  const prevYear = prevMonthDate.getFullYear();
+  const prevMonth = prevMonthDate.getMonth();
+  const daysInPrevMonth = new Date(prevYear, prevMonth + 1, 0).getDate();
+
+  const previousDays: Date[] = [];
+  for (let d = 1; d <= dayOfMonth; d++) {
+    const safeDay = Math.min(d, daysInPrevMonth);
+    previousDays.push(new Date(prevYear, prevMonth, safeDay));
+  }
+
+  const fetchFromDate = startOfDay(new Date(prevYear, prevMonth, 1));
+
+  return {
+    fetchFromDate,
+    fetchToDate: now,
+    currentDays,
+    previousDays,
+    rangeLabel: `Tháng ${month + 1} vs Tháng ${prevMonth + 1}`,
+  };
+}
+
+export function buildRevenueComparisonSeries(
+  rows: DailyRevenuePoint[],
+  currentDays: Date[],
+  previousDays: Date[],
+): RevenueComparisonSummary {
+  const map = new Map<string, DailyRevenuePoint>();
+  for (const r of rows) {
+    map.set(r.date, r);
+  }
+
+  let totalCurrentRevenue = 0;
+  let totalPreviousRevenue = 0;
+  let totalCurrentOrders = 0;
+  let totalPreviousOrders = 0;
+
+  const points: RevenueComparisonPoint[] = currentDays.map((curD, i) => {
+    const curKey = toISODate(curD);
+    const curPoint = map.get(curKey) ?? {
+      date: curKey,
+      totalRevenue: 0,
+      orderCount: 0,
+    };
+
+    const prevD = previousDays[i];
+    const prevKey = prevD ? toISODate(prevD) : "";
+    const prevPoint =
+      prevKey && map.get(prevKey)
+        ? map.get(prevKey)!
+        : { date: prevKey, totalRevenue: 0, orderCount: 0 };
+
+    totalCurrentRevenue += curPoint.totalRevenue;
+    totalPreviousRevenue += prevPoint.totalRevenue;
+    totalCurrentOrders += curPoint.orderCount;
+    totalPreviousOrders += prevPoint.orderCount;
+
+    return {
+      date: curKey,
+      label: formatShortDate(curKey),
+      currentRevenue: curPoint.totalRevenue,
+      currentOrders: curPoint.orderCount,
+      prevDate: prevKey,
+      prevLabel: prevKey ? formatShortDate(prevKey) : "",
+      previousRevenue: prevPoint.totalRevenue,
+      previousOrders: prevPoint.orderCount,
+    };
+  });
+
+  const growthPct =
+    totalPreviousRevenue > 0
+      ? ((totalCurrentRevenue - totalPreviousRevenue) / totalPreviousRevenue) * 100
+      : totalCurrentRevenue > 0
+        ? 100
+        : 0;
+
+  const avgOrderValue =
+    totalCurrentOrders > 0
+      ? Math.round(totalCurrentRevenue / totalCurrentOrders)
+      : 0;
+
+  return {
+    points,
+    totalCurrentRevenue,
+    totalPreviousRevenue,
+    totalCurrentOrders,
+    totalPreviousOrders,
+    growthPct,
+    avgOrderValue,
+  };
+}
+

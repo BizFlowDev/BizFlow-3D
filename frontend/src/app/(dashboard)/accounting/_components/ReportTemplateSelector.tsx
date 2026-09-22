@@ -76,18 +76,18 @@ export default function ReportTemplateSelector({
         onValueChange={(v) => onValueChange(v as ReportType)}
       >
         <SelectTrigger
-          className="w-[320px]"
+          className="w-[340px] h-auto min-h-[56px] px-3.5 py-2.5 text-left [&>span]:line-clamp-none hover:bg-muted/30 transition-colors"
           aria-label="Chọn mẫu báo cáo"
           id="report-template-selector"
         >
           <SelectValue placeholder="Chọn mẫu báo cáo" />
         </SelectTrigger>
-        <SelectContent className="w-[360px]">
+        <SelectContent className="w-[360px] p-1.5">
           {REPORT_TEMPLATES.map((template) => (
             <SelectItem
               key={template.value}
               value={template.value}
-              className="py-3"
+              className="py-2.5 px-3 cursor-pointer rounded-lg my-0.5"
             >
               <div className="flex flex-col gap-0.5">
                 <div className="flex items-center gap-2">

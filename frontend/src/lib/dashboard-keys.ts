@@ -44,6 +44,37 @@ export interface DebtSummary {
   customerCount: number;
 }
 
+export type DashboardRevenueRange = "today" | "7d" | "30d" | "month";
+
+export interface RevenueComparisonPoint {
+  /** Ngày của kỳ hiện tại (yyyy-MM-dd) */
+  date: string;
+  /** Nhãn hiển thị trục X (VD: 22/09) */
+  label: string;
+  /** Doanh thu kỳ này */
+  currentRevenue: number;
+  /** Số đơn hàng kỳ này */
+  currentOrders: number;
+  /** Ngày đối ứng của kỳ trước (yyyy-MM-dd) */
+  prevDate: string;
+  /** Nhãn hiển thị kỳ trước */
+  prevLabel: string;
+  /** Doanh thu cùng kỳ trước */
+  previousRevenue: number;
+  /** Số đơn hàng cùng kỳ trước */
+  previousOrders: number;
+}
+
+export interface RevenueComparisonSummary {
+  points: RevenueComparisonPoint[];
+  totalCurrentRevenue: number;
+  totalPreviousRevenue: number;
+  totalCurrentOrders: number;
+  totalPreviousOrders: number;
+  growthPct: number;
+  avgOrderValue: number;
+}
+
 /** Số lượng tồn tối đa để được coi là "sắp hết hàng" */
 export const LOW_STOCK_THRESHOLD = 10;
 
@@ -56,10 +87,12 @@ export const DEBT_ALERT_THRESHOLD = 20_000_000;
 /** Query keys cho toàn bộ widget dashboard — dùng chung server & client */
 export const dashboardKeys = {
   all: ["dashboard"] as const,
-  revenue: ["dashboard", "revenue"] as const,
+  revenue: (range: string = "7d") => ["dashboard", "revenue", range] as const,
+  revenueBase: ["dashboard", "revenue"] as const,
   topProducts: ["dashboard", "top-products"] as const,
   recentOrders: ["dashboard", "recent-orders"] as const,
   lowStock: ["dashboard", "low-stock"] as const,
   totalDebt: ["dashboard", "total-debt"] as const,
   pendingDrafts: ["dashboard", "pending-drafts"] as const,
-} as const;
+};
+
