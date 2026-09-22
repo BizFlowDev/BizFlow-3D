@@ -65,7 +65,6 @@ export class AutoPostingUseCase {
 
     const entryDate = order.confirmedAt ?? order.updatedAt;
     const cashAmount = order.finalAmount - order.debtAmount;
-    const goodsValue = items.reduce((sum, item) => sum + item.totalPrice, 0);
 
     // 1a) Doanh thu (khống nhất theo T88: doanh thu chưa thuế).
     if (cashAmount > 0) {
@@ -105,7 +104,29 @@ export class AutoPostingUseCase {
       }),
     ]);
 
-    // 1b) Ghi nhận giá vốn
+    // 1b) Ghi nhận giá vốn theo phương pháp Bình quân gia quyền (Weighted Average Cost)
+    const productIds = [...new Set(items.map((it) => it.productId))];
+    const unitIds = items
+      .map((it) => it.productUnitId)
+      .filter((id): id is string => Boolean(id));
+
+    const avgCostMap = await this.accountingRepo.getProductAverageCosts(order.storeId, productIds);
+    const unitFactors = await this.accountingRepo.getUnitConversionFactors(unitIds);
+
+    let goodsValue = 0;
+    for (const item of items) {
+      const conversionFactor = item.productUnitId ? (unitFactors.get(item.productUnitId) ?? 1) : 1;
+      const baseQty = item.quantity * conversionFactor;
+      const avgUnitCost = avgCostMap.get(item.productId);
+
+      if (avgUnitCost !== undefined && avgUnitCost > 0) {
+        goodsValue += Math.round(baseQty * avgUnitCost);
+      } else {
+        // Fallback: nếu chưa từng có chứng từ nhập kho, tạm tính theo giá bán
+        goodsValue += item.totalPrice;
+      }
+    }
+
     if (goodsValue > 0) {
       await this.accountingRepo.createMany([
         this.entry({

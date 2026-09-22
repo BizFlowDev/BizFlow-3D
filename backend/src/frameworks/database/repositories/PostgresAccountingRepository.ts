@@ -201,4 +201,53 @@ export class PostgresAccountingRepository implements IAccountingRepository {
       closingDebt: parseFloat(row.closingDebt) || 0,
     }));
   }
+
+  async getProductAverageCosts(storeId: string, productIds: string[]): Promise<Map<string, number>> {
+    if (productIds.length === 0) return new Map();
+
+    const text = `
+      SELECT
+        it.product_id AS "productId",
+        COALESCE(SUM(ae.debit_amount), 0) AS "totalCost",
+        COALESCE(SUM(it.quantity * COALESCE(pu.conversion_factor, 1)), 0) AS "totalBaseQty"
+      FROM inventory_transactions it
+      LEFT JOIN product_units pu ON pu.id = it.product_unit_id
+      JOIN accounting_entries ae
+        ON ae.reference_type = 'inventory_import'
+        AND ae.reference_id = it.id
+        AND ae.account_code = '156'
+      WHERE it.store_id = $1
+        AND it.product_id = ANY($2::uuid[])
+        AND it.type = 'import'
+      GROUP BY it.product_id
+    `;
+
+    const res = await query(text, [storeId, productIds]);
+    const costMap = new Map<string, number>();
+
+    for (const row of res.rows) {
+      const totalCost = parseFloat(row.totalCost) || 0;
+      const totalBaseQty = parseFloat(row.totalBaseQty) || 0;
+      if (totalBaseQty > 0 && totalCost > 0) {
+        costMap.set(row.productId, totalCost / totalBaseQty);
+      }
+    }
+
+    return costMap;
+  }
+
+  async getUnitConversionFactors(unitIds: string[]): Promise<Map<string, number>> {
+    const validIds = unitIds.filter((id): id is string => Boolean(id));
+    if (validIds.length === 0) return new Map();
+
+    const res = await query(
+      `SELECT id, conversion_factor AS "conversionFactor" FROM product_units WHERE id = ANY($1::uuid[])`,
+      [validIds],
+    );
+    const map = new Map<string, number>();
+    for (const row of res.rows) {
+      map.set(row.id, parseFloat(row.conversionFactor) || 1);
+    }
+    return map;
+  }
 }

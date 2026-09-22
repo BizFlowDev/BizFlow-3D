@@ -57,4 +57,10 @@ export interface IAccountingRepository {
 
   /** Biến động công nợ theo khách hàng trong kỳ. */
   getDebtMovement(storeId: string, fromDate: Date, toDate: Date): Promise<DebtMovementRow[]>;
+
+  /** Đơn giá vốn bình quân gia quyền (theo base unit) cho danh sách sản phẩm. */
+  getProductAverageCosts(storeId: string, productIds: string[]): Promise<Map<string, number>>;
+
+  /** Hệ số quy đổi đơn vị (conversion_factor) cho danh sách đơn vị quy đổi. */
+  getUnitConversionFactors(unitIds: string[]): Promise<Map<string, number>>;
 }
