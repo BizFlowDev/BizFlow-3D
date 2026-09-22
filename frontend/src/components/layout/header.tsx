@@ -1,11 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { Bell, Boxes, CheckCheck, LogOut, QrCode, Search, User, X } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { Bell, Boxes, CheckCheck, Crown, LogOut, QrCode, User, X } from "lucide-react";
 import type { UserRole } from "@/config/navigation";
 import { cn } from "@/lib/utils";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -29,6 +28,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { useAuthStore } from "@/stores/auth-store";
 import { useSocketStore, syncAnnouncements } from "@/hooks/useSocket";
 import { useUiPreferencesStore } from "@/lib/stores/uiPreferences";
+import { useCurrentStore } from "@/hooks/useStore";
+import { UpgradePlanModal } from "@/components/shared/UpgradePlanModal";
 
 interface HeaderProps {
   role: UserRole;
@@ -36,11 +37,16 @@ interface HeaderProps {
 
 export function Header({ role }: HeaderProps) {
   const router = useRouter();
+  const pathname = usePathname();
+  const show3DSwitch = pathname === "/" || pathname === "/reports" || pathname.startsWith("/reports/");
+
   // Chỉ render Switch sau khi mount để tránh hydration mismatch
   // (store detect thiết bị ở client, mặc định SSR là true)
   const [mounted, setMounted] = useState(false);
+  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
   const { logout } = useAuth();
   const { user } = useAuthStore();
+  const { data: store } = useCurrentStore();
   const { is3DEnabled, toggle3D } = useUiPreferencesStore();
 
   // ── Notification bell (real-time qua socket) ──
@@ -80,41 +86,59 @@ export function Header({ role }: HeaderProps) {
 
   const displayName = user?.fullName || "Người dùng";
 
+  const isAdmin = role === "admin" || pathname.startsWith("/admin");
+
   return (
     <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center gap-3 border-b bg-background/95 px-4 backdrop-blur">
       <MobileSidebar role={role} />
 
-      <div className="relative w-full max-w-md">
-        <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input className="pl-9" placeholder="Tìm kiếm..." aria-label="Tìm kiếm" />
-      </div>
+      <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
+        {/* Nút Nâng cấp gói hiển thị cho cửa hàng, ẩn tại trang admin hoặc tài khoản admin */}
+        {!isAdmin && (
+          <Button
+            type="button"
+            onClick={() => setUpgradeModalOpen(true)}
+            size="sm"
+            className="h-8 gap-1.5 rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-semibold shadow-xs transition-all hover:scale-102 active:scale-98 text-xs px-2.5 sm:px-3"
+            title="Nâng cấp hoặc gia hạn gói dịch vụ cửa hàng"
+          >
+            <Crown className="h-3.5 w-3.5 text-white animate-pulse" />
+            <span className="hidden sm:inline">
+              Gói: <strong className="capitalize font-bold">{store?.subscriptionPlan || "Basic"}</strong>
+            </span>
+            <span className="inline-flex items-center rounded bg-black/20 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide">
+              Nâng cấp
+            </span>
+          </Button>
+        )}
 
-      <div className="ml-auto flex items-center gap-1">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <div
-              className="flex items-center gap-2 rounded-md border bg-muted/50 px-2 py-1.5"
-              aria-label="Chế độ 3D"
-            >
-              <Boxes className="hidden h-4 w-4 shrink-0 text-muted-foreground md:block" />
-              <span className="hidden text-xs font-medium md:block">Chế độ 3D</span>
-              {mounted ? (
-                <Switch
-                  checked={is3DEnabled}
-                  onCheckedChange={toggle3D}
-                  aria-label="Bật hoặc tắt chế độ 3D"
-                />
-              ) : (
-                <div className="h-5 w-9" aria-hidden="true" />
-              )}
-            </div>
-          </TooltipTrigger>
-          <TooltipContent>
-            {is3DEnabled
-              ? "Chế độ 3D đang bật — chọn để chuyển sang giao diện 2D nhanh"
-              : "Chế độ 3D đang tắt — giao diện 2D thuần (nhanh, tiết kiệm pin)"}
-          </TooltipContent>
-        </Tooltip>
+        {show3DSwitch && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div
+                className="flex items-center gap-2 rounded-md border bg-muted/50 px-2 py-1.5"
+                aria-label="Chế độ 3D"
+              >
+                <Boxes className="hidden h-4 w-4 shrink-0 text-muted-foreground md:block" />
+                <span className="hidden text-xs font-medium md:block">Chế độ 3D</span>
+                {mounted ? (
+                  <Switch
+                    checked={is3DEnabled}
+                    onCheckedChange={toggle3D}
+                    aria-label="Bật hoặc tắt chế độ 3D"
+                  />
+                ) : (
+                  <div className="h-5 w-9" aria-hidden="true" />
+                )}
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>
+              {is3DEnabled
+                ? "Chế độ 3D đang bật — chọn để chuyển sang giao diện 2D nhanh"
+                : "Chế độ 3D đang tắt — giao diện 2D thuần (nhanh, tiết kiệm pin)"}
+            </TooltipContent>
+          </Tooltip>
+        )}
 
         <ThemeSwitcher />
 
@@ -219,11 +243,17 @@ export function Header({ role }: HeaderProps) {
               <div className="text-xs font-normal text-muted-foreground">{roleLabel}</div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            {role !== "admin" && (
-              <DropdownMenuItem onClick={() => router.push("/settings")}>
-                <QrCode className="mr-2 h-4 w-4 text-blue-600" />
-                Cài đặt & VietQR
-              </DropdownMenuItem>
+            {!isAdmin && (
+              <>
+                <DropdownMenuItem onClick={() => setUpgradeModalOpen(true)}>
+                  <Crown className="mr-2 h-4 w-4 text-amber-500" />
+                  Gói dịch vụ & Nâng cấp
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => router.push("/settings")}>
+                  <QrCode className="mr-2 h-4 w-4 text-blue-600" />
+                  Cài đặt & VietQR
+                </DropdownMenuItem>
+              </>
             )}
             <DropdownMenuItem
               className="text-destructive focus:text-destructive"
@@ -235,6 +265,11 @@ export function Header({ role }: HeaderProps) {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      {/* Modal Nâng cấp gói dịch vụ với tích hợp thanh toán VietQR (chỉ dành cho store, không render ở admin) */}
+      {!isAdmin && (
+        <UpgradePlanModal open={upgradeModalOpen} onOpenChange={setUpgradeModalOpen} />
+      )}
     </header>
   );
 }

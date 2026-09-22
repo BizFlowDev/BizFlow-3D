@@ -103,3 +103,95 @@ export function useUpdateStoreProfile() {
     },
   });
 }
+
+export interface SubscriptionPlanItem {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  price: number;
+  features: string[];
+  maxEmployees: number;
+  isActive: boolean;
+  sortOrder: number;
+  colorFrom: string | null;
+  colorTo: string | null;
+  icon: string | null;
+}
+
+/**
+ * Hook lấy danh sách các gói dịch vụ dành cho cửa hàng
+ */
+export function useStoreSubscriptionPlans() {
+  return useQuery<SubscriptionPlanItem[]>({
+    queryKey: ["store", "subscription-plans"],
+    queryFn: async () => {
+      const { data } = await apiClient.get<ApiResponseData<SubscriptionPlanItem[]>>(
+        "/stores/subscription-plans",
+      );
+      if (!data.success || !data.data) {
+        throw new Error(data.message || "Không thể tải danh sách gói dịch vụ");
+      }
+      return data.data;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+/**
+ * Hook nâng cấp / gia hạn gói dịch vụ cho cửa hàng
+ */
+export function useUpgradeStoreSubscription() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (payload: {
+      plan: string;
+      durationMonths: number;
+      paymentMethod?: string;
+    }) => {
+      const { data } = await apiClient.post<ApiResponseData<StoreProfile>>(
+        "/stores/upgrade-subscription",
+        payload,
+      );
+      if (!data.success || !data.data) {
+        throw new Error(data.message || "Nâng cấp gói dịch vụ thất bại");
+      }
+      return data.data;
+    },
+    onSuccess: (updatedStore) => {
+      queryClient.setQueryData(STORE_QUERY_KEY, updatedStore);
+      queryClient.invalidateQueries({ queryKey: STORE_QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: ["admin", "stores"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "subscription-plans"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "subscription-history"] });
+    },
+  });
+}
+
+export interface SubscriptionPaymentBank {
+  bankCode: string;
+  accountNumber: string;
+  accountHolder: string;
+  memoPrefix: string;
+}
+
+/**
+ * Hook lấy thông tin tài khoản ngân hàng nhận tiền bản quyền/gói dịch vụ do Admin cấu hình
+ */
+export function useSubscriptionPaymentBank() {
+  return useQuery({
+    queryKey: ["stores", "subscription-payment-bank"],
+    queryFn: async (): Promise<SubscriptionPaymentBank> => {
+      const { data } = await apiClient.get<ApiResponseData<SubscriptionPaymentBank>>(
+        "/stores/subscription-payment-bank",
+      );
+      if (!data.success || !data.data) {
+        throw new Error(data.message || "Không thể tải thông tin thanh toán");
+      }
+      return data.data;
+    },
+    staleTime: 60 * 1000,
+  });
+}
+

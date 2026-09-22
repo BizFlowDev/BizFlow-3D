@@ -19,6 +19,7 @@ import {
   ChevronUp,
   ArrowLeft,
   Check,
+  Crown,
   Layers,
   Filter,
 } from "lucide-react";
@@ -34,6 +35,8 @@ import {
 } from "./_components/ProductDetailModal3D";
 import { OrderSuccessModal } from "./_components/OrderSuccessModal";
 import { CameraPresetsBar } from "./_components/CameraPresetsBar";
+import { UpgradePlanModal } from "@/components/shared/UpgradePlanModal";
+import { useCurrentStore } from "@/hooks/useStore";
 
 // ── Lazy load 3D components ───────────────────────────────────────────────────
 
@@ -87,6 +90,8 @@ export default function Store3DPage() {
   const [isPOSActive, setIsPOSActive] = useState(false);
   // Trạng thái thu gọn các nút điều khiển (tự động bật khi vào màn hình máy tính POS)
   const [isHUDCollapsed, setIsHUDCollapsed] = useState(false);
+  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
+  const { data: store } = useCurrentStore();
 
   // Order Lines State (Các mặt hàng trong đơn)
   const [orderLines, setOrderLines] = useState<CartItem3D[]>([]);
@@ -897,6 +902,19 @@ export default function Store3DPage() {
 
               <div className="h-4 w-px bg-white/15" />
 
+              {/* Nút Nâng cấp gói mini trong thanh thu gọn */}
+              <button
+                type="button"
+                onClick={() => setUpgradeModalOpen(true)}
+                className="flex items-center gap-1.5 rounded-xl border border-amber-500/40 bg-amber-500/20 hover:bg-amber-500/30 px-2.5 py-1.5 text-xs font-bold text-amber-300 transition-all hover:scale-105 active:scale-95"
+                title="Nâng cấp gói dịch vụ"
+              >
+                <Crown className="h-3.5 w-3.5 text-amber-400" />
+                <span className="hidden md:inline capitalize">{store?.subscriptionPlan || "Basic"}</span>
+              </button>
+
+              <div className="h-4 w-px bg-white/15" />
+
               {/* Nút Hiện lại thanh công cụ đầy đủ */}
               <button
                 type="button"
@@ -1076,6 +1094,22 @@ export default function Store3DPage() {
                     <span className="hidden sm:inline">Toàn cảnh [ESC]</span>
                   </button>
                 )}
+
+                {/* Nút Nâng Cấp Gói Dịch Vụ */}
+                <button
+                  type="button"
+                  onClick={() => setUpgradeModalOpen(true)}
+                  className="flex items-center gap-1.5 rounded-2xl border border-amber-500/40 bg-gradient-to-r from-amber-600/40 to-orange-600/40 hover:from-amber-600/60 hover:to-orange-600/60 px-3.5 py-2.5 text-xs font-bold text-amber-200 shadow-xl shadow-amber-500/10 backdrop-blur-xl transition-all hover:scale-105"
+                  title="Nâng cấp hoặc gia hạn gói dịch vụ cửa hàng"
+                >
+                  <Crown className="h-4 w-4 text-amber-400" />
+                  <span className="hidden sm:inline">
+                    Gói: <strong className="capitalize">{store?.subscriptionPlan || "Basic"}</strong>
+                  </span>
+                  <span className="text-[10px] bg-amber-500/30 px-1.5 py-0.5 rounded text-amber-300 font-extrabold uppercase">
+                    Nâng cấp
+                  </span>
+                </button>
 
                 {/* Nút Tạo Đơn Hàng (Zoom camera vào màn hình máy tính quầy POS) */}
                 <button
@@ -1311,6 +1345,12 @@ export default function Store3DPage() {
           order={createdOrder}
           isOpen={!!createdOrder && !isPOSActive}
           onClose={() => setCreatedOrder(null)}
+        />
+
+        {/* ── Upgrade Plan Modal (Tích hợp thanh toán VietQR) ─ */}
+        <UpgradePlanModal
+          open={upgradeModalOpen}
+          onOpenChange={setUpgradeModalOpen}
         />
       </div>
     </>

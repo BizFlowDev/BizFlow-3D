@@ -324,4 +324,8 @@ export const controllers = {
   auditLogRepo,
   // Also export storeRepo to be used by storeRoutes
   storeRepo,
+  subscriptionPlanRepo,
+  subscriptionHistoryRepo,
+  manageStoreSubscriptionUseCase,
+  systemConfigRepo,
 };

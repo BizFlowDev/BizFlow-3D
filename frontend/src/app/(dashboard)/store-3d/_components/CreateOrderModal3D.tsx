@@ -11,6 +11,7 @@ import {
   Minus,
   Trash2,
   CheckCircle2,
+  Crown,
   Loader2,
   AlertCircle,
   Banknote,
@@ -39,6 +40,7 @@ import {
   formatPaymentMemo,
 } from "@/lib/vietqr";
 import type { CartItem3D } from "./ProductDetailModal3D";
+import { UpgradePlanModal } from "@/components/shared/UpgradePlanModal";
 
 interface CreateOrderModal3DProps {
   isOpen: boolean;
@@ -109,6 +111,8 @@ export function CreateOrderModal3D({
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isQrZoomed, setIsQrZoomed] = useState(false);
+  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
+  const { data: store } = useCurrentStore();
 
   // Khách hàng hiện tại được chọn
   const selectedCustomer = useMemo(() => {
@@ -729,6 +733,21 @@ export function CreateOrderModal3D({
                 </div>
               </div>
 
+              {/* Gói dịch vụ & Nâng cấp gói */}
+              <div className="flex items-center justify-between rounded-xl bg-amber-500/10 border border-amber-500/20 px-3 py-2 text-xs">
+                <div className="flex items-center gap-1.5 text-amber-200 font-medium">
+                  <Crown className="h-3.5 w-3.5 text-amber-400" />
+                  <span>Gói dịch vụ: <strong className="capitalize text-white">{store?.subscriptionPlan || "Basic"}</strong></span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setUpgradeModalOpen(true)}
+                  className="text-[11px] font-bold text-amber-400 hover:text-amber-300 hover:underline"
+                >
+                  Nâng cấp gói
+                </button>
+              </div>
+
               {/* Phương thức thanh toán */}
               <div className="rounded-2xl border border-white/10 bg-slate-800/40 p-3.5 space-y-3">
                 <label className="block text-xs font-bold text-slate-300">
@@ -1171,6 +1190,8 @@ export function CreateOrderModal3D({
           </div>
         </div>
       )}
+      {/* Modal Nâng cấp gói dịch vụ với tích hợp thanh toán VietQR */}
+      <UpgradePlanModal open={upgradeModalOpen} onOpenChange={setUpgradeModalOpen} />
     </div>
   );
 }

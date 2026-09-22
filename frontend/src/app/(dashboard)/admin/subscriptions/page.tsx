@@ -23,6 +23,7 @@ import {
   Loader2,
   DollarSign,
   BarChart3,
+  QrCode,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -59,6 +60,7 @@ import type {
   SubscriptionHistoryParams,
 } from "@/hooks/useAdmin";
 import { PlanEditorDialog } from "./_components/PlanEditorDialog";
+import { PaymentQrSettingsSection } from "./_components/PaymentQrSettingsSection";
 
 // ── Icon Mapper ───────────────────────────────────────────────────────────────
 
@@ -766,6 +768,10 @@ export default function AdminSubscriptionsPage() {
               <History className="h-3.5 w-3.5" />
               Lịch sử
             </TabsTrigger>
+            <TabsTrigger value="qr-settings" className="gap-1.5">
+              <QrCode className="h-3.5 w-3.5 text-blue-500" />
+              Cài đặt VietQR nhận tiền
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="plans" className="space-y-4">
@@ -783,6 +789,10 @@ export default function AdminSubscriptionsPage() {
 
           <TabsContent value="history">
             <HistorySection />
+          </TabsContent>
+
+          <TabsContent value="qr-settings">
+            <PaymentQrSettingsSection />
           </TabsContent>
         </Tabs>
       </motion.div>
