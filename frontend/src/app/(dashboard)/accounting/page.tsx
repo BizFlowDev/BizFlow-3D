@@ -277,7 +277,7 @@ export default function AccountingPage() {
   const [toDate, setToDate] = useState(() => toISODate(now));
 
   // ── Query ──
-  const { data, isLoading, refetch, isFetching } = useFinancialReport(
+  const { data, isLoading, error, refetch, isFetching } = useFinancialReport(
     activeTab,
     fromDate,
     toDate,
@@ -482,6 +482,8 @@ export default function AccountingPage() {
                       reportType={tab.value}
                       data={data}
                       isLoading={isLoading}
+                      error={error}
+                      onRetry={() => refetch()}
                     />
                   )}
                 </CardContent>

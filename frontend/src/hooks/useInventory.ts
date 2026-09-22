@@ -17,6 +17,7 @@ export interface InventoryUnit {
   id: string;
   unitName: string;
   conversionFactor: number;
+  price?: number;
   isDefault: boolean;
 }
 
@@ -171,7 +172,7 @@ export function useInventoryCatalog() {
               code: string;
               name: string;
               categoryId: string | null;
-              units?: { id: string; unitName: string; conversionFactor: number; isDefault: boolean }[];
+              units?: { id: string; unitName: string; conversionFactor: number; price?: number; isDefault: boolean }[];
             }[];
           }>
         >("/products", { params: { limit: 500 } });
@@ -202,9 +203,10 @@ export function useInventoryCatalog() {
                     id: u.id,
                     unitName: u.unitName,
                     conversionFactor: u.conversionFactor,
+                    price: typeof u.price === "number" ? u.price : 0,
                     isDefault: u.isDefault,
                   }))
-                : [{ id: `${p.id}-u1`, unitName: "Cái", conversionFactor: 1, isDefault: true }],
+                : [{ id: `${p.id}-u1`, unitName: "Cái", conversionFactor: 1, price: 0, isDefault: true }],
           }));
         }
       } catch {
@@ -382,6 +384,7 @@ export function useImportStock() {
       productId: string;
       productUnitId: string;
       quantity: number;
+      unitCost?: number;
       note?: string;
     }): Promise<InventoryTransaction> => {
       const { data } = await apiClient.post<ApiResponseData<InventoryTransaction>>(
@@ -395,6 +398,7 @@ export function useImportStock() {
       queryClient.invalidateQueries({ queryKey: inventoryKeys.stock });
       queryClient.invalidateQueries({ queryKey: ["inventory", "transactions"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard", "low-stock"] });
+      queryClient.invalidateQueries({ queryKey: ["accounting"] });
     },
   });
 }

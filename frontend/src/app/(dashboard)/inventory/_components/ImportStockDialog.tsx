@@ -14,6 +14,8 @@ import {
   CheckCircle2,
   Loader2,
   ArrowDownToLine,
+  Receipt,
+  Coins,
 } from "lucide-react";
 import {
   Dialog,
@@ -26,6 +28,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -37,6 +40,16 @@ import {
 import { useInventoryCatalog, useImportStock } from "@/hooks/useInventory";
 import type { InventoryProduct } from "@/hooks/useInventory";
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function formatCurrency(amount: number): string {
+  return new Intl.NumberFormat("vi-VN", {
+    style: "currency",
+    currency: "VND",
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
+
 // ── Zod Schema ────────────────────────────────────────────────────────────────
 
 const importStockSchema = z.object({
@@ -45,6 +58,10 @@ const importStockSchema = z.object({
   quantity: z
     .number({ error: "Số lượng phải lớn hơn 0" })
     .positive("Số lượng phải lớn hơn 0"),
+  unitCost: z
+    .number({ error: "Đơn giá nhập không hợp lệ" })
+    .min(0, "Đơn giá nhập không được âm")
+    .optional(),
   note: z.string().max(500, "Ghi chú không quá 500 ký tự").optional(),
 });
 
@@ -86,16 +103,40 @@ export function ImportStockDialog({
       productId: "",
       productUnitId: "",
       quantity: undefined,
+      unitCost: undefined,
       note: "",
     },
   });
 
   const selectedProductId = watch("productId");
   const selectedUnitId = watch("productUnitId");
+  const quantity = watch("quantity");
+  const unitCost = watch("unitCost");
+
   const selectedProduct = useMemo(
     () => catalog.find((p) => p.id === selectedProductId) ?? null,
     [catalog, selectedProductId],
   );
+
+  const selectedUnit = useMemo(() => {
+    if (!selectedProduct) return null;
+    return (
+      selectedProduct.units.find((u) => u.id === selectedUnitId) ??
+      selectedProduct.units[0]
+    );
+  }, [selectedProduct, selectedUnitId]);
+
+  const totalAmount = useMemo(() => {
+    const q =
+      typeof quantity === "number" && !isNaN(quantity) && quantity > 0
+        ? quantity
+        : 0;
+    const c =
+      typeof unitCost === "number" && !isNaN(unitCost) && unitCost >= 0
+        ? unitCost
+        : 0;
+    return q * c;
+  }, [quantity, unitCost]);
 
   // Điền sẵn sản phẩm khi mở dialog (đặc biệt từ click ô kệ 3D)
   useEffect(() => {
@@ -108,6 +149,7 @@ export function ImportStockDialog({
             product.units.find((u) => u.isDefault) ?? product.units[0];
           setValue("productId", product.id);
           setValue("productUnitId", defaultUnit?.id ?? "");
+          setValue("unitCost", defaultUnit?.price ?? 0);
         }
       }
     }
@@ -120,6 +162,7 @@ export function ImportStockDialog({
         productId: preselectedProductId ?? "",
         productUnitId: "",
         quantity: undefined,
+        unitCost: undefined,
         note: "",
       });
       setShowSuccess(false);
@@ -143,14 +186,16 @@ export function ImportStockDialog({
       product.units.find((u) => u.isDefault) ?? product.units[0];
     setValue("productId", product.id);
     setValue("productUnitId", defaultUnit?.id ?? "");
+    setValue("unitCost", defaultUnit?.price ?? 0);
     setProductQuery("");
     setListOpen(false);
-    void trigger(["productId", "productUnitId"]);
+    void trigger(["productId", "productUnitId", "unitCost"]);
   };
 
   const handleClearProduct = () => {
     setValue("productId", "");
     setValue("productUnitId", "");
+    setValue("unitCost", undefined);
   };
 
   const onSubmit = async (data: ImportStockFormValues) => {
@@ -159,6 +204,7 @@ export function ImportStockDialog({
         productId: data.productId,
         productUnitId: data.productUnitId,
         quantity: data.quantity,
+        unitCost: data.unitCost,
         note: data.note || undefined,
       });
       setShowSuccess(true);
@@ -351,55 +397,94 @@ export function ImportStockDialog({
                   )}
                 </div>
 
-                {/* Đơn vị tính */}
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">
-                    Đơn vị tính <span className="text-red-500">*</span>
-                  </Label>
-                  {selectedProduct && selectedProduct.units.length > 1 ? (
-                    <Select
-                      value={selectedUnitId || undefined}
-                      onValueChange={(v) => {
-                        setValue("productUnitId", v);
-                        void trigger("productUnitId");
-                      }}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Chọn đơn vị" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {selectedProduct.units.map((u) => (
-                          <SelectItem key={u.id} value={u.id}>
-                            <div className="flex items-center gap-2">
-                              <span>{u.unitName}</span>
-                              {!u.isDefault && (
-                                <span className="text-xs text-muted-foreground">
-                                  (x{u.conversionFactor})
-                                </span>
-                              )}
-                              {u.isDefault && (
-                                <span className="rounded bg-blue-100 px-1.5 py-0.5 text-xs text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
-                                  Mặc định
-                                </span>
-                              )}
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <div className="flex items-center gap-2 rounded-md border bg-muted/20 px-3 py-2">
-                      <Layers className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-sm text-muted-foreground">
-                        {selectedProduct?.units[0]?.unitName ?? "Cái"}
-                      </span>
+                {/* Đơn vị tính & Đơn giá nhập */}
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  {/* Đơn vị tính */}
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">
+                      Đơn vị tính <span className="text-red-500">*</span>
+                    </Label>
+                    {selectedProduct && selectedProduct.units.length > 1 ? (
+                      <Select
+                        value={selectedUnitId || undefined}
+                        onValueChange={(v) => {
+                          setValue("productUnitId", v);
+                          const unit = selectedProduct.units.find((u) => u.id === v);
+                          if (unit) {
+                            setValue("unitCost", unit.price);
+                          }
+                          void trigger(["productUnitId", "unitCost"]);
+                        }}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Chọn đơn vị" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {selectedProduct.units.map((u) => (
+                            <SelectItem key={u.id} value={u.id}>
+                              <div className="flex items-center gap-2">
+                                <span>{u.unitName}</span>
+                                {!u.isDefault && (
+                                  <span className="text-xs text-muted-foreground">
+                                    (x{u.conversionFactor})
+                                  </span>
+                                )}
+                                {u.isDefault && (
+                                  <span className="rounded bg-blue-100 px-1.5 py-0.5 text-xs text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                                    Mặc định
+                                  </span>
+                                )}
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <div className="flex h-10 items-center gap-2 rounded-md border bg-muted/20 px-3">
+                        <Layers className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm text-muted-foreground">
+                          {selectedProduct?.units[0]?.unitName ?? "Cái"}
+                        </span>
+                      </div>
+                    )}
+                    {errors.productUnitId && (
+                      <p className="mt-1 text-xs text-red-500" role="alert">
+                        {errors.productUnitId.message}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Đơn giá nhập */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="import-unit-cost" className="text-sm font-medium">
+                        Giá nhập ({selectedUnit?.unitName ?? "đơn vị"})
+                      </Label>
+                      {typeof unitCost === "number" && unitCost > 0 && (
+                        <span className="text-xs text-muted-foreground">
+                          {formatCurrency(unitCost)}
+                        </span>
+                      )}
                     </div>
-                  )}
-                  {errors.productUnitId && (
-                    <p className="mt-1 text-xs text-red-500" role="alert">
-                      {errors.productUnitId.message}
-                    </p>
-                  )}
+                    <div className="relative">
+                      <Coins className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        id="import-unit-cost"
+                        type="number"
+                        min="0"
+                        step="any"
+                        placeholder="Nhập giá nhập..."
+                        className="pl-9 tabular-nums"
+                        {...register("unitCost", { valueAsNumber: true })}
+                        aria-invalid={errors.unitCost ? "true" : "false"}
+                      />
+                    </div>
+                    {errors.unitCost && (
+                      <p className="text-xs text-red-500" role="alert">
+                        {errors.unitCost.message}
+                      </p>
+                    )}
+                  </div>
                 </div>
 
                 {/* Số lượng */}
@@ -422,6 +507,35 @@ export function ImportStockDialog({
                       {errors.quantity.message}
                     </p>
                   )}
+                </div>
+
+                {/* Card Tổng tiền thanh toán */}
+                <div className="rounded-xl border border-blue-500/20 bg-gradient-to-br from-blue-500/10 via-primary/5 to-cyan-500/10 p-4 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Receipt className="h-4 w-4 text-blue-500" />
+                      <span className="text-xs font-semibold uppercase tracking-wider text-foreground">
+                        Tổng tiền thanh toán
+                      </span>
+                    </div>
+                    <Badge
+                      variant="outline"
+                      className="border-blue-500/30 bg-blue-500/10 text-[11px] font-normal text-blue-600 dark:text-blue-400"
+                    >
+                      Hạch toán Nợ 156 / Có 331
+                    </Badge>
+                  </div>
+                  <div className="mt-2.5 flex items-baseline justify-between border-t border-border/40 pt-2.5">
+                    <span className="text-xs text-muted-foreground">
+                      {quantity && quantity > 0
+                        ? `${quantity} ${selectedUnit?.unitName ?? "đơn vị"}`
+                        : "0 đơn vị"}{" "}
+                      × {formatCurrency(unitCost || 0)}
+                    </span>
+                    <span className="text-xl font-bold tracking-tight text-blue-600 dark:text-blue-400">
+                      {formatCurrency(totalAmount)}
+                    </span>
+                  </div>
                 </div>
 
                 {/* Ghi chú */}

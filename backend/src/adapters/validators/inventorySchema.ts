@@ -9,6 +9,7 @@ export const importStockSchema = z.object({
   productId: z.string().uuid('ID sản phẩm không hợp lệ'),
   productUnitId: z.string().uuid('ID đơn vị sản phẩm không hợp lệ').nullish(),
   quantity: z.number().positive('Số lượng nhập phải lớn hơn 0'),
+  unitCost: z.number().nonnegative('Đơn giá nhập không được âm').optional(),
   note: z.string().nullish(),
 });
 
