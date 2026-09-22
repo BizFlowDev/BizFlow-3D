@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState } from "react";
+import { use, useState, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "motion/react";
@@ -24,7 +24,16 @@ import {
   UserCheck,
   CircleDot,
   Trash2,
+  Printer,
+  Receipt,
+  QrCode,
+  ShieldAlert,
+  Copy,
+  Check,
+  ExternalLink,
+  Maximize2,
 } from "lucide-react";
+import { VietQRModal } from "@/components/shared/VietQRModal";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -57,6 +66,13 @@ import {
   useRecordDebtPayment,
   useDeleteCustomer,
 } from "@/hooks/useCustomers";
+import { useCurrentStore } from "@/hooks/useStore";
+import { generateVietQRUrl, getBankByCode, formatPaymentMemo } from "@/lib/vietqr";
+import {
+  printDebtReceiptPDF,
+  printDebtReceiptThermal,
+  type DebtReceiptData,
+} from "@/lib/debtReceipt";
 import { DebtPaymentDialog } from "../_components/DebtPaymentDialog";
 import OrderDetailDialog from "../../orders/_components/OrderDetailDialog";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
@@ -256,6 +272,7 @@ export default function CustomerDetailPage({
     useCustomerDebtHistory(id);
   const deleteMutation = useDeleteCustomer();
   const { toasts, showToast, dismiss } = useToast();
+  const { data: store } = useCurrentStore();
 
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -267,25 +284,114 @@ export default function CustomerDetailPage({
   const [payMethod, setPayMethod] = useState<"cash" | "transfer">("cash");
   const [payNote, setPayNote] = useState("");
   const [paySuccess, setPaySuccess] = useState(false);
+  const [lastPaymentInfo, setLastPaymentInfo] = useState<{
+    previousDebt: number;
+    paidAmount: number;
+    remainingDebt: number;
+    paymentMethod: "cash" | "transfer";
+    note?: string;
+  } | null>(null);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [qrZoomOpen, setQrZoomOpen] = useState(false);
+
   const paymentMutation = useRecordDebtPayment();
+
+  const copyToClipboard = (text: string, field: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedField(field);
+    setTimeout(() => setCopiedField(null), 2000);
+  };
+
+  const vietQrInfo = useMemo(() => {
+    if (!store?.bankCode || !store?.bankAccountNumber || !customer) return null;
+    const bank = getBankByCode(store.bankCode);
+    const memo = formatPaymentMemo(customer.code || customer.name, "TT NO");
+    const amount = Number(payAmount) > 0 ? Number(payAmount) : 0;
+    const qrUrl = generateVietQRUrl({
+      bankCode: store.bankCode,
+      accountNumber: store.bankAccountNumber,
+      accountName: store.bankAccountHolder || "",
+      amount,
+      memo,
+      template: "compact2",
+    });
+    return {
+      bank,
+      memo,
+      amount,
+      qrUrl,
+      accountNumber: store.bankAccountNumber,
+      accountHolder: store.bankAccountHolder,
+    };
+  }, [store, customer, payAmount]);
 
   const handleInlinePayment = async () => {
     if (!customer || !payAmount) return;
     const amount = Number(payAmount);
     if (isNaN(amount) || amount <= 0) return;
 
+    const previousDebt = customer.debtBalance;
+    const remainingDebt = Math.max(0, previousDebt - amount);
+
     try {
       await paymentMutation.mutateAsync({
         customerId: id,
         data: { amount, paymentMethod: payMethod, note: payNote || undefined },
       });
+      setLastPaymentInfo({
+        previousDebt,
+        paidAmount: amount,
+        remainingDebt,
+        paymentMethod: payMethod,
+        note: payNote,
+      });
+      setQrZoomOpen(false);
       setPaySuccess(true);
       setPayAmount("");
       setPayNote("");
-      setTimeout(() => setPaySuccess(false), 3000);
     } catch {
       // handled
     }
+  };
+
+  const handlePrintPDF = (dataToPrint?: typeof lastPaymentInfo) => {
+    const info = dataToPrint || lastPaymentInfo;
+    if (!customer || !info) return;
+    const receiptData: DebtReceiptData = {
+      storeName: store?.name || "BizFlow 3D",
+      storeAddress: store?.address || undefined,
+      storePhone: store?.phone || undefined,
+      customerId: customer.id,
+      customerName: customer.name,
+      customerPhone: customer.phone,
+      customerAddress: customer.address,
+      previousDebt: info.previousDebt,
+      paidAmount: info.paidAmount,
+      remainingDebt: info.remainingDebt,
+      paymentMethod: info.paymentMethod,
+      note: info.note || undefined,
+    };
+    printDebtReceiptPDF(receiptData);
+  };
+
+  const handlePrintThermal = (dataToPrint?: typeof lastPaymentInfo) => {
+    const info = dataToPrint || lastPaymentInfo;
+    if (!customer || !info) return;
+    const receiptData: DebtReceiptData = {
+      storeName: store?.name || "BizFlow 3D",
+      storeAddress: store?.address || undefined,
+      storePhone: store?.phone || undefined,
+      customerId: customer.id,
+      customerName: customer.name,
+      customerPhone: customer.phone,
+      customerAddress: customer.address,
+      previousDebt: info.previousDebt,
+      paidAmount: info.paidAmount,
+      remainingDebt: info.remainingDebt,
+      paymentMethod: info.paymentMethod,
+      note: info.note || undefined,
+    };
+    printDebtReceiptThermal(receiptData);
   };
 
   const handleDelete = async () => {
@@ -402,16 +508,51 @@ export default function CustomerDetailPage({
               <motion.div
                 initial={{ scale: 0.9 }}
                 animate={{ scale: 1 }}
-                className="flex items-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-5 py-3 dark:border-red-900 dark:bg-red-950/30"
+                className={`flex items-center gap-2 rounded-2xl border px-5 py-3 ${
+                  customer.isOverdue
+                    ? "border-red-300 bg-red-50 dark:border-red-900 dark:bg-red-950/40"
+                    : "border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30"
+                }`}
               >
-                <AlertTriangle className="h-5 w-5 text-red-500" />
+                <AlertTriangle
+                  className={`h-5 w-5 ${
+                    customer.isOverdue ? "text-red-500 animate-pulse" : "text-amber-500"
+                  }`}
+                />
                 <div>
-                  <p className="text-xs font-medium text-red-600 dark:text-red-400">
-                    Còn nợ
-                  </p>
-                  <p className="text-lg font-bold text-red-600 dark:text-red-400">
+                  <div className="flex items-center gap-2">
+                    <p
+                      className={`text-xs font-semibold ${
+                        customer.isOverdue
+                          ? "text-red-600 dark:text-red-400"
+                          : "text-amber-700 dark:text-amber-300"
+                      }`}
+                    >
+                      {customer.isOverdue ? "Nợ quá hạn" : "Còn nợ"}
+                    </p>
+                    {customer.isOverdue && (
+                      <span className="rounded bg-red-200/80 px-1.5 py-0.2 text-[10px] font-bold text-red-700 dark:bg-red-900 dark:text-red-200">
+                        {customer.overdueDays} ngày
+                      </span>
+                    )}
+                  </div>
+                  <p
+                    className={`text-lg font-bold ${
+                      customer.isOverdue
+                        ? "text-red-600 dark:text-red-400"
+                        : "text-amber-800 dark:text-amber-200"
+                    }`}
+                  >
                     {formatCurrency(customer.debtBalance)}
                   </p>
+                  {customer.creditLimit > 0 && (
+                    <p className="text-[10px] text-muted-foreground">
+                      Hạn mức: {formatCurrency(customer.creditLimit)}
+                      {customer.debtBalance > customer.creditLimit && (
+                        <span className="text-red-500 font-bold ml-1">(Vượt HM)</span>
+                      )}
+                    </p>
+                  )}
                 </div>
               </motion.div>
             ) : (
@@ -428,6 +569,11 @@ export default function CustomerDetailPage({
                   <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
                     {formatCurrency(0)}
                   </p>
+                  {customer.creditLimit > 0 && (
+                    <p className="text-[10px] text-muted-foreground">
+                      Hạn mức: {formatCurrency(customer.creditLimit)}
+                    </p>
+                  )}
                 </div>
               </motion.div>
             )}
@@ -676,6 +822,7 @@ export default function CustomerDetailPage({
                             </TableHead>
                             <TableHead>Thực hiện</TableHead>
                             <TableHead>Ghi chú</TableHead>
+                            <TableHead className="text-center">Biên lai</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -711,8 +858,78 @@ export default function CustomerDetailPage({
                                   {tx.operator}
                                 </span>
                               </TableCell>
-                              <TableCell className="max-w-[200px] truncate text-sm text-muted-foreground">
-                                {tx.note || "—"}
+                              <TableCell className="max-w-[220px] truncate text-sm">
+                                {tx.orderId ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedOrderId(tx.orderId!);
+                                      setDetailOpen(true);
+                                    }}
+                                    className="inline-flex items-center gap-1 font-semibold text-blue-600 hover:text-blue-700 hover:underline"
+                                    title="Bấm để xem chi tiết đơn hàng"
+                                  >
+                                    <Receipt className="h-3.5 w-3.5 shrink-0" />
+                                    <span>{tx.note}</span>
+                                  </button>
+                                ) : (
+                                  <span className="text-muted-foreground">{tx.note || "—"}</span>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-center">
+                                {tx.type === "payment" ? (
+                                  <div className="flex items-center justify-center gap-1">
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-7 w-7 text-muted-foreground hover:text-blue-600"
+                                      title="In phiếu thu PDF (A5/A4)"
+                                      onClick={() => {
+                                        handlePrintPDF({
+                                          previousDebt: tx.remainingBalance + Math.abs(tx.amount),
+                                          paidAmount: Math.abs(tx.amount),
+                                          remainingDebt: tx.remainingBalance,
+                                          paymentMethod: "cash",
+                                          note: tx.note || undefined,
+                                        });
+                                      }}
+                                    >
+                                      <Receipt className="h-3.5 w-3.5" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-7 w-7 text-muted-foreground hover:text-emerald-600"
+                                      title="In nhiệt K80"
+                                      onClick={() => {
+                                        handlePrintThermal({
+                                          previousDebt: tx.remainingBalance + Math.abs(tx.amount),
+                                          paidAmount: Math.abs(tx.amount),
+                                          remainingDebt: tx.remainingBalance,
+                                          paymentMethod: "cash",
+                                          note: tx.note || undefined,
+                                        });
+                                      }}
+                                    >
+                                      <Printer className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </div>
+                                ) : tx.orderId ? (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/50"
+                                    onClick={() => {
+                                      setSelectedOrderId(tx.orderId!);
+                                      setDetailOpen(true);
+                                    }}
+                                    title="Xem chi tiết đơn hàng"
+                                  >
+                                    Xem đơn
+                                  </Button>
+                                ) : (
+                                  <span className="text-xs text-muted-foreground">—</span>
+                                )}
                               </TableCell>
                             </TableRow>
                           ))}
@@ -727,7 +944,7 @@ export default function CustomerDetailPage({
 
           {/* ── Tab 3: Payment ── */}
           <TabsContent value="payment">
-            {!hasDebt ? (
+            {!hasDebt && !paySuccess ? (
               <Card className="rounded-2xl border-border/50 bg-card/50 backdrop-blur-sm">
                 <CardContent className="flex flex-col items-center justify-center py-16">
                   <motion.div
@@ -741,10 +958,92 @@ export default function CustomerDetailPage({
                     Khách hàng không có nợ
                   </p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Tất cả các khoản nợ đã được thanh toán.
+                    Tất cả các khoản nợ đã được thanh toán đầy đủ.
                   </p>
                 </CardContent>
               </Card>
+            ) : paySuccess && lastPaymentInfo ? (
+              <div className="mx-auto max-w-lg">
+                <Card className="rounded-2xl border-border/50 bg-card/50 backdrop-blur-sm overflow-hidden">
+                  <CardContent className="p-6 text-center space-y-5">
+                    <motion.div
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                      className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400"
+                    >
+                      <CheckCircle2 className="h-10 w-10" />
+                    </motion.div>
+                    <div>
+                      <h3 className="text-xl font-bold tracking-tight">Thanh toán thành công!</h3>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Số dư công nợ của khách hàng đã được cập nhật chính xác.
+                      </p>
+                    </div>
+
+                    <div className="w-full rounded-xl border bg-muted/40 p-4 text-left space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Khách hàng:</span>
+                        <span className="font-semibold">{customer.name}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Số tiền đã thu:</span>
+                        <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                          {formatCurrency(lastPaymentInfo.paidAmount)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Hình thức:</span>
+                        <span className="font-medium">
+                          {lastPaymentInfo.paymentMethod === "transfer"
+                            ? "Chuyển khoản (VietQR)"
+                            : "Tiền mặt"}
+                        </span>
+                      </div>
+                      <div className="flex justify-between border-t pt-2">
+                        <span className="text-muted-foreground">Công nợ còn lại:</span>
+                        <span className="font-bold text-red-500">
+                          {formatCurrency(lastPaymentInfo.remainingDebt)}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="w-full pt-2 space-y-2.5">
+                      <div className="grid grid-cols-2 gap-2.5">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="h-11 gap-2 font-medium"
+                          onClick={() => handlePrintThermal()}
+                        >
+                          <Receipt className="h-4 w-4 text-slate-600 dark:text-slate-300" />
+                          In nhiệt (K80)
+                        </Button>
+                        <Button
+                          type="button"
+                          className="h-11 gap-2 bg-gradient-to-r from-blue-600 to-blue-500 text-white font-medium shadow-md shadow-blue-500/20"
+                          onClick={() => handlePrintPDF()}
+                        >
+                          <Printer className="h-4 w-4" />
+                          In phiếu thu (PDF)
+                        </Button>
+                      </div>
+
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="w-full text-muted-foreground hover:text-foreground"
+                        onClick={() => {
+                          setPaySuccess(false);
+                          setLastPaymentInfo(null);
+                        }}
+                      >
+                        Tiếp tục thu nợ
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
             ) : (
               <div className="mx-auto max-w-lg">
                 <Card className="rounded-2xl border-border/50 bg-card/50 backdrop-blur-sm overflow-hidden">
@@ -770,7 +1069,7 @@ export default function CustomerDetailPage({
                           id="inline-pay-amount"
                           type="number"
                           placeholder="Nhập số tiền..."
-                          className="pl-9 pr-12"
+                          className="pl-9 pr-12 font-semibold"
                           value={payAmount}
                           onChange={(e) => setPayAmount(e.target.value)}
                         />
@@ -779,14 +1078,16 @@ export default function CustomerDetailPage({
                         </span>
                       </div>
                       {/* Quick buttons */}
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-wrap gap-2 pt-1">
                         {[
                           { label: "Toàn bộ", value: customer.debtBalance },
                           {
                             label: "50%",
                             value: Math.round(customer.debtBalance / 2),
                           },
+                          { label: "2 triệu", value: 2000000 },
                           { label: "1 triệu", value: 1000000 },
+                          { label: "500K", value: 500000 },
                         ]
                           .filter(
                             (b) => b.value > 0 && b.value <= customer.debtBalance
@@ -795,7 +1096,7 @@ export default function CustomerDetailPage({
                             <button
                               key={b.label}
                               type="button"
-                              className="rounded-full border px-3 py-1 text-xs transition-colors hover:bg-accent"
+                              className="rounded-full border px-3 py-1 text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground active:scale-95"
                               onClick={() => setPayAmount(String(b.value))}
                             >
                               {b.label}
@@ -819,19 +1120,173 @@ export default function CustomerDetailPage({
                         <SelectContent>
                           <SelectItem value="cash">
                             <span className="flex items-center gap-2">
-                              <Banknote className="h-4 w-4" />
+                              <Banknote className="h-4 w-4 text-emerald-500" />
                               Tiền mặt
                             </span>
                           </SelectItem>
                           <SelectItem value="transfer">
                             <span className="flex items-center gap-2">
-                              <CreditCard className="h-4 w-4" />
-                              Chuyển khoản
+                              <CreditCard className="h-4 w-4 text-blue-500" />
+                              Chuyển khoản (VietQR Napas247)
                             </span>
                           </SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
+
+                    {/* VietQR Dynamic Section */}
+                    {payMethod === "transfer" && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="overflow-hidden rounded-xl border border-blue-200 bg-blue-50/60 p-4 dark:border-blue-900/60 dark:bg-blue-950/20"
+                      >
+                        {vietQrInfo ? (
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <span className="flex items-center gap-1.5 text-xs font-semibold text-blue-700 dark:text-blue-300">
+                                <QrCode className="h-4 w-4" />
+                                Quét mã VietQR chuyển khoản
+                              </span>
+                              <span className="text-[11px] text-muted-foreground">
+                                {vietQrInfo.bank?.shortName || "Napas247"}
+                              </span>
+                            </div>
+
+                            <div className="flex flex-col sm:flex-row items-center gap-4 bg-background/80 rounded-lg p-3 border border-blue-100 dark:border-blue-900/40">
+                              {/* QR Code Image with Zoom Preview */}
+                              <div className="flex flex-col items-center gap-1.5 shrink-0">
+                                <div
+                                  className="relative group cursor-pointer overflow-hidden rounded-lg border bg-white p-1 shadow-sm transition-all hover:shadow-md hover:ring-2 hover:ring-blue-500/50"
+                                  onClick={() => setQrZoomOpen(true)}
+                                  title="Nhấp để phóng to mã QR"
+                                >
+                                  <img
+                                    src={vietQrInfo.qrUrl}
+                                    alt="VietQR Code"
+                                    className="h-32 w-32 rounded object-contain transition-transform group-hover:scale-105"
+                                  />
+                                  <div className="absolute inset-0 flex items-center justify-center rounded bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
+                                    <span className="flex items-center gap-1 rounded-full bg-white/95 px-2 py-0.5 text-[10px] font-bold text-slate-800 shadow">
+                                      <Maximize2 className="h-3 w-3" /> Phóng to
+                                    </span>
+                                  </div>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => setQrZoomOpen(true)}
+                                  className="inline-flex items-center gap-1 text-[11px] font-medium text-blue-600 hover:underline dark:text-blue-400"
+                                >
+                                  <Maximize2 className="h-3 w-3" /> Phóng to mã QR
+                                </button>
+                              </div>
+
+                              <div className="flex-1 space-y-2 text-xs w-full">
+                                <div>
+                                  <p className="text-muted-foreground text-[11px]">Ngân hàng:</p>
+                                  <p className="font-semibold text-foreground">
+                                    {vietQrInfo.bank?.name} ({vietQrInfo.bank?.shortName})
+                                  </p>
+                                </div>
+
+                                <div>
+                                  <p className="text-muted-foreground text-[11px]">Số tài khoản:</p>
+                                  <div className="flex items-center justify-between gap-1 font-mono font-bold text-sm text-foreground">
+                                    <span>{vietQrInfo.accountNumber}</span>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-6 w-6"
+                                      onClick={() =>
+                                        copyToClipboard(vietQrInfo.accountNumber || "", "stk")
+                                      }
+                                    >
+                                      {copiedField === "stk" ? (
+                                        <Check className="h-3 w-3 text-emerald-500" />
+                                      ) : (
+                                        <Copy className="h-3 w-3" />
+                                      )}
+                                    </Button>
+                                  </div>
+                                </div>
+
+                                <div>
+                                  <p className="text-muted-foreground text-[11px]">Chủ tài khoản:</p>
+                                  <p className="font-semibold uppercase text-foreground">
+                                    {vietQrInfo.accountHolder || "—"}
+                                  </p>
+                                </div>
+
+                                <div>
+                                  <p className="text-muted-foreground text-[11px]">Nội dung CK:</p>
+                                  <div className="flex items-center justify-between gap-1 font-mono font-medium bg-muted/60 px-2 py-1 rounded">
+                                    <span className="truncate">{vietQrInfo.memo}</span>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-5 w-5 shrink-0"
+                                      onClick={() => copyToClipboard(vietQrInfo.memo, "memo")}
+                                    >
+                                      {copiedField === "memo" ? (
+                                        <Check className="h-3 w-3 text-emerald-500" />
+                                      ) : (
+                                        <Copy className="h-3 w-3" />
+                                      )}
+                                    </Button>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+
+                            <p className="text-[11px] text-muted-foreground italic text-center">
+                              Mã QR đã tích hợp sẵn số tiền {formatCurrency(Number(payAmount) || 0)} và nội dung nhận diện.
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="flex items-start gap-2.5 text-xs text-amber-700 dark:text-amber-300">
+                            <ShieldAlert className="h-4 w-4 shrink-0 text-amber-500 mt-0.5" />
+                            <div>
+                              <p className="font-semibold">Cửa hàng chưa cài đặt VietQR</p>
+                              <p className="mt-0.5 text-muted-foreground text-[11px]">
+                                Để khách hàng có thể quét mã QR thanh toán nhanh, hãy cập nhật thông tin ngân hàng trong cài đặt.
+                              </p>
+                              <Button
+                                asChild
+                                variant="link"
+                                size="sm"
+                                className="p-0 h-auto text-xs text-blue-600 mt-1 inline-flex items-center gap-1"
+                              >
+                                <Link href="/settings">
+                                  Đi tới Cài đặt ngân hàng <ExternalLink className="h-3 w-3" />
+                                </Link>
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </motion.div>
+                    )}
+
+                    {/* Remaining balance preview */}
+                    {Number(payAmount) > 0 && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        className="overflow-hidden rounded-lg border border-amber-200 bg-amber-50/70 p-3 dark:border-amber-900/60 dark:bg-amber-950/20"
+                      >
+                        <div className="flex items-center justify-between text-xs sm:text-sm">
+                          <span className="flex items-center gap-1.5 text-amber-700 dark:text-amber-300">
+                            <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
+                            Nợ còn lại sau thanh toán:
+                          </span>
+                          <span className="font-bold text-amber-800 dark:text-amber-200">
+                            {formatCurrency(Math.max(0, customer.debtBalance - Number(payAmount)))}
+                          </span>
+                        </div>
+                      </motion.div>
+                    )}
 
                     {/* Note */}
                     <div className="space-y-2">
@@ -841,24 +1296,12 @@ export default function CustomerDetailPage({
                         <Textarea
                           id="inline-pay-note"
                           placeholder="Ghi chú thanh toán..."
-                          className="min-h-[70px] pl-9 resize-none"
+                          className="min-h-[70px] pl-9 resize-none text-sm"
                           value={payNote}
                           onChange={(e) => setPayNote(e.target.value)}
                         />
                       </div>
                     </div>
-
-                    {/* Success message */}
-                    {paySuccess && (
-                      <motion.div
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="flex items-center gap-2 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400"
-                      >
-                        <CheckCircle2 className="h-4 w-4" />
-                        Thanh toán thành công! Số dư nợ đã được cập nhật.
-                      </motion.div>
-                    )}
 
                     {/* Buttons */}
                     <div className="flex gap-3 pt-2">
@@ -924,6 +1367,27 @@ export default function CustomerDetailPage({
         orderId={selectedOrderId ?? ""}
         showToast={showToast}
       />
+
+      {/* ── Modal Phóng To VietQR Tận Dụng Từ Đơn Hàng ── */}
+      {vietQrInfo && (
+        <VietQRModal
+          open={qrZoomOpen}
+          onOpenChange={setQrZoomOpen}
+          qrUrl={vietQrInfo.qrUrl}
+          bankName={vietQrInfo.bank?.name}
+          bankShortName={vietQrInfo.bank?.shortName}
+          accountNumber={vietQrInfo.accountNumber}
+          accountHolder={vietQrInfo.accountHolder}
+          amount={vietQrInfo.amount}
+          memo={vietQrInfo.memo}
+          title="Quét mã VietQR thanh toán nợ"
+          description="Quét mã qua bất kỳ App ngân hàng nào (Napas247 miễn phí)"
+          confirmButtonText="Xác nhận đã nhận tiền & Hoàn tất"
+          onConfirm={handleInlinePayment}
+          confirmLoading={paymentMutation.isPending}
+        />
+      )}
+
       <ToastViewport toasts={toasts} onDismiss={dismiss} />
     </motion.div>
   );

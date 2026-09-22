@@ -29,7 +29,9 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
+  ShieldAlert,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { useCustomerList, type Customer } from "@/hooks/useCustomers";
 import { useProductList, useCategoryList, type Product } from "@/hooks/useProducts";
 import { useCreateOrder, getOrderCode, type Order } from "@/hooks/useOrders";
@@ -335,9 +337,21 @@ function POSMonitorScreenInner({
       return;
     }
 
-    if (paymentMethod === "debt" && !selectedCustomerId) {
-      setErrorMessage("Hình thức Ghi nợ bắt buộc phải chọn Khách hàng cụ thể.");
-      return;
+    if (paymentMethod === "debt") {
+      if (!selectedCustomerId || !selectedCustomer) {
+        setErrorMessage("Hình thức Ghi nợ bắt buộc phải chọn Khách hàng cụ thể.");
+        return;
+      }
+      if (selectedCustomer.creditLimit > 0) {
+        const currentDebt = selectedCustomer.debtBalance || 0;
+        if (currentDebt + finalAmount > selectedCustomer.creditLimit) {
+          const excess = currentDebt + finalAmount - selectedCustomer.creditLimit;
+          setErrorMessage(
+            `Vượt hạn mức ghi nợ! Khách hàng "${selectedCustomer.name}" có hạn mức ${formatVND(selectedCustomer.creditLimit)}, hiện đang nợ ${formatVND(currentDebt)}. Đơn này nợ thêm ${formatVND(finalAmount)} vượt hạn mức ${formatVND(excess)}.`
+          );
+          return;
+        }
+      }
     }
 
     setErrorMessage(null);
@@ -1165,9 +1179,32 @@ function POSMonitorScreenInner({
               )}
 
               {paymentMethod === "debt" && (
-                <div className="rounded-lg border border-purple-500/30 bg-purple-500/10 p-1.5 text-[10px] text-purple-200">
+                <div className={cn(
+                  "rounded-lg border p-1.5 text-[10px]",
+                  selectedCustomer && selectedCustomer.creditLimit > 0 && ((selectedCustomer.debtBalance || 0) + finalAmount) > selectedCustomer.creditLimit
+                    ? "border-red-500/40 bg-red-500/20 text-red-200"
+                    : "border-purple-500/30 bg-purple-500/10 text-purple-200"
+                )}>
                   {selectedCustomer ? (
-                    <span>Ghi nhận công nợ vào tài khoản: <strong>{selectedCustomer.name}</strong></span>
+                    <div className="space-y-0.5">
+                      <div className="flex items-center justify-between">
+                        <span>Ghi nợ: <strong>{selectedCustomer.name}</strong></span>
+                        {selectedCustomer.creditLimit > 0 && (
+                          <span className="font-mono bg-white/10 px-1 rounded text-[9px]">
+                            HM: {formatVND(selectedCustomer.creditLimit)}
+                          </span>
+                        )}
+                      </div>
+                      {selectedCustomer.creditLimit > 0 && ((selectedCustomer.debtBalance || 0) + finalAmount) > selectedCustomer.creditLimit ? (
+                        <p className="text-red-300 font-semibold">
+                          ⚠️ VƯỢT HẠN MỨC GHI NỢ (+{formatVND((selectedCustomer.debtBalance || 0) + finalAmount - selectedCustomer.creditLimit)})
+                        </p>
+                      ) : (
+                        <p className="text-slate-300 text-[9px]">
+                          Cộng thêm {formatVND(finalAmount)} vào công nợ (hiện tại: {formatVND(selectedCustomer.debtBalance || 0)}).
+                        </p>
+                      )}
+                    </div>
                   ) : (
                     <span className="text-amber-300">⚠️ Vui lòng chọn Khách hàng cụ thể bên trên để ghi nợ.</span>
                   )}
@@ -1185,13 +1222,28 @@ function POSMonitorScreenInner({
               <button
                 type="button"
                 onClick={handleCheckout}
-                disabled={orderLines.length === 0 || createOrderMutation.isPending}
-                className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 py-3 font-bold text-sm text-white shadow-lg shadow-emerald-500/20 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                disabled={
+                  orderLines.length === 0 ||
+                  createOrderMutation.isPending ||
+                  (paymentMethod === "debt" && !selectedCustomerId) ||
+                  (paymentMethod === "debt" && !!selectedCustomer && selectedCustomer.creditLimit > 0 && ((selectedCustomer.debtBalance || 0) + finalAmount) > selectedCustomer.creditLimit)
+                }
+                className={cn(
+                  "w-full flex items-center justify-center gap-2 rounded-xl py-3 font-bold text-sm text-white shadow-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed",
+                  paymentMethod === "debt" && selectedCustomer && selectedCustomer.creditLimit > 0 && ((selectedCustomer.debtBalance || 0) + finalAmount) > selectedCustomer.creditLimit
+                    ? "bg-red-600 hover:bg-red-700 shadow-red-500/20"
+                    : "bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 shadow-emerald-500/20"
+                )}
               >
                 {createOrderMutation.isPending ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
                     Đang xử lý đơn hàng...
+                  </>
+                ) : paymentMethod === "debt" && selectedCustomer && selectedCustomer.creditLimit > 0 && ((selectedCustomer.debtBalance || 0) + finalAmount) > selectedCustomer.creditLimit ? (
+                  <>
+                    <ShieldAlert className="h-4 w-4 text-white" />
+                    Vượt hạn mức nợ (+{formatVND((selectedCustomer.debtBalance || 0) + finalAmount - selectedCustomer.creditLimit)})
                   </>
                 ) : (
                   <>

@@ -4,6 +4,7 @@ import { OrderItem } from '../../entities/OrderItem.js';
 import { IOrderRepository } from '../../repositories/IOrderRepository.js';
 import { IProductRepository } from '../../repositories/IProductRepository.js';
 import { IInventoryRepository } from '../../repositories/IInventoryRepository.js';
+import { ICustomerRepository } from '../../repositories/ICustomerRepository.js';
 import { NotFoundError } from '../../errors/NotFoundError.js';
 import { ValidationError } from '../../errors/ValidationError.js';
 import { appEventEmitter } from '../../../frameworks/websocket/eventEmitter.js';
@@ -43,6 +44,7 @@ export class CreateOrderUseCase {
     private readonly orderRepo: IOrderRepository,
     private readonly productRepo: IProductRepository,
     private readonly inventoryRepo: IInventoryRepository,
+    private readonly customerRepo?: ICustomerRepository,
   ) {}
 
   async execute(input: CreateOrderInput): Promise<CreateOrderOutput> {
@@ -71,6 +73,28 @@ export class CreateOrderUseCase {
     // 3. Calculate totals
     const totalAmount = data.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
     const finalAmount = totalAmount - data.discountAmount;
+
+    // 3.5. Verify customer credit limit if order incurs debt
+    if (data.debtAmount > 0) {
+      if (!data.customerId) {
+        throw new ValidationError('Đơn hàng ghi nợ bắt buộc phải chọn khách hàng');
+      }
+      if (this.customerRepo) {
+        const customer = await this.customerRepo.findById(data.customerId);
+        if (!customer) {
+          throw new NotFoundError('Khách hàng', 'Không tìm thấy thông tin khách hàng');
+        }
+        if (!customer.isActive) {
+          throw new ValidationError(`Khách hàng "${customer.name}" đang bị tạm khóa`);
+        }
+        if (customer.creditLimit > 0 && (customer.debtBalance + data.debtAmount) > customer.creditLimit) {
+          const excess = (customer.debtBalance + data.debtAmount) - customer.creditLimit;
+          throw new ValidationError(
+            `Không thể ghi nợ! Khách hàng "${customer.name}" có hạn mức nợ ${new Intl.NumberFormat('vi-VN').format(customer.creditLimit)}đ, hiện đang nợ ${new Intl.NumberFormat('vi-VN').format(customer.debtBalance)}đ. Đơn hàng nợ thêm ${new Intl.NumberFormat('vi-VN').format(data.debtAmount)}đ sẽ vượt hạn mức ${new Intl.NumberFormat('vi-VN').format(excess)}đ.`
+          );
+        }
+      }
+    }
 
     // 4. Create order (as draft)
     const order = Order.create({

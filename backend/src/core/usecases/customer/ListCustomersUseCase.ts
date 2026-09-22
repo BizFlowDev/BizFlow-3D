@@ -5,7 +5,7 @@ export interface ListCustomersInput {
   storeId: string;
   isActive?: boolean;
   search?: string;
-  filter?: 'all' | 'has_debt' | 'no_debt';
+  filter?: 'all' | 'has_debt' | 'no_debt' | 'overdue';
   page?: number;
   limit?: number;
 }

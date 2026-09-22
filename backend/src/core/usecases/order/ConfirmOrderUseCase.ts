@@ -55,6 +55,12 @@ export class ConfirmOrderUseCase {
     if (order.customerId && order.debtAmount > 0) {
       const customer = await this.customerRepo.findById(order.customerId);
       if (customer) {
+        if (customer.creditLimit > 0 && (customer.debtBalance + order.debtAmount) > customer.creditLimit) {
+          const excess = (customer.debtBalance + order.debtAmount) - customer.creditLimit;
+          throw new ValidationError(
+            `Không thể xác nhận đơn hàng! Khách hàng "${customer.name}" có hạn mức nợ ${new Intl.NumberFormat('vi-VN').format(customer.creditLimit)}đ, hiện đang nợ ${new Intl.NumberFormat('vi-VN').format(customer.debtBalance)}đ. Đơn hàng nợ thêm ${new Intl.NumberFormat('vi-VN').format(order.debtAmount)}đ sẽ vượt hạn mức ${new Intl.NumberFormat('vi-VN').format(excess)}đ.`
+          );
+        }
         await this.customerRepo.updateDebtBalance(
           order.customerId,
           customer.debtBalance + order.debtAmount,

@@ -11,6 +11,8 @@ export interface UpdateCustomerInput {
   email?: string | null;
   address?: string | null;
   note?: string | null;
+  creditLimit?: number;
+  paymentTermDays?: number;
   isActive?: boolean;
 }
 
@@ -39,6 +41,8 @@ export class UpdateCustomerUseCase {
       email?: string | null;
       address?: string | null;
       note?: string | null;
+      creditLimit?: number;
+      paymentTermDays?: number;
       isActive?: boolean;
     } = {};
     if (input.name !== undefined) updateData.name = input.name;
@@ -46,6 +50,8 @@ export class UpdateCustomerUseCase {
     if (input.email !== undefined) updateData.email = input.email;
     if (input.address !== undefined) updateData.address = input.address;
     if (input.note !== undefined) updateData.note = input.note;
+    if (input.creditLimit !== undefined) updateData.creditLimit = input.creditLimit;
+    if (input.paymentTermDays !== undefined) updateData.paymentTermDays = input.paymentTermDays;
     if (input.isActive !== undefined) updateData.isActive = input.isActive;
 
     return this.customerRepo.update(input.customerId, updateData);

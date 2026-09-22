@@ -12,7 +12,11 @@ export class PostgresDebtPaymentRepository implements IDebtPaymentRepository {
 
   async findByCustomerId(customerId: string): Promise<DebtPayment[]> {
     const res = await query(
-      'SELECT * FROM debt_payments WHERE customer_id = $1 ORDER BY created_at DESC',
+      `SELECT dp.*, u.full_name AS created_by_name 
+       FROM debt_payments dp
+       LEFT JOIN users u ON u.id = dp.created_by
+       WHERE dp.customer_id = $1 
+       ORDER BY dp.created_at DESC`,
       [customerId]
     );
     return res.rows.map(row => DebtPayment.fromPersistence(mapToCamelCase(row)));
@@ -46,24 +50,17 @@ export class PostgresDebtPaymentRepository implements IDebtPaymentRepository {
   async getDebtSummary(storeId: string): Promise<DebtSummaryRow[]> {
     const text = `
       SELECT 
-        c.id as "customerId",
-        c.name as "customerName",
-        c.phone as "customerPhone",
-        c.debt_balance as "currentDebt",
-        COALESCE(SUM(dp.amount), 0) as "totalPaid",
-        COALESCE(SUM(o.debt_amount), 0) as "totalDebtCreated",
-        c.debt_balance as "remainingDebt"
-      FROM customers c
-      LEFT JOIN debt_payments dp ON c.id = dp.customer_id
-      LEFT JOIN orders o ON c.id = o.customer_id AND o.status = 'confirmed'
-      WHERE c.store_id = $1
-      GROUP BY c.id, c.name, c.phone, c.debt_balance
-      ORDER BY c.debt_balance DESC
+        customer_id as "customerId",
+        name as "customerName",
+        phone as "customerPhone",
+        current_debt as "currentDebt",
+        total_paid as "totalPaid",
+        total_debt_created as "totalDebtCreated",
+        remaining_debt as "remainingDebt"
+      FROM vw_customer_debt_summary
+      WHERE store_id = $1
+      ORDER BY current_debt DESC
     `;
-    // If there is a view `vw_customer_debt_summary`, we would use:
-    // SELECT * FROM vw_customer_debt_summary WHERE store_id = $1
-    // For now, we fallback to a left join to ensure it works regardless of the view.
-    
     const res = await query(text, [storeId]);
     return res.rows.map(row => ({
       customerId: row.customerId,
@@ -79,23 +76,18 @@ export class PostgresDebtPaymentRepository implements IDebtPaymentRepository {
   async getCustomerDebtSummary(customerId: string): Promise<DebtSummaryRow | null> {
     const text = `
       SELECT 
-        c.id as "customerId",
-        c.name as "customerName",
-        c.phone as "customerPhone",
-        c.debt_balance as "currentDebt",
-        COALESCE(SUM(dp.amount), 0) as "totalPaid",
-        COALESCE(SUM(o.debt_amount), 0) as "totalDebtCreated",
-        c.debt_balance as "remainingDebt"
-      FROM customers c
-      LEFT JOIN debt_payments dp ON c.id = dp.customer_id
-      LEFT JOIN orders o ON c.id = o.customer_id AND o.status = 'confirmed'
-      WHERE c.id = $1
-      GROUP BY c.id, c.name, c.phone, c.debt_balance
+        customer_id as "customerId",
+        name as "customerName",
+        phone as "customerPhone",
+        current_debt as "currentDebt",
+        total_paid as "totalPaid",
+        total_debt_created as "totalDebtCreated",
+        remaining_debt as "remainingDebt"
+      FROM vw_customer_debt_summary
+      WHERE customer_id = $1
     `;
-    
     const res = await query(text, [customerId]);
     if (res.rowCount === 0) return null;
-    
     const row = res.rows[0];
     return {
       customerId: row.customerId,

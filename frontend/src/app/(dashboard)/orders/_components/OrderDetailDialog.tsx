@@ -223,7 +223,7 @@ export default function OrderDetailDialog({
               />
               <InfoItem
                 icon={AlertTriangle}
-                label="Còn nợ"
+                label="Ghi nợ"
                 value={
                   order.debtAmount > 0
                     ? formatCurrency(order.debtAmount)
@@ -236,8 +236,8 @@ export default function OrderDetailDialog({
                   order.paymentMethod === "qr_code"
                     ? QrCode
                     : order.paymentMethod === "debt"
-                    ? FileText
-                    : Banknote
+                      ? FileText
+                      : Banknote
                 }
                 label="Hình thức TT"
                 value={paymentMethodBadge(order.paymentMethod).label}
@@ -345,7 +345,7 @@ export default function OrderDetailDialog({
                 )}
                 {order.debtAmount > 0 && (
                   <div className="flex justify-between text-xs font-semibold text-red-500">
-                    <span>Còn nợ:</span>
+                    <span>Ghi nợ:</span>
                     <span className="font-mono tabular-nums">
                       {formatCurrency(order.debtAmount)}
                     </span>

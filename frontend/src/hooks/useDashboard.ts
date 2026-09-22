@@ -171,12 +171,11 @@ export function useRevenueData() {
  */
 export function useRevenueComparison(range: DashboardRevenueRange = "7d") {
   return useQuery({
-    queryKey: dashboardKeys.revenue(range),
+    queryKey: dashboardKeys.revenueComparison(range),
     queryFn: async (): Promise<RevenueComparisonSummary> => {
       const { fetchFromDate, fetchToDate, currentDays, previousDays } =
         getDashboardRangeDates(range);
 
-      let rows: DailyRevenuePoint[] = [];
       try {
         const { data } = await apiClient.get<
           ApiResponseData<DailyRevenuePoint[]>
@@ -186,19 +185,16 @@ export function useRevenueComparison(range: DashboardRevenueRange = "7d") {
             toDate: fetchToDate.toISOString(),
           },
         });
-        if (data.data && data.data.length > 0) {
-          rows = data.data;
+        if (data.data) {
+          return buildRevenueComparisonSeries(data.data, currentDays, previousDays);
         }
       } catch {
-        // Fallback mock
+        // Fallback mock khi API lỗi
       }
 
-      if (rows.length === 0) {
-        await delay(300);
-        rows = generateMockRevenuePoints(fetchFromDate, fetchToDate);
-      }
-
-      return buildRevenueComparisonSeries(rows, currentDays, previousDays);
+      await delay(300);
+      const mockRows = generateMockRevenuePoints(fetchFromDate, fetchToDate);
+      return buildRevenueComparisonSeries(mockRows, currentDays, previousDays);
     },
     staleTime: 60_000,
   });

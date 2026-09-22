@@ -311,7 +311,7 @@ export default function OrdersPage() {
                               <p className="font-medium">{order.customerName}</p>
                               {order.debtAmount > 0 && (
                                 <p className="text-xs font-semibold text-red-500">
-                                  Nợ {formatCurrency(order.debtAmount)}
+                                  Ghi nợ {formatCurrency(order.debtAmount)}
                                 </p>
                               )}
                             </div>

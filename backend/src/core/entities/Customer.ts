@@ -10,6 +10,8 @@ export const CustomerSchema = z.object({
   email: z.string().email().max(255).nullish(),
   address: z.string().nullish(),
   debtBalance: z.coerce.number(),
+  creditLimit: z.coerce.number().default(0),
+  paymentTermDays: z.coerce.number().int().default(30),
   note: z.string().nullish(),
   isActive: z.boolean(),
   createdAt: z.coerce.date(),
@@ -27,6 +29,8 @@ export class Customer {
   readonly email: string | null;
   readonly address: string | null;
   readonly debtBalance: number;
+  readonly creditLimit: number;
+  readonly paymentTermDays: number;
   readonly note: string | null;
   readonly isActive: boolean;
   readonly createdAt: Date;
@@ -42,6 +46,8 @@ export class Customer {
     this.email = props.email ?? null;
     this.address = props.address ?? null;
     this.debtBalance = props.debtBalance;
+    this.creditLimit = props.creditLimit ?? 0;
+    this.paymentTermDays = props.paymentTermDays ?? 30;
     this.note = props.note ?? null;
     this.isActive = props.isActive;
     this.createdAt = props.createdAt;
@@ -49,10 +55,12 @@ export class Customer {
   }
 
   static create(
-    props: Omit<CustomerProps, 'id' | 'createdAt' | 'updatedAt' | 'isActive' | 'debtBalance'> & {
+    props: Omit<CustomerProps, 'id' | 'createdAt' | 'updatedAt' | 'isActive' | 'debtBalance' | 'creditLimit' | 'paymentTermDays'> & {
       id?: string;
       isActive?: boolean;
       debtBalance?: number;
+      creditLimit?: number;
+      paymentTermDays?: number;
     },
   ): Customer {
     const now = new Date();
@@ -60,6 +68,8 @@ export class Customer {
       id: props.id ?? crypto.randomUUID(),
       isActive: props.isActive ?? true,
       debtBalance: props.debtBalance ?? 0,
+      creditLimit: props.creditLimit ?? 0,
+      paymentTermDays: props.paymentTermDays ?? 30,
       ...props,
       createdAt: now,
       updatedAt: now,
@@ -81,5 +91,10 @@ export class Customer {
   /** Check if customer has outstanding debt. */
   hasDebt(): boolean {
     return this.debtBalance > 0;
+  }
+
+  /** Check if customer exceeds credit limit (when credit limit is set > 0). */
+  isExceedingCreditLimit(): boolean {
+    return this.creditLimit > 0 && this.debtBalance > this.creditLimit;
   }
 }

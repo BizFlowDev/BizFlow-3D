@@ -89,6 +89,9 @@ export const dashboardKeys = {
   all: ["dashboard"] as const,
   revenue: (range: string = "7d") => ["dashboard", "revenue", range] as const,
   revenueBase: ["dashboard", "revenue"] as const,
+  revenueComparison: (range: string = "7d") =>
+    ["dashboard", "revenue-comparison", range] as const,
+  revenueComparisonBase: ["dashboard", "revenue-comparison"] as const,
   topProducts: ["dashboard", "top-products"] as const,
   recentOrders: ["dashboard", "recent-orders"] as const,
   lowStock: ["dashboard", "low-stock"] as const,

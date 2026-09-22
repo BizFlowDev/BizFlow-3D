@@ -15,6 +15,9 @@ import {
   CheckCircle2,
   UserPlus,
   Pencil,
+  ShieldAlert,
+  Clock,
+  DollarSign,
 } from "lucide-react";
 import {
   Dialog,
@@ -54,6 +57,8 @@ const customerSchema = z.object({
     .or(z.literal(""))
     .optional(),
   address: z.string().max(500, "Địa chỉ không quá 500 ký tự").optional(),
+  creditLimit: z.number().min(0, "Hạn mức nợ không được âm"),
+  paymentTermDays: z.number().int().min(1, "Thời hạn tối thiểu 1 ngày"),
   note: z.string().max(1000, "Ghi chú không quá 1000 ký tự").optional(),
 });
 
@@ -83,6 +88,7 @@ export function CustomerFormDialog({
     register,
     handleSubmit,
     reset,
+    setValue,
     formState: { errors },
   } = useForm<CustomerFormValues>({
     resolver: zodResolver(customerSchema),
@@ -91,6 +97,8 @@ export function CustomerFormDialog({
       phone: "",
       email: "",
       address: "",
+      creditLimit: 0,
+      paymentTermDays: 30,
       note: "",
     },
   });
@@ -103,10 +111,20 @@ export function CustomerFormDialog({
         phone: customer.phone || "",
         email: customer.email || "",
         address: customer.address || "",
+        creditLimit: customer.creditLimit ?? 0,
+        paymentTermDays: customer.paymentTermDays ?? 30,
         note: customer.note || "",
       });
     } else if (!open) {
-      reset({ name: "", phone: "", email: "", address: "", note: "" });
+      reset({
+        name: "",
+        phone: "",
+        email: "",
+        address: "",
+        creditLimit: 0,
+        paymentTermDays: 30,
+        note: "",
+      });
       setShowSuccess(false);
     }
   }, [customer, open, reset]);
@@ -276,6 +294,90 @@ export function CustomerFormDialog({
                       {...register("address")}
                     />
                   </div>
+                </div>
+
+                {/* ── Chính sách công nợ ── */}
+                <div className="rounded-xl border border-border/70 bg-muted/20 p-3.5 space-y-3.5">
+                  <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
+                    <ShieldAlert className="h-4 w-4 text-blue-500" />
+                    Chính sách công nợ & Thời hạn thanh toán
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    {/* Credit Limit */}
+                    <div className="space-y-1.5">
+                      <Label htmlFor="customer-credit-limit" className="text-xs font-medium">
+                        Hạn mức nợ tối đa (VNĐ)
+                      </Label>
+                      <div className="relative">
+                        <DollarSign className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                        <Input
+                          id="customer-credit-limit"
+                          type="number"
+                          placeholder="0 = Không giới hạn"
+                          className="pl-8 text-xs font-medium"
+                          {...register("creditLimit", { valueAsNumber: true })}
+                        />
+                      </div>
+                      <div className="flex flex-wrap gap-1 pt-0.5">
+                        {[
+                          { label: "0₫", value: 0 },
+                          { label: "5tr", value: 5000000 },
+                          { label: "10tr", value: 10000000 },
+                          { label: "20tr", value: 20000000 },
+                        ].map((pill) => (
+                          <button
+                            key={pill.label}
+                            type="button"
+                            className="rounded px-2 py-0.5 text-[10px] border border-border hover:bg-accent transition-colors"
+                            onClick={() => setValue("creditLimit", pill.value)}
+                          >
+                            {pill.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Payment Term Days */}
+                    <div className="space-y-1.5">
+                      <Label htmlFor="customer-payment-term" className="text-xs font-medium">
+                        Thời hạn nợ cho phép
+                      </Label>
+                      <div className="relative">
+                        <Clock className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                        <Input
+                          id="customer-payment-term"
+                          type="number"
+                          placeholder="30"
+                          className="pl-8 pr-12 text-xs font-medium"
+                          {...register("paymentTermDays", { valueAsNumber: true })}
+                        />
+                        <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground">
+                          ngày
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-1 pt-0.5">
+                        {[
+                          { label: "15 ngày", value: 15 },
+                          { label: "30 ngày", value: 30 },
+                          { label: "45 ngày", value: 45 },
+                          { label: "60 ngày", value: 60 },
+                        ].map((pill) => (
+                          <button
+                            key={pill.label}
+                            type="button"
+                            className="rounded px-2 py-0.5 text-[10px] border border-border hover:bg-accent transition-colors"
+                            onClick={() => setValue("paymentTermDays", pill.value)}
+                          >
+                            {pill.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground italic">
+                    Hệ thống sẽ gắn cờ cảnh báo nếu khách hàng có đơn nợ quá số ngày quy định hoặc vượt hạn mức.
+                  </p>
                 </div>
 
                 {/* Note */}

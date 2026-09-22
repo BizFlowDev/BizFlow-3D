@@ -202,9 +202,9 @@ const deleteProductUseCase = new DeleteProductUseCase(productRepo);
 const createCustomerUseCase = new CreateCustomerUseCase(customerRepo);
 const updateCustomerUseCase = new UpdateCustomerUseCase(customerRepo);
 const listCustomersUseCase = new ListCustomersUseCase(customerRepo);
-const getCustomerDebtUseCase = new GetCustomerDebtUseCase(customerRepo, debtPaymentRepo);
+const getCustomerDebtUseCase = new GetCustomerDebtUseCase(customerRepo, debtPaymentRepo, orderRepo);
 
-const createOrderUseCase = new CreateOrderUseCase(orderRepo, productRepo, inventoryRepo);
+const createOrderUseCase = new CreateOrderUseCase(orderRepo, productRepo, inventoryRepo, customerRepo);
 const autoPostingUseCase = new AutoPostingUseCase(accountingRepo);
 const confirmOrderUseCase = new ConfirmOrderUseCase(orderRepo, inventoryRepo, customerRepo, autoPostingUseCase, productRepo);
 const listOrdersUseCase = new ListOrdersUseCase(orderRepo);
