@@ -25,6 +25,7 @@ import adminRoutes from './routes/adminRoutes.js';
 import announcementRoutes from './routes/announcementRoutes.js';
 import storeRoutes from './routes/storeRoutes.js';
 import uploadRoutes from './routes/uploadRoutes.js';
+import employeeRoutes from './routes/employeeRoutes.js';
 
 export function createServer(): Express {
   const app = express();
@@ -56,6 +57,7 @@ export function createServer(): Express {
   apiRouter.use('/announcements', announcementRoutes);
   apiRouter.use('/stores', storeRoutes);
   apiRouter.use('/upload', uploadRoutes);
+  apiRouter.use('/employees', employeeRoutes);
 
   app.use('/api/v1', apiRouter);
 

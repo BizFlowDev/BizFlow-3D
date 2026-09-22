@@ -1,5 +1,5 @@
 import { User } from '../../../core/entities/User.js';
-import { IUserRepository } from '../../../core/repositories/IUserRepository.js';
+import { IUserRepository, EmployeeFilter, EmployeeSearchResult } from '../../../core/repositories/IUserRepository.js';
 import { query } from '../connection.js';
 import { mapToCamelCase } from '../mapper.js';
 
@@ -111,5 +111,43 @@ export class PostgresUserRepository implements IUserRepository {
       `SELECT COUNT(*)::int AS total FROM users WHERE role IN ('owner', 'employee')`,
     );
     return parseInt(res.rows[0].total, 10) || 0;
+  }
+
+  async searchEmployees(filter: EmployeeFilter): Promise<EmployeeSearchResult> {
+    const conditions = [`store_id = $1`, `role = 'employee'`];
+    const params: any[] = [filter.storeId];
+    let idx = 2;
+
+    if (filter.search) {
+      conditions.push(`(full_name ILIKE $${idx} OR email ILIKE $${idx})`);
+      params.push(`%${filter.search}%`);
+      idx++;
+    }
+
+    const whereClause = `WHERE ${conditions.join(' AND ')}`;
+
+    const countRes = await query(
+      `SELECT COUNT(*)::int AS total FROM users ${whereClause}`,
+      params,
+    );
+    const total = parseInt(countRes.rows[0].total, 10) || 0;
+
+    const page = filter.page ?? 1;
+    const limit = Math.min(filter.limit ?? 10, 100);
+    const offset = (page - 1) * limit;
+
+    const dataRes = await query(
+      `SELECT * FROM users ${whereClause}
+       ORDER BY created_at DESC
+       LIMIT $${idx++} OFFSET $${idx}`,
+      [...params, limit, offset],
+    );
+
+    return {
+      data: dataRes.rows.map((row) => User.fromPersistence(mapToCamelCase(row))),
+      total,
+      page,
+      limit,
+    };
   }
 }

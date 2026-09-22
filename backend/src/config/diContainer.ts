@@ -77,6 +77,11 @@ import { ListStoresUseCase } from '../core/usecases/admin/ListStoresUseCase.js';
 import { GetStoreDetailUseCase } from '../core/usecases/admin/GetStoreDetailUseCase.js';
 import { CreateStoreUseCase } from '../core/usecases/admin/CreateStoreUseCase.js';
 
+import { ListEmployeesUseCase } from '../core/usecases/employee/ListEmployeesUseCase.js';
+import { CreateEmployeeUseCase } from '../core/usecases/employee/CreateEmployeeUseCase.js';
+import { ToggleEmployeeStatusUseCase } from '../core/usecases/employee/ToggleEmployeeStatusUseCase.js';
+import { ResetEmployeePasswordUseCase } from '../core/usecases/employee/ResetEmployeePasswordUseCase.js';
+
 // Import Controllers
 import { AuthController } from '../adapters/controllers/AuthController.js';
 import { ProductController } from '../adapters/controllers/ProductController.js';
@@ -88,6 +93,7 @@ import { ReportController } from '../adapters/controllers/ReportController.js';
 import { AiOrderController } from '../adapters/controllers/AiOrderController.js';
 import { AccountingController } from '../adapters/controllers/AccountingController.js';
 import { AdminController } from '../adapters/controllers/AdminController.js';
+import { EmployeeController } from '../adapters/controllers/EmployeeController.js';
 
 // ── Service Implementations ──────────────────────────────────────────────────
 
@@ -234,6 +240,11 @@ const getSystemAnalyticsUseCase = new GetSystemAnalyticsUseCase(
   systemConfigRepo,
 );
 
+const listEmployeesUseCase = new ListEmployeesUseCase(userRepo);
+const createEmployeeUseCase = new CreateEmployeeUseCase(userRepo, passwordService);
+const toggleEmployeeStatusUseCase = new ToggleEmployeeStatusUseCase(userRepo);
+const resetEmployeePasswordUseCase = new ResetEmployeePasswordUseCase(userRepo, passwordService);
+
 // ── Initialize Controllers ───────────────────────────────────────────────────
 export const controllers = {
   authController: new AuthController(
@@ -288,6 +299,14 @@ export const controllers = {
     orderRepo,
   ),
   accountingController: new AccountingController(generateFinancialReportUseCase),
+  employeeController: new EmployeeController(
+    listEmployeesUseCase,
+    createEmployeeUseCase,
+    toggleEmployeeStatusUseCase,
+    resetEmployeePasswordUseCase,
+    userRepo,
+    auditLogRepo,
+  ),
   adminController: new AdminController(
     manageStoreSubscriptionUseCase,
     toggleStoreStatusUseCase,

@@ -1,5 +1,19 @@
 import { User } from '../entities/User.js';
 
+export interface EmployeeFilter {
+  storeId: string;
+  search?: string;
+  page?: number;
+  limit?: number;
+}
+
+export interface EmployeeSearchResult {
+  data: User[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
 export interface IUserRepository {
   findById(id: string): Promise<User | null>;
   findByEmail(email: string, storeId?: string | null): Promise<User | null>;
@@ -16,4 +30,7 @@ export interface IUserRepository {
 
   /** Total platform users excluding system admins. */
   countNonAdminUsers(): Promise<number>;
+
+  /** Search employees of a store with pagination (role = 'employee'). */
+  searchEmployees(filter: EmployeeFilter): Promise<EmployeeSearchResult>;
 }
