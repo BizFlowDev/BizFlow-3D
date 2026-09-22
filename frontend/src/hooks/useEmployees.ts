@@ -133,6 +133,27 @@ export function useResetPassword() {
   });
 }
 
+/** Xóa mềm nhân viên (Owner) */
+export function useDeleteEmployee() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (
+      employeeId: string
+    ): Promise<{ success: boolean; id: string }> => {
+      const { data: res } = await apiClient.delete<
+        ApiResponseData<{ success: boolean; id: string }>
+      >(`/employees/${employeeId}`);
+      return res.data!;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["employees"] });
+      queryClient.invalidateQueries({ queryKey: ["employee-audit"] });
+      queryClient.invalidateQueries({ queryKey: ["current-store"] });
+    },
+  });
+}
+
 /** Lấy audit log của 1 nhân viên */
 export function useEmployeeAuditLog(employeeId: string | null) {
   return useQuery({

@@ -25,6 +25,9 @@ export interface IUserRepository {
   ): Promise<User>;
   delete(id: string): Promise<void>;
 
+  /** Soft-delete a user (marks deleted_at and sets is_active to false). */
+  softDelete(id: string): Promise<void>;
+
   /** Update last login timestamp for a user. */
   updateLastLogin(id: string): Promise<void>;
 

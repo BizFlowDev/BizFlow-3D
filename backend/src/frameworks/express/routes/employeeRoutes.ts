@@ -19,6 +19,7 @@ router.get('/', employeeController.list);
 router.post('/', validate(createEmployeeSchema), employeeController.create);
 router.patch('/:id/status', validate(toggleEmployeeStatusSchema), employeeController.toggleStatus);
 router.patch('/:id/reset-password', validate(resetEmployeePasswordSchema), employeeController.resetPassword);
+router.delete('/:id', employeeController.softDelete);
 router.get('/:id/audit-log', employeeController.getAuditLog);
 
 export default router;

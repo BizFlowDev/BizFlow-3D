@@ -12,6 +12,7 @@ export const UserSchema = z.object({
   role: z.enum(['owner', 'employee', 'admin']),
   isActive: z.boolean(),
   lastLoginAt: z.coerce.date().nullish(),
+  deletedAt: z.coerce.date().nullish(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
 });
@@ -29,6 +30,7 @@ export class User {
   readonly role: 'owner' | 'employee' | 'admin';
   readonly isActive: boolean;
   readonly lastLoginAt: Date | null;
+  readonly deletedAt: Date | null;
   readonly createdAt: Date;
   readonly updatedAt: Date;
 
@@ -42,13 +44,14 @@ export class User {
     this.role = props.role;
     this.isActive = props.isActive;
     this.lastLoginAt = props.lastLoginAt ?? null;
+    this.deletedAt = props.deletedAt ?? null;
     this.createdAt = props.createdAt;
     this.updatedAt = props.updatedAt;
   }
 
   /** Create a brand-new User. Password must be pre-hashed. */
   static create(
-    props: Omit<UserProps, 'id' | 'createdAt' | 'updatedAt' | 'isActive' | 'lastLoginAt'> & {
+    props: Omit<UserProps, 'id' | 'createdAt' | 'updatedAt' | 'isActive' | 'lastLoginAt' | 'deletedAt'> & {
       id?: string;
       isActive?: boolean;
     },
@@ -58,6 +61,7 @@ export class User {
       id: props.id ?? crypto.randomUUID(),
       isActive: props.isActive ?? true,
       lastLoginAt: null,
+      deletedAt: null,
       ...props,
       createdAt: now,
       updatedAt: now,
@@ -85,6 +89,11 @@ export class User {
   /** Check if user is system admin. */
   isAdmin(): boolean {
     return this.role === 'admin';
+  }
+
+  /** Check if user is soft deleted. */
+  isDeleted(): boolean {
+    return this.deletedAt !== null;
   }
 
   /** Check if user belongs to a specific store. */

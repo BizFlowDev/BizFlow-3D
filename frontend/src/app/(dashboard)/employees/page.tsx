@@ -20,6 +20,8 @@ import {
   X,
   UserCog,
   Mail,
+  Crown,
+  Trash2,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -49,6 +51,9 @@ import {
 import type { Employee, EmployeeListParams } from "@/hooks/useEmployees";
 import { EmployeeFormDialog } from "./_components/EmployeeFormDialog";
 import { ResetPasswordDialog } from "./_components/ResetPasswordDialog";
+import { DeleteEmployeeDialog } from "./_components/DeleteEmployeeDialog";
+import { useCurrentStore, useStoreSubscriptionPlans } from "@/hooks/useStore";
+import { UpgradePlanModal } from "@/components/shared/UpgradePlanModal";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -111,6 +116,12 @@ function getActionLabel(action: string): {
         color:
           "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400",
       };
+    case "employee_deleted":
+      return {
+        label: "Xóa nhân viên",
+        color:
+          "bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-400",
+      };
     default:
       return {
         label: action,
@@ -152,8 +163,17 @@ export default function EmployeesPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
   const [resetEmployee, setResetEmployee] = useState<Employee | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteEmployee, setDeleteEmployee] = useState<Employee | null>(null);
   const [auditEmployeeId, setAuditEmployeeId] = useState<string | null>(null);
   const [auditEmployeeName, setAuditEmployeeName] = useState<string>("");
+  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
+
+  const { data: store } = useCurrentStore();
+  const { data: plans } = useStoreSubscriptionPlans();
+
+  const currentPlan = plans?.find((p) => p.slug === store?.subscriptionPlan);
+  const maxEmployees = currentPlan?.maxEmployees ?? 1;
 
   // Debounced search
   const debouncedSearch = useMemo(() => {
@@ -179,6 +199,14 @@ export default function EmployeesPage() {
   const totalPages = data?.totalPages ?? 1;
   const currentPage = data?.page ?? 1;
 
+  const isLimitReached = total >= maxEmployees;
+  const isExpired =
+    store?.subscriptionStatus === "expired" ||
+    Boolean(
+      store?.subscriptionExpiresAt &&
+        new Date(store.subscriptionExpiresAt) < new Date()
+    );
+
   const toggleStatusMutation = useToggleEmployeeStatus();
 
   const { data: auditLogs, isLoading: auditLoading } =
@@ -199,6 +227,11 @@ export default function EmployeesPage() {
   const handleResetPassword = (employee: Employee) => {
     setResetEmployee(employee);
     setResetDialogOpen(true);
+  };
+
+  const handleDeleteEmployee = (employee: Employee) => {
+    setDeleteEmployee(employee);
+    setDeleteDialogOpen(true);
   };
 
   const handleViewAuditLog = (employee: Employee) => {
@@ -227,9 +260,33 @@ export default function EmployeesPage() {
           <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
             Nhân viên
           </h1>
-          <p className="mt-1 text-muted-foreground">
-            Quản lý tài khoản nhân viên cửa hàng.
-          </p>
+          <div className="flex flex-wrap items-center gap-2 mt-1">
+            <p className="text-muted-foreground text-sm">
+              Quản lý tài khoản nhân viên cửa hàng.
+            </p>
+            <Badge
+              variant="outline"
+              onClick={() => setUpgradeModalOpen(true)}
+              className={`cursor-pointer transition-all hover:scale-102 gap-1.5 py-0.5 px-2 text-xs font-medium ${
+                isExpired
+                  ? "border-red-500/40 bg-red-500/10 text-red-600 dark:text-red-400"
+                  : isLimitReached
+                  ? "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300"
+                  : "border-border/60 bg-muted/40"
+              }`}
+              title="Nhấp để nâng cấp gói dịch vụ"
+            >
+              <Crown className={`h-3 w-3 ${isLimitReached || isExpired ? "text-amber-500 animate-pulse" : "text-muted-foreground"}`} />
+              <span>
+                Hạn mức: <strong>{total}/{maxEmployees}</strong> ({currentPlan?.name || store?.subscriptionPlan || "Basic"})
+              </span>
+              {(isLimitReached || isExpired) && (
+                <span className="rounded bg-amber-500/20 px-1 py-0.2 text-[10px] font-bold text-amber-700 dark:text-amber-300 uppercase">
+                  {isExpired ? "Hết hạn" : "Đạt giới hạn"}
+                </span>
+              )}
+            </Badge>
+          </div>
         </div>
         <Button
           onClick={() => setFormOpen(true)}
@@ -486,6 +543,14 @@ export default function EmployeesPage() {
                                 ? "Ẩn lịch sử"
                                 : "Xem lịch sử"}
                             </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onClick={() => handleDeleteEmployee(employee)}
+                              className="text-red-600 focus:bg-red-50 focus:text-red-700 dark:text-red-400 dark:focus:bg-red-950/40 cursor-pointer"
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Xóa nhân viên
+                            </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
@@ -636,11 +701,24 @@ export default function EmployeesPage() {
       </AnimatePresence>
 
       {/* ── Dialogs ── */}
-      <EmployeeFormDialog open={formOpen} onOpenChange={setFormOpen} />
+      <EmployeeFormDialog
+        open={formOpen}
+        onOpenChange={setFormOpen}
+        currentEmployeeCount={total}
+      />
       <ResetPasswordDialog
         open={resetDialogOpen}
         onOpenChange={setResetDialogOpen}
         employee={resetEmployee}
+      />
+      <DeleteEmployeeDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        employee={deleteEmployee}
+      />
+      <UpgradePlanModal
+        open={upgradeModalOpen}
+        onOpenChange={setUpgradeModalOpen}
       />
     </motion.div>
   );

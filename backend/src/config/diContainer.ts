@@ -81,6 +81,7 @@ import { ListEmployeesUseCase } from '../core/usecases/employee/ListEmployeesUse
 import { CreateEmployeeUseCase } from '../core/usecases/employee/CreateEmployeeUseCase.js';
 import { ToggleEmployeeStatusUseCase } from '../core/usecases/employee/ToggleEmployeeStatusUseCase.js';
 import { ResetEmployeePasswordUseCase } from '../core/usecases/employee/ResetEmployeePasswordUseCase.js';
+import { SoftDeleteEmployeeUseCase } from '../core/usecases/employee/SoftDeleteEmployeeUseCase.js';
 
 // Import Controllers
 import { AuthController } from '../adapters/controllers/AuthController.js';
@@ -241,9 +242,15 @@ const getSystemAnalyticsUseCase = new GetSystemAnalyticsUseCase(
 );
 
 const listEmployeesUseCase = new ListEmployeesUseCase(userRepo);
-const createEmployeeUseCase = new CreateEmployeeUseCase(userRepo, passwordService);
+const createEmployeeUseCase = new CreateEmployeeUseCase(
+  userRepo,
+  passwordService,
+  storeRepo,
+  subscriptionPlanRepo,
+);
 const toggleEmployeeStatusUseCase = new ToggleEmployeeStatusUseCase(userRepo);
 const resetEmployeePasswordUseCase = new ResetEmployeePasswordUseCase(userRepo, passwordService);
+const softDeleteEmployeeUseCase = new SoftDeleteEmployeeUseCase(userRepo);
 
 // ── Initialize Controllers ───────────────────────────────────────────────────
 export const controllers = {
@@ -304,6 +311,7 @@ export const controllers = {
     createEmployeeUseCase,
     toggleEmployeeStatusUseCase,
     resetEmployeePasswordUseCase,
+    softDeleteEmployeeUseCase,
     userRepo,
     auditLogRepo,
   ),

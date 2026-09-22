@@ -11,7 +11,7 @@ export class PostgresUserRepository implements IUserRepository {
   }
 
   async findByEmail(email: string, storeId?: string | null): Promise<User | null> {
-    let text = 'SELECT * FROM users WHERE email = $1';
+    let text = 'SELECT * FROM users WHERE email = $1 AND deleted_at IS NULL';
     const params: any[] = [email];
     if (storeId !== undefined) {
       if (storeId === null) {
@@ -27,7 +27,7 @@ export class PostgresUserRepository implements IUserRepository {
   }
 
   async findByStoreId(storeId: string): Promise<User[]> {
-    const res = await query('SELECT * FROM users WHERE store_id = $1', [storeId]);
+    const res = await query('SELECT * FROM users WHERE store_id = $1 AND deleted_at IS NULL', [storeId]);
     return res.rows.map(row => User.fromPersistence(mapToCamelCase(row)));
   }
 
@@ -102,19 +102,26 @@ export class PostgresUserRepository implements IUserRepository {
     await query('DELETE FROM users WHERE id = $1', [id]);
   }
 
+  async softDelete(id: string): Promise<void> {
+    await query(
+      'UPDATE users SET deleted_at = NOW(), is_active = false, updated_at = NOW() WHERE id = $1',
+      [id],
+    );
+  }
+
   async updateLastLogin(id: string): Promise<void> {
     await query('UPDATE users SET last_login_at = $1 WHERE id = $2', [new Date(), id]);
   }
 
   async countNonAdminUsers(): Promise<number> {
     const res = await query(
-      `SELECT COUNT(*)::int AS total FROM users WHERE role IN ('owner', 'employee')`,
+      `SELECT COUNT(*)::int AS total FROM users WHERE role IN ('owner', 'employee') AND deleted_at IS NULL`,
     );
     return parseInt(res.rows[0].total, 10) || 0;
   }
 
   async searchEmployees(filter: EmployeeFilter): Promise<EmployeeSearchResult> {
-    const conditions = [`store_id = $1`, `role = 'employee'`];
+    const conditions = [`store_id = $1`, `role = 'employee'`, `deleted_at IS NULL`];
     const params: any[] = [filter.storeId];
     let idx = 2;
 

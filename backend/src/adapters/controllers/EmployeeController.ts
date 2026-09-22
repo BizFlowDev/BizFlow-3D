@@ -3,6 +3,7 @@ import { ListEmployeesUseCase } from '../../core/usecases/employee/ListEmployees
 import { CreateEmployeeUseCase } from '../../core/usecases/employee/CreateEmployeeUseCase.js';
 import { ToggleEmployeeStatusUseCase } from '../../core/usecases/employee/ToggleEmployeeStatusUseCase.js';
 import { ResetEmployeePasswordUseCase } from '../../core/usecases/employee/ResetEmployeePasswordUseCase.js';
+import { SoftDeleteEmployeeUseCase } from '../../core/usecases/employee/SoftDeleteEmployeeUseCase.js';
 import type { IUserRepository } from '../../core/repositories/IUserRepository.js';
 import type { IAuditLogRepository } from '../../core/repositories/IAuditLogRepository.js';
 import { AuditLog } from '../../core/entities/AuditLog.js';
@@ -59,6 +60,7 @@ export class EmployeeController {
     private readonly createEmployeeUseCase: CreateEmployeeUseCase,
     private readonly toggleEmployeeStatusUseCase: ToggleEmployeeStatusUseCase,
     private readonly resetEmployeePasswordUseCase: ResetEmployeePasswordUseCase,
+    private readonly softDeleteEmployeeUseCase: SoftDeleteEmployeeUseCase,
     private readonly userRepo: IUserRepository,
     private readonly auditLogRepo: IAuditLogRepository,
   ) {}
@@ -226,6 +228,46 @@ export class EmployeeController {
   };
 
   /**
+   * DELETE /api/v1/employees/:id
+   * Xóa mềm nhân viên (đánh dấu deleted_at và vô hiệu hóa tài khoản).
+   */
+  softDelete = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const storeId = req.user?.storeId;
+      const currentUserId = req.user?.userId;
+      if (!storeId || !currentUserId) throw new AuthenticationError('Store không xác định');
+
+      const employee = await this.softDeleteEmployeeUseCase.execute({
+        employeeId: req.params.id as string,
+        storeId,
+        currentUserId,
+      });
+
+      this.writeAudit({
+        storeId,
+        userId: currentUserId,
+        action: 'delete',
+        entityType: 'employee',
+        entityId: employee.id,
+        newValues: {
+          event: 'employee_deleted',
+          fullName: employee.fullName,
+          email: employee.email,
+        },
+        req,
+      });
+
+      const response = ApiResponse.success(
+        { success: true, id: employee.id },
+        'Xóa nhân viên thành công',
+      );
+      res.status(response.statusCode).json(response.toJSON());
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
    * GET /api/v1/employees/:id/audit-log
    * Trả về timeline các thay đổi nghiệp vụ của 1 nhân viên.
    */
@@ -292,6 +334,10 @@ export class EmployeeController {
         return 'Kích hoạt lại tài khoản nhân viên';
       case 'password_reset':
         return 'Đặt lại mật khẩu tài khoản';
+      case 'employee_deleted': {
+        const email = typeof values.email === 'string' ? values.email : '';
+        return `Xóa tài khoản nhân viên ${fullName} (${email})`;
+      }
       default:
         return `Cập nhật tài khoản nhân viên ${fullName}`.trim();
     }
