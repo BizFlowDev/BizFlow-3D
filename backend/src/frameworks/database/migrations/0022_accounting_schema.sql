@@ -59,5 +59,7 @@ INSERT INTO account_chart (code, name, account_type) VALUES
     ('421', 'Lợi nhuận chưa phân phối', 'equity'),
     ('511', 'Doanh thu bán hàng và cung cấp dịch vụ', 'revenue'),
     ('632', 'Giá vốn hàng bán', 'expense'),
+    ('641', 'Chi phí bán hàng', 'expense'),
+    ('642', 'Chi phí quản lý doanh nghiệp', 'expense'),
     ('911', 'Xác định kết quả kinh doanh', 'expense')
 ON CONFLICT (code) DO NOTHING;

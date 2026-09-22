@@ -9,9 +9,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { AlertTriangle, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { AlertTriangle, TrendingUp, TrendingDown, Minus, RefreshCcw } from "lucide-react";
 import type {
   ReportType,
   FinancialReportOutput,
@@ -57,6 +58,8 @@ interface FinancialReportTableProps {
   reportType: ReportType;
   data: FinancialReportOutput | undefined;
   isLoading: boolean;
+  error?: Error | null;
+  onRetry?: () => void;
 }
 
 // ── Main Component ────────────────────────────────────────────────────────────
@@ -65,9 +68,33 @@ export default function FinancialReportTable({
   reportType,
   data,
   isLoading,
+  error,
+  onRetry,
 }: FinancialReportTableProps) {
   if (isLoading) {
     return <TableSkeleton />;
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center gap-4">
+        <div className="rounded-full bg-red-50 p-4 dark:bg-red-950/40">
+          <AlertTriangle className="h-8 w-8 text-red-500 dark:text-red-400" />
+        </div>
+        <div className="space-y-1">
+          <p className="font-semibold text-foreground">Không thể tải báo cáo</p>
+          <p className="text-sm text-muted-foreground max-w-md">
+            {error.message || "Đã xảy ra lỗi khi lấy dữ liệu. Vui lòng thử lại."}
+          </p>
+        </div>
+        {onRetry && (
+          <Button variant="outline" size="sm" onClick={onRetry} className="gap-2">
+            <RefreshCcw className="h-3.5 w-3.5" />
+            Thử lại
+          </Button>
+        )}
+      </div>
+    );
   }
 
   if (!data) {

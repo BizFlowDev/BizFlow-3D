@@ -76,7 +76,7 @@ export class AutoPostingUseCase {
         ? 'Doanh thu bán hàng thu bằng chuyển khoản'
         : 'Doanh thu bán hàng thu bằng tiền mặt';
 
-      this.accountingRepo.createMany([
+      await this.accountingRepo.createMany([
         this.entry({
           storeId: order.storeId, entryDate,
           accountCode: cashAccountCode, accountName: cashAccountName,
@@ -86,7 +86,7 @@ export class AutoPostingUseCase {
       ]);
     }
     if (order.debtAmount > 0) {
-      this.accountingRepo.createMany([
+      await this.accountingRepo.createMany([
         this.entry({
           storeId: order.storeId, entryDate,
           accountCode: '131', accountName: 'Phải thu của khách hàng',

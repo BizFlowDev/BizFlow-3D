@@ -41,11 +41,26 @@ export class AccountingController {
         throw new ValidationError('fromDate và toDate là bắt buộc');
       }
 
+      let from: Date;
+      let to: Date;
+
+      if (fromDate.length === 10) {
+        from = new Date(`${fromDate}T00:00:00+07:00`);
+      } else {
+        from = new Date(fromDate);
+      }
+
+      if (toDate.length === 10) {
+        to = new Date(`${toDate}T23:59:59.999+07:00`);
+      } else {
+        to = new Date(toDate);
+      }
+
       const result = await this.generateFinancialReportUseCase.execute(
         storeId,
         reportType as ReportType,
-        new Date(fromDate),
-        new Date(toDate),
+        from,
+        to,
       );
 
       const response = ApiResponse.success(result, 'Tạo báo cáo tài chính thành công');
