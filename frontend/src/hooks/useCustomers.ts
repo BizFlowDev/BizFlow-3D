@@ -15,10 +15,14 @@ export interface Customer {
   email: string | null;
   address: string | null;
   debtBalance: number;
+  creditLimit: number;
+  paymentTermDays: number;
   note: string | null;
   isActive: boolean;
   totalPurchases: number;
   lastPurchaseDate: string | null;
+  isOverdue?: boolean;
+  overdueDays?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -46,11 +50,12 @@ export interface DebtTransaction {
   remainingBalance: number;
   operator: string;
   note: string | null;
+  orderId?: string | null;
 }
 
 export interface CustomerListParams {
   search?: string;
-  filter?: "all" | "has_debt" | "no_debt";
+  filter?: "all" | "has_debt" | "no_debt" | "overdue";
   page?: number;
   limit?: number;
 }
@@ -60,6 +65,8 @@ export interface CustomerFormData {
   phone: string;
   email?: string;
   address?: string;
+  creditLimit?: number;
+  paymentTermDays?: number;
   note?: string;
 }
 
@@ -79,7 +86,7 @@ interface PaginatedResponse<T> {
 
 // ── Mock Data ─────────────────────────────────────────────────────────────────
 
-const MOCK_CUSTOMERS: Customer[] = [
+export const MOCK_CUSTOMERS: Customer[] = [
   {
     id: "c1",
     storeId: "s1",
@@ -89,6 +96,8 @@ const MOCK_CUSTOMERS: Customer[] = [
     email: "an.nguyen@gmail.com",
     address: "123 Nguyễn Huệ, Q.1, TP.HCM",
     debtBalance: 2500000,
+    creditLimit: 5000000,
+    paymentTermDays: 30,
     note: "Khách hàng thân thiết",
     isActive: true,
     totalPurchases: 15,
@@ -105,6 +114,8 @@ const MOCK_CUSTOMERS: Customer[] = [
     email: "binh.tran@gmail.com",
     address: "456 Lê Lợi, Q.1, TP.HCM",
     debtBalance: 0,
+    creditLimit: 10000000,
+    paymentTermDays: 30,
     note: null,
     isActive: true,
     totalPurchases: 8,
@@ -121,6 +132,8 @@ const MOCK_CUSTOMERS: Customer[] = [
     email: "cuong.le@yahoo.com",
     address: "789 Trần Hưng Đạo, Q.5, TP.HCM",
     debtBalance: 5800000,
+    creditLimit: 5000000,
+    paymentTermDays: 15,
     note: "Mua sỉ hàng tháng",
     isActive: true,
     totalPurchases: 32,
@@ -137,6 +150,8 @@ const MOCK_CUSTOMERS: Customer[] = [
     email: null,
     address: "12 Nguyễn Trãi, Q.5, TP.HCM",
     debtBalance: 1200000,
+    creditLimit: 2000000,
+    paymentTermDays: 30,
     note: null,
     isActive: true,
     totalPurchases: 5,
@@ -153,6 +168,8 @@ const MOCK_CUSTOMERS: Customer[] = [
     email: "nga.hoang@outlook.com",
     address: "34 Hai Bà Trưng, Q.3, TP.HCM",
     debtBalance: 0,
+    creditLimit: 0,
+    paymentTermDays: 30,
     note: "Thanh toán đúng hạn",
     isActive: true,
     totalPurchases: 22,
@@ -169,6 +186,8 @@ const MOCK_CUSTOMERS: Customer[] = [
     email: "hai.vo@gmail.com",
     address: "56 Cách Mạng Tháng 8, Q.10, TP.HCM",
     debtBalance: 800000,
+    creditLimit: 1000000,
+    paymentTermDays: 30,
     note: null,
     isActive: false,
     totalPurchases: 3,
@@ -185,6 +204,8 @@ const MOCK_CUSTOMERS: Customer[] = [
     email: null,
     address: "78 Võ Văn Tần, Q.3, TP.HCM",
     debtBalance: 0,
+    creditLimit: 5000000,
+    paymentTermDays: 30,
     note: null,
     isActive: true,
     totalPurchases: 11,
@@ -201,6 +222,8 @@ const MOCK_CUSTOMERS: Customer[] = [
     email: "linh.bui@gmail.com",
     address: "90 Điện Biên Phủ, Q. Bình Thạnh, TP.HCM",
     debtBalance: 3400000,
+    creditLimit: 10000000,
+    paymentTermDays: 45,
     note: "Đại lý cấp 2",
     isActive: true,
     totalPurchases: 45,
@@ -324,6 +347,36 @@ const MOCK_DEBT_HISTORY: DebtTransaction[] = [
   },
 ];
 
+// ── Helper: enrich customer overdue status ────────────────────────────────────
+
+export function enrichCustomerOverdue(c: Customer): Customer {
+  const creditLimit = Number(c.creditLimit) || 0;
+  const paymentTermDays = Number(c.paymentTermDays) || 30;
+  const now = Date.now();
+
+  let isOverdue = false;
+  let overdueDays = 0;
+
+  if (c.debtBalance > 0) {
+    const refDate = c.lastPurchaseDate
+      ? new Date(c.lastPurchaseDate).getTime()
+      : new Date(c.createdAt).getTime();
+    const dueDate = refDate + paymentTermDays * 24 * 60 * 60 * 1000;
+    if (now > dueDate) {
+      isOverdue = true;
+      overdueDays = Math.max(1, Math.floor((now - dueDate) / (24 * 60 * 60 * 1000)));
+    }
+  }
+
+  return {
+    ...c,
+    creditLimit,
+    paymentTermDays,
+    isOverdue,
+    overdueDays,
+  };
+}
+
 // ── Helper: simulate API delay ────────────────────────────────────────────────
 
 function delay(ms: number) {
@@ -341,14 +394,19 @@ export function useCustomerList(params: CustomerListParams = {}) {
         const { data } = await apiClient.get<
           ApiResponseData<PaginatedResponse<Customer>>
         >("/customers", { params });
-        if (data.data) return data.data;
+        if (data.data) {
+          return {
+            ...data.data,
+            items: data.data.items.map(enrichCustomerOverdue),
+          };
+        }
       } catch {
         // Fallback to mock data khi API chưa sẵn sàng
       }
 
       // Mock implementation
       await delay(600);
-      let filtered = [...MOCK_CUSTOMERS];
+      let filtered = MOCK_CUSTOMERS.map(enrichCustomerOverdue);
 
       // Search
       if (params.search) {
@@ -365,6 +423,8 @@ export function useCustomerList(params: CustomerListParams = {}) {
         filtered = filtered.filter((c) => c.debtBalance > 0);
       } else if (params.filter === "no_debt") {
         filtered = filtered.filter((c) => c.debtBalance === 0);
+      } else if (params.filter === "overdue") {
+        filtered = filtered.filter((c) => c.isOverdue);
       }
 
       const page = params.page ?? 1;
@@ -410,6 +470,8 @@ export function useCreateCustomer() {
         email: data.email || null,
         address: data.address || null,
         debtBalance: 0,
+        creditLimit: data.creditLimit ?? 0,
+        paymentTermDays: data.paymentTermDays ?? 30,
         note: data.note || null,
         isActive: true,
         totalPurchases: 0,
@@ -512,8 +574,9 @@ export function useCustomerDetail(id: string) {
             // Orders API failed, use defaults
           }
 
+          const enriched = enrichCustomerOverdue(customer);
           return {
-            ...customer,
+            ...enriched,
             totalPurchases: totalOrders,
             lastPurchaseDate: lastPurchaseDate || customer.updatedAt,
             totalOrders,
@@ -538,8 +601,9 @@ export function useCustomerDetail(id: string) {
         0
       );
 
+      const enriched = enrichCustomerOverdue(customer);
       return {
-        ...customer,
+        ...enriched,
         totalOrders,
         totalRevenue,
       };
@@ -588,7 +652,7 @@ export function useCustomerPurchaseHistory(id: string) {
             // Build products string from items
             const products = order.items && order.items.length > 0
               ? order.items.map(item => {
-                  const name = (item as any).productName || "Sản phẩm";
+                  const name = (item as { productName?: string }).productName || "Sản phẩm";
                   return `${name} (x${item.quantity})`;
                 }).join(", ")
               : order.note || "Đơn hàng";
@@ -646,39 +710,101 @@ export function useCustomerDebtHistory(id: string) {
               paymentMethod: string;
               note: string | null;
               createdBy: string | null;
+              createdByName?: string | null;
               createdAt: string;
+            }[];
+            debtOrders?: {
+              id: string;
+              orderCode: string;
+              debtAmount: number;
+              finalAmount: number;
+              createdAt: string;
+              note?: string;
             }[];
           }>
         >(`/customers/${id}/debt`);
+
         if (data.data) {
-          const { summary, payments } = data.data;
+          const { summary, payments = [], debtOrders = [] } = data.data;
           const transactions: DebtTransaction[] = [];
 
-          // Add debt_created entry if there was debt
-          if (summary.totalDebtCreated > 0) {
+          // 1. Thêm các đơn hàng phát sinh nợ
+          let totalTrackedDebt = 0;
+          for (const o of debtOrders) {
+            totalTrackedDebt += o.debtAmount;
             transactions.push({
-              id: `debt-created-${id}`,
-              date: new Date().toISOString(),
+              id: `order-debt-${o.id}`,
+              date: o.createdAt,
               type: "debt_created",
-              amount: summary.totalDebtCreated,
-              remainingBalance: summary.remainingDebt,
+              amount: o.debtAmount,
+              remainingBalance: 0,
               operator: "Hệ thống",
-              note: "Tổng nợ phát sinh từ đơn hàng",
+              note: `Đơn hàng #${o.orderCode}`,
+              orderId: o.id,
             });
           }
 
-          // Map payments to DebtTransaction
+          // 2. Nếu có phần nợ phát sinh chưa gắn với đơn hàng (khởi tạo nợ ban đầu / nợ cũ)
+          const untrackedDebt = Math.max(0, summary.totalDebtCreated - totalTrackedDebt);
+          if (untrackedDebt > 0) {
+            // Lấy thời điểm sớm nhất từ payments hoặc debtOrders
+            let oldestDate: string = new Date().toISOString();
+            if (debtOrders.length > 0) {
+              const sortedOrders = [...debtOrders].sort(
+                (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+              );
+              oldestDate = sortedOrders[0].createdAt;
+            } else if (payments.length > 0) {
+              const sortedPayments = [...payments].sort(
+                (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+              );
+              oldestDate = sortedPayments[0].createdAt;
+            }
+
+            transactions.push({
+              id: `debt-initial-${id}`,
+              date: oldestDate,
+              type: "debt_created",
+              amount: untrackedDebt,
+              remainingBalance: 0,
+              operator: "Hệ thống",
+              note: debtOrders.length > 0 ? "Dư nợ ban đầu / Nợ kỳ trước" : "Tổng nợ phát sinh từ đơn hàng",
+            });
+          }
+
+          // 3. Thêm các lần thanh toán nợ
           for (const p of payments) {
+            let operatorName = p.createdByName;
+            if (!operatorName) {
+              operatorName = p.createdBy && !p.createdBy.includes("-") ? p.createdBy : "Thu ngân";
+            }
+
             transactions.push({
               id: p.id,
               date: p.createdAt,
               type: "payment",
               amount: p.amount,
-              remainingBalance: summary.remainingDebt,
-              operator: p.createdBy || "Chủ cửa hàng",
-              note: p.note,
+              remainingBalance: 0,
+              operator: operatorName,
+              note: p.note || (p.paymentMethod === "transfer" ? "Chuyển khoản (VietQR)" : "Tiền mặt"),
             });
           }
+
+          // 4. Sắp xếp theo trình tự thời gian tăng dần (cũ nhất -> mới nhất) để tính Dư Nợ Luỹ Kế
+          transactions.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+          let runningBalance = 0;
+          for (const tx of transactions) {
+            if (tx.type === "debt_created") {
+              runningBalance += tx.amount;
+            } else if (tx.type === "payment") {
+              runningBalance -= tx.amount;
+            }
+            tx.remainingBalance = runningBalance;
+          }
+
+          // 5. Sắp xếp lại theo trình tự thời gian giảm dần (mới nhất lên trên cùng) để hiển thị trong bảng sao kê
+          transactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
           return transactions;
         }
@@ -704,12 +830,12 @@ export function useRecordDebtPayment() {
     }: {
       customerId: string;
       data: DebtPaymentData;
-    }): Promise<{ success: boolean }> => {
+    }): Promise<{ success: boolean; data?: unknown }> => {
       try {
         const { data: res } = await apiClient.post<
-          ApiResponseData<{ success: boolean }>
+          ApiResponseData<{ success: boolean; data?: unknown }>
         >(`/customers/${customerId}/debts/pay`, data);
-        if (res.data) return res.data;
+        if (res.data) return { success: true, data: res.data };
       } catch {
         // Fallback mock
       }
@@ -731,6 +857,15 @@ export function useRecordDebtPayment() {
       });
       queryClient.invalidateQueries({
         queryKey: ["customer", variables.customerId, "debts"],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["debts"],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["accounting"],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["reports"],
       });
     },
   });

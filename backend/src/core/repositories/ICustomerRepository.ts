@@ -4,7 +4,7 @@ export interface CustomerFilter {
   storeId: string;
   isActive?: boolean;
   search?: string;
-  filter?: 'all' | 'has_debt' | 'no_debt';
+  filter?: 'all' | 'has_debt' | 'no_debt' | 'overdue';
   page?: number;
   limit?: number;
 }
@@ -23,7 +23,7 @@ export interface ICustomerRepository {
   create(customer: Customer): Promise<Customer>;
   update(
     id: string,
-    data: Partial<Pick<Customer, 'name' | 'phone' | 'email' | 'address' | 'note' | 'isActive'>>,
+    data: Partial<Pick<Customer, 'name' | 'phone' | 'email' | 'address' | 'note' | 'creditLimit' | 'paymentTermDays' | 'isActive'>>,
   ): Promise<Customer>;
   delete(id: string): Promise<void>;
 

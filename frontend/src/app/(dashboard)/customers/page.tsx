@@ -189,13 +189,19 @@ export default function CustomersPage() {
 
     const exportData = customers.map((c, i) => ({
       "STT": i + 1,
-      "Mã khách hàng": c.id,
+      "Mã khách hàng": c.code || c.id,
       "Tên khách hàng": c.name,
       "Điện thoại": c.phone || "",
       "Email": c.email || "",
       "Địa chỉ": c.address || "",
       "Tổng đơn hàng": c.totalPurchases,
       "Công nợ": c.debtBalance,
+      "Hạn mức nợ": c.creditLimit ? c.creditLimit : "Không giới hạn",
+      "Tình trạng nợ": c.isOverdue
+        ? `Quá hạn ${c.overdueDays} ngày`
+        : c.debtBalance > 0
+        ? "Trong hạn"
+        : "Không nợ",
       "Mua gần nhất": c.lastPurchaseDate
         ? new Date(c.lastPurchaseDate).toLocaleDateString("vi-VN")
         : "",
@@ -289,6 +295,7 @@ export default function CustomersPage() {
           <SelectContent>
             <SelectItem value="all">Tất cả</SelectItem>
             <SelectItem value="has_debt">Có nợ</SelectItem>
+            <SelectItem value="overdue">Nợ quá hạn</SelectItem>
             <SelectItem value="no_debt">Không nợ</SelectItem>
           </SelectContent>
         </Select>
@@ -452,16 +459,68 @@ export default function CustomersPage() {
                         </span>
                       </TableCell>
 
-                      {/* Current Debt */}
+                      {/* Current Debt & Credit Limit */}
                       <TableCell className="text-right">
                         {customer.debtBalance > 0 ? (
-                          <button
-                            onClick={() => handlePayment(customer)}
-                            className="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-3 py-1 text-sm font-semibold text-red-600 transition-all hover:bg-red-100 hover:shadow-sm dark:bg-red-950/30 dark:text-red-400 dark:hover:bg-red-950/50"
-                          >
-                            <AlertTriangle className="h-3.5 w-3.5" />
-                            {formatCurrency(customer.debtBalance)}
-                          </button>
+                          <div className="flex flex-col items-end gap-1">
+                            <button
+                              onClick={() => handlePayment(customer)}
+                              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-semibold transition-all hover:shadow-sm ${
+                                customer.isOverdue
+                                  ? "bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-950/50 dark:text-red-300"
+                                  : "bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-950/30 dark:text-red-400"
+                              }`}
+                              title="Nhấn để ghi nhận thanh toán nợ"
+                            >
+                              {customer.isOverdue ? (
+                                <AlertTriangle className="h-3.5 w-3.5 text-red-500" />
+                              ) : (
+                                <Banknote className="h-3.5 w-3.5" />
+                              )}
+                              {formatCurrency(customer.debtBalance)}
+                            </button>
+
+                            {/* Overdue tag */}
+                            {customer.isOverdue && (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-red-600 dark:text-red-400">
+                                Quá hạn {customer.overdueDays} ngày
+                              </span>
+                            )}
+
+                            {/* Credit limit progress */}
+                            {customer.creditLimit > 0 && (
+                              <div className="w-28 text-[11px] text-muted-foreground flex flex-col items-end pt-0.5">
+                                <div className="flex justify-between w-full text-[10px]">
+                                  <span>H.mức:</span>
+                                  <span>{formatCurrency(customer.creditLimit)}</span>
+                                </div>
+                                <div className="w-full h-1 bg-muted rounded-full overflow-hidden mt-0.5">
+                                  <div
+                                    className={`h-full rounded-full transition-all ${
+                                      customer.debtBalance > customer.creditLimit
+                                        ? "bg-red-500"
+                                        : customer.debtBalance / customer.creditLimit > 0.8
+                                        ? "bg-amber-500"
+                                        : "bg-blue-500"
+                                    }`}
+                                    style={{
+                                      width: `${Math.min(
+                                        100,
+                                        Math.round(
+                                          (customer.debtBalance / customer.creditLimit) * 100
+                                        )
+                                      )}%`,
+                                    }}
+                                  />
+                                </div>
+                                {customer.debtBalance > customer.creditLimit && (
+                                  <span className="text-[10px] text-red-500 font-semibold mt-0.5">
+                                    Vượt hạn mức
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>
                         ) : (
                           <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-sm font-medium text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400">
                             <CheckCircle2 className="h-3.5 w-3.5" />

@@ -33,6 +33,7 @@ import {
   Sparkles,
   Trash2,
   X,
+  ShieldAlert,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
@@ -260,6 +261,29 @@ export default function NewOrderPage() {
     });
   }, [hasStoreBankConfig, storeInfo, finalAmount, tempOrderMemo]);
 
+  // ── Tính toán Công nợ & Kiểm tra Vượt Hạn Mức ──
+  const orderDebtAmount = useMemo(() => {
+    if (paymentMethod === "debt") return finalAmount;
+    if (paymentMethod === "cash") {
+      const actualCash = cashGivenInput ? parseFloat(cashGivenInput) || 0 : finalAmount;
+      return Math.max(0, finalAmount - actualCash);
+    }
+    return 0;
+  }, [paymentMethod, finalAmount, cashGivenInput]);
+
+  const customerCreditLimit = customer?.creditLimit ?? 0;
+  const customerDebtBalance = customer?.debtBalance ?? 0;
+
+  const isDebtExceeded = useMemo(() => {
+    if (!customer || customerCreditLimit <= 0 || orderDebtAmount <= 0) return false;
+    return (customerDebtBalance + orderDebtAmount) > customerCreditLimit;
+  }, [customer, customerCreditLimit, customerDebtBalance, orderDebtAmount]);
+
+  const excessAmount = useMemo(() => {
+    if (!isDebtExceeded || !customer) return 0;
+    return (customerDebtBalance + orderDebtAmount) - customerCreditLimit;
+  }, [isDebtExceeded, customer, customerDebtBalance, orderDebtAmount, customerCreditLimit]);
+
   // ── Cart operations ──
   const addToCart = useCallback((product: Product) => {
     const unitId = getDefaultUnitId(product);
@@ -330,12 +354,6 @@ export default function NewOrderPage() {
 
       const activeMethod = customPaymentMethod || paymentMethod;
 
-      // Validation for debt
-      if (activeMethod === "debt" && !customer) {
-        showToast("error", "Cần chọn khách hàng", "Vui lòng chọn khách hàng để ghi nợ.");
-        return;
-      }
-
       // Determine amounts based on method
       let debtAmount = 0;
       let paidAmount = 0;
@@ -354,6 +372,22 @@ export default function NewOrderPage() {
         paidAmount = 0;
         calculatedChange = 0;
         debtAmount = finalAmount;
+      }
+
+      // Validation for debt & credit limit
+      if (debtAmount > 0 && !customer) {
+        showToast("error", "Cần chọn khách hàng", "Đơn hàng có phát sinh nợ. Vui lòng chọn khách hàng để ghi nợ.");
+        return;
+      }
+
+      if (debtAmount > 0 && customer && customerCreditLimit > 0 && (customerDebtBalance + debtAmount) > customerCreditLimit) {
+        const excess = (customerDebtBalance + debtAmount) - customerCreditLimit;
+        showToast(
+          "error",
+          "Vượt hạn mức ghi nợ!",
+          `Không thể ghi nợ! Khách hàng "${customer.name}" có hạn mức ${formatCurrency(customerCreditLimit)}, hiện đang nợ ${formatCurrency(customerDebtBalance)}. Đơn này nợ thêm ${formatCurrency(debtAmount)} vượt hạn mức ${formatCurrency(excess)}.`
+        );
+        return;
       }
 
       createMutation.mutate(
@@ -392,13 +426,13 @@ export default function NewOrderPage() {
             );
             setSuccessOpen(true);
           },
-          onError: () => {
-            showToast("error", "Tạo đơn thất bại", "Vui lòng thử lại.");
+          onError: (err: Error) => {
+            showToast("error", "Tạo đơn thất bại", err.message || "Vui lòng thử lại.");
           },
         },
       );
     },
-    [cart, customer, paymentMethod, discount, finalAmount, cashGivenInput, note, createMutation, showToast],
+    [cart, customer, customerCreditLimit, customerDebtBalance, paymentMethod, discount, finalAmount, cashGivenInput, note, createMutation, showToast],
   );
 
   // ── Phím tắt ──
@@ -652,10 +686,19 @@ export default function NewOrderPage() {
             <div className="relative">
               <div className="flex items-center justify-between mb-1">
                 <Label className="text-xs font-medium text-muted-foreground">Khách hàng</Label>
-                {customer && customer.debtBalance > 0 && (
-                  <span className="text-[11px] text-red-500 font-semibold">
-                    Đang nợ: {formatCurrency(customer.debtBalance)}
-                  </span>
+                {customer && (
+                  <div className="flex items-center gap-2 text-[11px]">
+                    {customer.debtBalance > 0 && (
+                      <span className="text-red-500 font-semibold">
+                        Đang nợ: {formatCurrency(customer.debtBalance)}
+                      </span>
+                    )}
+                    {customer.creditLimit > 0 && (
+                      <span className="text-muted-foreground font-medium">
+                        HM: {formatCurrency(customer.creditLimit)}
+                      </span>
+                    )}
+                  </div>
                 )}
               </div>
               {customer ? (
@@ -985,7 +1028,7 @@ export default function NewOrderPage() {
                       </div>
                     </div>
 
-                    {/* Hiển thị tiền thừa thối lại */}
+                    {/* Hiển thị tiền thừa thối lại hoặc nợ thiếu */}
                     <div className="flex items-center justify-between rounded-lg bg-background p-2 border border-emerald-500/20 font-bold">
                       <span className="text-muted-foreground">Tiền thừa trả khách:</span>
                       <span className={cn(
@@ -997,6 +1040,36 @@ export default function NewOrderPage() {
                           : `Thiếu ${formatCurrency(finalAmount - cashGiven)}`}
                       </span>
                     </div>
+
+                    {/* Cảnh báo ghi nợ phát sinh do trả thiếu tiền mặt */}
+                    {cashGiven < finalAmount && (
+                      <div className="space-y-1.5 rounded-lg border border-amber-500/20 bg-amber-500/5 p-2.5 text-xs">
+                        <div className="flex items-center justify-between text-amber-700 dark:text-amber-300 font-medium">
+                          <span>Số tiền còn thiếu ghi nợ:</span>
+                          <span className="font-mono font-bold">{formatCurrency(finalAmount - cashGiven)}</span>
+                        </div>
+                        {!customer ? (
+                          <div className="flex items-center gap-1.5 text-red-500 font-medium">
+                            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                            <span>Vui lòng chọn khách hàng để ghi nợ số tiền thiếu này.</span>
+                          </div>
+                        ) : isDebtExceeded ? (
+                          <div className="rounded-md border border-red-500/30 bg-red-500/10 p-2 text-[11px] text-red-600 dark:text-red-400 space-y-1">
+                            <div className="flex items-center gap-1 font-semibold">
+                              <ShieldAlert className="h-3.5 w-3.5 shrink-0" />
+                              <span>Vượt hạn mức nợ (+{formatCurrency(excessAmount)})</span>
+                            </div>
+                            <p className="text-muted-foreground">
+                              Khách &quot;{customer.name}&quot; có hạn mức {formatCurrency(customerCreditLimit)}, nợ hiện tại {formatCurrency(customerDebtBalance)}.
+                            </p>
+                          </div>
+                        ) : (
+                          <p className="text-[11px] text-muted-foreground">
+                            Số tiền thiếu sẽ tự động ghi nợ vào tài khoản của <strong>{customer.name}</strong>.
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -1018,16 +1091,6 @@ export default function NewOrderPage() {
                             </p>
                           </div>
                         </div>
-
-                        <Button
-                          type="button"
-                          onClick={() => setQrModalOpen(true)}
-                          disabled={cart.length === 0}
-                          className="w-full gap-2 bg-gradient-to-r from-blue-600 to-cyan-600 font-semibold text-white shadow-sm hover:from-blue-500 hover:to-cyan-500"
-                        >
-                          <QrCode className="h-4 w-4" />
-                          Mở mã VietQR thanh toán ({formatCurrency(finalAmount)})
-                        </Button>
                       </>
                     ) : (
                       <div className="space-y-2 text-center py-2">
@@ -1056,16 +1119,71 @@ export default function NewOrderPage() {
 
                 {/* 3. KHUNG GHI NỢ */}
                 {paymentMethod === "debt" && (
-                  <div className="space-y-2 rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-xs">
+                  <div className={cn(
+                    "space-y-2 rounded-xl border p-3 text-xs transition-colors",
+                    isDebtExceeded
+                      ? "border-red-500/40 bg-red-500/10 dark:border-red-500/30 dark:bg-red-950/30"
+                      : "border-amber-500/20 bg-amber-500/5"
+                  )}>
                     {customer ? (
-                      <div className="space-y-1.5">
-                        <div className="flex items-center gap-2 text-amber-700 dark:text-amber-300 font-semibold">
-                          <AlertTriangle className="h-4 w-4 shrink-0" />
-                          <span>Ghi nợ 100% cho khách hàng</span>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div className={cn(
+                            "flex items-center gap-2 font-semibold",
+                            isDebtExceeded ? "text-red-600 dark:text-red-400" : "text-amber-700 dark:text-amber-300"
+                          )}>
+                            {isDebtExceeded ? (
+                              <>
+                                <ShieldAlert className="h-4 w-4 shrink-0 text-red-600 animate-pulse" />
+                                <span>VƯỢT HẠN MỨC GHI NỢ!</span>
+                              </>
+                            ) : (
+                              <>
+                                <AlertTriangle className="h-4 w-4 shrink-0" />
+                                <span>Ghi nợ 100% cho khách hàng</span>
+                              </>
+                            )}
+                          </div>
+                          {customerCreditLimit > 0 && (
+                            <span className={cn(
+                              "text-[10px] font-mono px-1.5 py-0.5 rounded font-semibold",
+                              isDebtExceeded
+                                ? "bg-red-500/20 text-red-700 dark:text-red-300"
+                                : "bg-amber-500/20 text-amber-800 dark:text-amber-200"
+                            )}>
+                              Hạn mức: {formatCurrency(customerCreditLimit)}
+                            </span>
+                          )}
                         </div>
-                        <p className="text-muted-foreground leading-relaxed">
-                          Toàn bộ số tiền <strong className="text-foreground">{formatCurrency(finalAmount)}</strong> sẽ được cộng dồn vào công nợ của <strong>{customer.name}</strong>.
-                        </p>
+
+                        {isDebtExceeded ? (
+                          <div className="space-y-1.5 text-[11px] border-t border-red-500/20 pt-2">
+                            <div className="grid grid-cols-2 gap-1 text-muted-foreground">
+                              <span>Nợ hiện tại:</span>
+                              <span className="font-mono text-right font-medium text-foreground">{formatCurrency(customerDebtBalance)}</span>
+                              <span>Đơn hàng này:</span>
+                              <span className="font-mono text-right font-medium text-red-600">+{formatCurrency(finalAmount)}</span>
+                              <span>Tổng nợ sau đơn:</span>
+                              <span className="font-mono text-right font-bold text-red-600">{formatCurrency(customerDebtBalance + finalAmount)}</span>
+                              <span className="font-bold text-red-600">Vượt hạn mức:</span>
+                              <span className="font-mono text-right font-black text-red-600 text-xs">+{formatCurrency(excessAmount)}</span>
+                            </div>
+                            <p className="text-red-600 dark:text-red-400 pt-1 font-medium leading-relaxed">
+                              Hệ thống không cho phép tạo đơn vượt hạn mức. Vui lòng yêu cầu khách thanh toán bớt nợ cũ hoặc chọn phương thức khác!
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="space-y-1">
+                            <p className="text-muted-foreground leading-relaxed">
+                              Toàn bộ số tiền <strong className="text-foreground">{formatCurrency(finalAmount)}</strong> sẽ được cộng dồn vào công nợ của <strong>{customer.name}</strong>.
+                            </p>
+                            {customerCreditLimit > 0 && (
+                              <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
+                                Khả dụng còn lại sau đơn: {formatCurrency(Math.max(0, customerCreditLimit - customerDebtBalance - finalAmount))}
+                              </p>
+                            )}
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
@@ -1092,31 +1210,54 @@ export default function NewOrderPage() {
               ) : (
                 <Button
                   onClick={() => handleSubmit("confirmed")}
-                  disabled={cart.length === 0 || createMutation.isPending || (paymentMethod === "debt" && !customer)}
+                  disabled={
+                    cart.length === 0 ||
+                    createMutation.isPending ||
+                    (orderDebtAmount > 0 && !customer) ||
+                    isDebtExceeded
+                  }
                   className={cn(
                     "h-11 relative overflow-hidden font-bold text-white shadow-lg transition-all hover:scale-[1.01] active:scale-[0.99]",
-                    paymentMethod === "cash"
+                    isDebtExceeded
+                      ? "bg-red-600 hover:bg-red-700 shadow-red-500/25 cursor-not-allowed opacity-90"
+                      : paymentMethod === "cash"
                       ? "bg-gradient-to-r from-emerald-600 to-teal-500 shadow-emerald-500/25 hover:from-emerald-500 hover:to-teal-400"
                       : "bg-gradient-to-r from-amber-600 to-orange-500 shadow-amber-500/25 hover:from-amber-500 hover:to-orange-400",
                   )}
                 >
                   {createMutation.isPending ? (
                     <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
+                  ) : isDebtExceeded ? (
+                    <ShieldAlert className="h-4 w-4 mr-1.5 text-white" />
                   ) : (
                     <Check className="h-4 w-4 mr-1.5" />
                   )}
-                  {paymentMethod === "cash" ? "Thanh toán Tiền mặt" : "Xác nhận Ghi nợ"}
+                  {isDebtExceeded
+                    ? `Vượt hạn mức nợ (+${formatCurrency(excessAmount)})`
+                    : (orderDebtAmount > 0 && !customer)
+                    ? "Cần chọn khách hàng để ghi nợ"
+                    : paymentMethod === "cash"
+                    ? "Thanh toán Tiền mặt"
+                    : "Xác nhận Ghi nợ"}
                 </Button>
               )}
 
               <Button
                 variant="outline"
                 onClick={() => handleSubmit("draft")}
-                disabled={cart.length === 0 || createMutation.isPending}
-                className="font-semibold h-9 text-xs"
+                disabled={
+                  cart.length === 0 ||
+                  createMutation.isPending ||
+                  (orderDebtAmount > 0 && !customer) ||
+                  isDebtExceeded
+                }
+                className={cn(
+                  "font-semibold h-9 text-xs",
+                  isDebtExceeded && "opacity-50 cursor-not-allowed text-red-500 border-red-500/30"
+                )}
               >
                 <Save className="h-3.5 w-3.5 mr-1" />
-                Lưu đơn nháp
+                {isDebtExceeded ? "Không thể lưu (Vượt hạn mức)" : "Lưu đơn nháp"}
               </Button>
             </div>
           </div>

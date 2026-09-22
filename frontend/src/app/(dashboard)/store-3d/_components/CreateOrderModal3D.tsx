@@ -26,7 +26,9 @@ import {
   Percent,
   Maximize2,
   Sparkles,
+  ShieldAlert,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { useCustomerList, type Customer } from "@/hooks/useCustomers";
 import { useProductList, useCategoryList, type Product } from "@/hooks/useProducts";
 import { useCreateOrder, useOrderList, type Order } from "@/hooks/useOrders";
@@ -235,10 +237,22 @@ export function CreateOrderModal3D({
     if (orderLines.length === 0) return;
     setErrorMessage(null);
 
-    // Ghi nợ yêu cầu chọn khách hàng
-    if (paymentMethod === "debt" && !selectedCustomerId) {
-      setErrorMessage("Vui lòng chọn khách hàng cụ thể khi thanh toán hình thức Ghi nợ!");
-      return;
+    // Ghi nợ yêu cầu chọn khách hàng và kiểm tra hạn mức
+    if (paymentMethod === "debt") {
+      if (!selectedCustomerId || !selectedCustomer) {
+        setErrorMessage("Vui lòng chọn khách hàng cụ thể khi thanh toán hình thức Ghi nợ!");
+        return;
+      }
+      if (selectedCustomer.creditLimit > 0) {
+        const currentDebt = selectedCustomer.debtBalance || 0;
+        if (currentDebt + finalAmount > selectedCustomer.creditLimit) {
+          const excess = currentDebt + finalAmount - selectedCustomer.creditLimit;
+          setErrorMessage(
+            `Vượt hạn mức ghi nợ! Khách hàng "${selectedCustomer.name}" có hạn mức ${formatVND(selectedCustomer.creditLimit)}, hiện đang nợ ${formatVND(currentDebt)}. Đơn này nợ thêm ${formatVND(finalAmount)} vượt hạn mức ${formatVND(excess)}.`
+          );
+          return;
+        }
+      }
     }
 
     try {
@@ -851,9 +865,40 @@ export function CreateOrderModal3D({
                 )}
 
                 {paymentMethod === "debt" && (
-                  <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 p-2.5 text-xs text-amber-300">
-                    Đơn hàng sẽ được ghi nợ vào tài khoản của khách hàng{" "}
-                    <strong>{selectedCustomer ? selectedCustomer.name : "(Chưa chọn)"}</strong>.
+                  <div className={cn(
+                    "rounded-xl border p-2.5 text-xs transition-colors",
+                    selectedCustomer && selectedCustomer.creditLimit > 0 && ((selectedCustomer.debtBalance || 0) + finalAmount) > selectedCustomer.creditLimit
+                      ? "bg-red-500/20 border-red-500/40 text-red-300"
+                      : "bg-amber-500/10 border-amber-500/20 text-amber-300"
+                  )}>
+                    {selectedCustomer ? (
+                      <div className="space-y-1">
+                        <div className="flex justify-between items-center font-bold">
+                          <span>Ghi nợ: {selectedCustomer.name}</span>
+                          {selectedCustomer.creditLimit > 0 && (
+                            <span className="text-[10px] bg-white/10 px-1.5 py-0.5 rounded">
+                              Hạn mức: {formatVND(selectedCustomer.creditLimit)}
+                            </span>
+                          )}
+                        </div>
+                        {selectedCustomer.creditLimit > 0 && ((selectedCustomer.debtBalance || 0) + finalAmount) > selectedCustomer.creditLimit ? (
+                          <div className="text-[11px] text-red-300 space-y-0.5">
+                            <p className="font-semibold text-red-400">
+                              ⚠️ VƯỢT HẠN MỨC GHI NỢ (+{formatVND((selectedCustomer.debtBalance || 0) + finalAmount - selectedCustomer.creditLimit)})
+                            </p>
+                            <p className="text-slate-300">
+                              Hiện đang nợ: {formatVND(selectedCustomer.debtBalance || 0)} · Hạn mức: {formatVND(selectedCustomer.creditLimit)}
+                            </p>
+                          </div>
+                        ) : (
+                          <p className="text-slate-300 text-[11px]">
+                            Đơn hàng {formatVND(finalAmount)} sẽ được cộng dồn vào công nợ (hiện tại: {formatVND(selectedCustomer.debtBalance || 0)}).
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <span>Vui lòng chọn khách hàng để ghi nợ đơn hàng này.</span>
+                    )}
                   </div>
                 )}
               </div>
@@ -890,13 +935,28 @@ export function CreateOrderModal3D({
                 <button
                   type="button"
                   onClick={handleCreateOrder}
-                  disabled={orderLines.length === 0 || createOrderMutation.isPending}
-                  className="w-full flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 py-3.5 font-bold text-sm text-white shadow-xl shadow-emerald-500/25 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                  disabled={
+                    orderLines.length === 0 ||
+                    createOrderMutation.isPending ||
+                    (paymentMethod === "debt" && !selectedCustomerId) ||
+                    (paymentMethod === "debt" && !!selectedCustomer && selectedCustomer.creditLimit > 0 && ((selectedCustomer.debtBalance || 0) + finalAmount) > selectedCustomer.creditLimit)
+                  }
+                  className={cn(
+                    "w-full flex items-center justify-center gap-2 rounded-2xl py-3.5 font-bold text-sm text-white shadow-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed",
+                    paymentMethod === "debt" && selectedCustomer && selectedCustomer.creditLimit > 0 && ((selectedCustomer.debtBalance || 0) + finalAmount) > selectedCustomer.creditLimit
+                      ? "bg-red-600 hover:bg-red-700 shadow-red-500/25"
+                      : "bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 shadow-emerald-500/25"
+                  )}
                 >
                   {createOrderMutation.isPending ? (
                     <>
                       <Loader2 className="h-5 w-5 animate-spin" />
                       Đang xử lý tạo đơn hàng...
+                    </>
+                  ) : paymentMethod === "debt" && selectedCustomer && selectedCustomer.creditLimit > 0 && ((selectedCustomer.debtBalance || 0) + finalAmount) > selectedCustomer.creditLimit ? (
+                    <>
+                      <ShieldAlert className="h-5 w-5 text-white" />
+                      Vượt hạn mức nợ (+{formatVND((selectedCustomer.debtBalance || 0) + finalAmount - selectedCustomer.creditLimit)})
                     </>
                   ) : (
                     <>

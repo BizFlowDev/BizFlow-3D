@@ -11,6 +11,7 @@ export const DebtPaymentSchema = z.object({
   paymentMethod: z.enum(['cash', 'transfer']),
   note: z.string().nullish(),
   createdBy: z.string().uuid().nullish(),
+  createdByName: z.string().nullish(),
   createdAt: z.coerce.date(),
 });
 
@@ -26,6 +27,7 @@ export class DebtPayment {
   readonly paymentMethod: 'cash' | 'transfer';
   readonly note: string | null;
   readonly createdBy: string | null;
+  readonly createdByName: string | null;
   readonly createdAt: Date;
 
   private constructor(props: DebtPaymentProps) {
@@ -37,6 +39,7 @@ export class DebtPayment {
     this.paymentMethod = props.paymentMethod;
     this.note = props.note ?? null;
     this.createdBy = props.createdBy ?? null;
+    this.createdByName = props.createdByName ?? null;
     this.createdAt = props.createdAt;
   }
 

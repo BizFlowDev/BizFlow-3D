@@ -25,9 +25,9 @@ export class PostgresCustomerRepository implements ICustomerRepository {
     const text = `
       INSERT INTO customers (
         id, store_id, name, phone, email, address, note,
-        debt_balance, is_active, created_at, updated_at
+        debt_balance, credit_limit, payment_term_days, is_active, created_at, updated_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
       RETURNING *
     `;
     const values = [
@@ -39,6 +39,8 @@ export class PostgresCustomerRepository implements ICustomerRepository {
       customer.address,
       customer.note,
       customer.debtBalance,
+      customer.creditLimit,
+      customer.paymentTermDays,
       customer.isActive,
       customer.createdAt,
       customer.updatedAt,
@@ -50,7 +52,7 @@ export class PostgresCustomerRepository implements ICustomerRepository {
 
   async update(
     id: string,
-    data: Partial<Pick<Customer, 'name' | 'phone' | 'email' | 'address' | 'note' | 'isActive'>>
+    data: Partial<Pick<Customer, 'name' | 'phone' | 'email' | 'address' | 'note' | 'creditLimit' | 'paymentTermDays' | 'isActive'>>
   ): Promise<Customer> {
     const fields: string[] = [];
     const values: any[] = [];
@@ -120,6 +122,17 @@ export class PostgresCustomerRepository implements ICustomerRepository {
       conditions.push(`c.debt_balance > 0`);
     } else if (filter.filter === 'no_debt') {
       conditions.push(`c.debt_balance = 0`);
+    } else if (filter.filter === 'overdue') {
+      conditions.push(`(c.debt_balance > 0 AND (
+        EXISTS (
+          SELECT 1 FROM orders o
+          WHERE o.customer_id = c.id
+            AND o.status = 'confirmed'
+            AND (o.created_at + (c.payment_term_days || ' days')::INTERVAL) < NOW()
+        ) OR (
+          c.created_at + (c.payment_term_days || ' days')::INTERVAL < NOW()
+        )
+      ))`);
     }
 
     const whereClause = `WHERE ${conditions.join(' AND ')}`;

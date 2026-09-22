@@ -14,7 +14,11 @@ import {
   type RecentOrder,
   type TopProductRow,
 } from "./dashboard-keys";
-import { fillRevenueDays, lastNDays } from "./dashboard-utils";
+import {
+  fillRevenueDays,
+  getDashboardRangeDates,
+  buildRevenueComparisonSeries,
+} from "./dashboard-utils";
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api/v1";
@@ -105,15 +109,21 @@ export async function prefetchDashboard(queryClient: QueryClient): Promise<void>
   const token = store.get("bizflow.accessToken")?.value ?? null;
   if (!token) return;
 
-  const { fromDate, toDate } = lastNDays(REVENUE_RANGE_DAYS);
-
-  // a/b/g. Revenue today + orders today + 7-day chart (GET /reports/daily-revenue)
+  // a/b/g. Revenue today + orders today + 7-day comparison chart
   try {
+    const { fetchFromDate, fetchToDate, currentDays, previousDays } =
+      getDashboardRangeDates("7d");
     const rows = await apiGet<DailyRevenuePoint[]>("/reports/daily-revenue", token, {
-      fromDate: fromDate.toISOString(),
-      toDate: toDate.toISOString(),
+      fromDate: fetchFromDate.toISOString(),
+      toDate: fetchToDate.toISOString(),
     });
+    // Điền 7 ngày gần nhất cho useRevenueData (thống kê hôm nay, hôm qua, và 3D chart)
     queryClient.setQueryData(dashboardKeys.revenue("7d"), fillRevenueDays(rows));
+    // Dữ liệu so sánh 7 ngày qua vs 7 ngày trước cho useRevenueComparison (2D chart)
+    queryClient.setQueryData(
+      dashboardKeys.revenueComparison("7d"),
+      buildRevenueComparisonSeries(rows, currentDays, previousDays),
+    );
   } catch {
     // Bỏ qua — client sẽ tự fetch
   }

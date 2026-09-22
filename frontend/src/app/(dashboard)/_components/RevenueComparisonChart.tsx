@@ -61,9 +61,11 @@ interface ComparisonTooltipProps {
 function ComparisonTooltip({ active, payload }: ComparisonTooltipProps) {
   if (!active || !payload || payload.length === 0) return null;
 
-  const data = payload[0].payload;
-  const currentRev = data.currentRevenue;
-  const prevRev = data.previousRevenue;
+  const data = payload[0]?.payload;
+  if (!data) return null;
+
+  const currentRev = data.currentRevenue ?? 0;
+  const prevRev = data.previousRevenue ?? 0;
   const diff = currentRev - prevRev;
   const diffPct =
     prevRev > 0 ? (diff / prevRev) * 100 : currentRev > 0 ? 100 : 0;
@@ -187,9 +189,6 @@ export function RevenueComparisonChart({
               onValueChange={(v) => setRange(v as DashboardRevenueRange)}
             >
               <TabsList className="h-8 bg-muted/70 p-0.5">
-                <TabsTrigger value="today" className="px-2.5 text-xs">
-                  Hôm nay
-                </TabsTrigger>
                 <TabsTrigger value="7d" className="px-2.5 text-xs">
                   7 ngày
                 </TabsTrigger>

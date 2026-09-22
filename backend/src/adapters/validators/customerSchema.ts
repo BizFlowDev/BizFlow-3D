@@ -11,6 +11,8 @@ export const createCustomerSchema = z.object({
   email: z.string().email('Email không đúng định dạng').max(255).nullish(),
   address: z.string().nullish(),
   note: z.string().nullish(),
+  creditLimit: z.coerce.number().min(0, 'Hạn mức nợ không được âm').default(0).optional(),
+  paymentTermDays: z.coerce.number().int().min(1, 'Thời hạn nợ tối thiểu 1 ngày').default(30).optional(),
 });
 
 // ── Update Customer ──
@@ -20,6 +22,8 @@ export const updateCustomerSchema = z.object({
   email: z.string().email('Email không đúng định dạng').max(255).nullish(),
   address: z.string().nullish(),
   note: z.string().nullish(),
+  creditLimit: z.coerce.number().min(0, 'Hạn mức nợ không được âm').optional(),
+  paymentTermDays: z.coerce.number().int().min(1, 'Thời hạn nợ tối thiểu 1 ngày').optional(),
   isActive: z.boolean().optional(),
 });
 

@@ -11,6 +11,8 @@ const CreateCustomerInputSchema = z.object({
   email: z.string().email().max(255).nullish(),
   address: z.string().nullish(),
   note: z.string().nullish(),
+  creditLimit: z.coerce.number().min(0).default(0).optional(),
+  paymentTermDays: z.coerce.number().int().min(1).default(30).optional(),
 });
 
 export type CreateCustomerInput = z.infer<typeof CreateCustomerInputSchema>;
@@ -46,6 +48,8 @@ export class CreateCustomerUseCase {
       email: data.email,
       address: data.address,
       note: data.note,
+      creditLimit: data.creditLimit,
+      paymentTermDays: data.paymentTermDays,
     });
 
     return this.customerRepo.create(customer);

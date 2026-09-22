@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import apiClient from "@/lib/api-client";
 import type { ApiResponseData } from "@/lib/api-client";
+import { MOCK_CUSTOMERS } from "./useCustomers";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -527,11 +528,30 @@ export function useCreateOrder() {
           }
           return created;
         }
-      } catch {
+      } catch (err: unknown) {
+        const apiError = err as { response?: { data?: { message?: string; error?: string }; status?: number } };
+        const msg = apiError.response?.data?.message || apiError.response?.data?.error;
+        if (apiError.response?.status && apiError.response.status >= 400 && apiError.response.status < 500 && msg) {
+          throw new Error(msg);
+        }
         // Fallback mock
       }
 
       await delay(700);
+
+      // Check credit limit in mock
+      if (body.customerId && (body.debtAmount ?? 0) > 0) {
+        const cust = MOCK_CUSTOMERS.find((c) => c.id === body.customerId);
+        if (cust && cust.creditLimit > 0 && (cust.debtBalance + (body.debtAmount ?? 0)) > cust.creditLimit) {
+          const excess = (cust.debtBalance + (body.debtAmount ?? 0)) - cust.creditLimit;
+          throw new Error(
+            `Không thể ghi nợ! Khách hàng "${cust.name}" có hạn mức nợ ${new Intl.NumberFormat("vi-VN").format(cust.creditLimit)}đ, hiện đang nợ ${new Intl.NumberFormat("vi-VN").format(cust.debtBalance)}đ. Đơn hàng nợ thêm ${new Intl.NumberFormat("vi-VN").format(body.debtAmount ?? 0)}đ sẽ vượt hạn mức ${new Intl.NumberFormat("vi-VN").format(excess)}đ.`
+          );
+        }
+        if (cust && status === "confirmed") {
+          cust.debtBalance += body.debtAmount ?? 0;
+        }
+      }
       const now = new Date().toISOString();
       const today = `${now.slice(0, 10).replace(/-/g, "")}`;
       const seq = String(MOCK_ORDERS.length + 1).padStart(3, "0");
