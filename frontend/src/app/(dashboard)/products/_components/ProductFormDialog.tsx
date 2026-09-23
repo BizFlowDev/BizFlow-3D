@@ -51,20 +51,17 @@ import { ImageUpload } from "@/components/ui/image-upload";
 
 // ── Zod Schema ────────────────────────────────────────────────────────────────
 
+const optionalPositiveNumberSchema = (errorMsg: string) =>
+  z.union([z.number().positive(errorMsg), z.nan()]).optional();
+
 const unitSchema = z.object({
   id: z.string().optional(),
   unitName: z
     .string()
     .max(50, "Tên đơn vị không quá 50 ký tự")
     .optional(),
-  conversionFactor: z
-    .number({ error: "Hệ số quy đổi phải lớn hơn 0" })
-    .positive("Hệ số quy đổi phải lớn hơn 0")
-    .optional(),
-  price: z
-    .number({ error: "Giá phải lớn hơn 0" })
-    .positive("Giá phải lớn hơn 0")
-    .optional(),
+  conversionFactor: optionalPositiveNumberSchema("Hệ số quy đổi phải lớn hơn 0"),
+  price: optionalPositiveNumberSchema("Giá phải lớn hơn 0"),
   isDefault: z.boolean().optional(),
 });
 
@@ -85,10 +82,7 @@ const productFormSchema = z
       .nullish()
       .or(z.literal("")),
     hasMultipleUnits: z.boolean(),
-    singlePrice: z
-      .number({ error: "Giá phải lớn hơn 0" })
-      .positive("Giá phải lớn hơn 0")
-      .optional(),
+    singlePrice: optionalPositiveNumberSchema("Giá phải lớn hơn 0"),
     units: z.array(unitSchema).optional(),
   })
   .superRefine((data, ctx) => {
@@ -215,6 +209,7 @@ export function ProductFormDialog({
     reset,
     watch,
     setValue,
+    clearErrors,
     formState: { errors },
   } = useForm<ProductFormValues>({
     resolver: zodResolver(productFormSchema),
@@ -298,17 +293,21 @@ export function ProductFormDialog({
       : [
           {
             id: data.units?.[0]?.id || undefined,
-            unitName: "Cái",
+            unitName: data.units?.[0]?.unitName || "Cái",
             conversionFactor: 1,
             price: data.singlePrice ?? 0,
             isDefault: true,
           },
         ];
 
-    // Ensure exactly one default
-    const hasDefault = units.some((u) => u.isDefault);
-    if (!hasDefault && units.length > 0) {
-      units[0].isDefault = true;
+    // Ensure exactly one default unit
+    const defaultUnits = units.filter((u) => u.isDefault);
+    if (defaultUnits.length !== 1 && units.length > 0) {
+      const firstDefaultIndex = units.findIndex((u) => u.isDefault);
+      const targetIndex = firstDefaultIndex >= 0 ? firstDefaultIndex : 0;
+      units.forEach((u, i) => {
+        u.isDefault = i === targetIndex;
+      });
     }
 
     const payload = {
@@ -560,8 +559,10 @@ export function ProductFormDialog({
                     checked={hasMultipleUnits}
                     onCheckedChange={(val) => {
                       setValue("hasMultipleUnits", val, {
-                        shouldValidate: true,
+                        shouldValidate: false,
                       });
+                      clearErrors(["singlePrice", "units"]);
+                      setValidationAlert(false);
                     }}
                   />
                 </div>
