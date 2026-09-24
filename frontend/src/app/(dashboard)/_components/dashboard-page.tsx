@@ -3,8 +3,10 @@
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { motion } from "motion/react";
 import { useQueryClient, useIsFetching } from "@tanstack/react-query";
+import { useAuthStore } from "@/stores/auth-store";
 import {
   DollarSign,
   ShoppingCart,
@@ -130,8 +132,17 @@ function OrderStatusBadge({ status }: { status: "confirmed" | "draft" | "cancell
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
+  const router = useRouter();
+  const user = useAuthStore((state) => state.user);
   const queryClient = useQueryClient();
   const isFetching = useIsFetching({ queryKey: dashboardKeys.all }) > 0;
+
+  // Không hiển thị trang Tổng quan cho role employee -> điều hướng sang Tạo đơn
+  useEffect(() => {
+    if (user?.role === "employee") {
+      router.replace("/orders/new");
+    }
+  }, [user?.role, router]);
 
   // ── Chế độ 3D ──
   const is3DEnabled = useUiPreferencesStore((state) => state.is3DEnabled);
@@ -196,6 +207,10 @@ export default function DashboardPage() {
     month: "2-digit",
     year: "numeric",
   }).format(new Date());
+
+  if (user?.role === "employee") {
+    return null;
+  }
 
   return (
     <motion.div

@@ -38,9 +38,7 @@ import {
   useSystemConfig,
   useUpdateSystemConfig,
   useBroadcastAnnouncement,
-  useUploadTemplate,
   useAnnouncements,
-  useReportTemplates,
 } from "@/hooks/useAdmin";
 import type {
   SystemConfig,
@@ -255,180 +253,6 @@ function SystemConfigTab() {
   );
 }
 
-// ── Templates Tab ─────────────────────────────────────────────────────────────
-
-function TemplatesTab() {
-  const { mutate: uploadTemplate, isPending } = useUploadTemplate();
-  const { data: templates, isLoading: isLoadingTemplates, refetch } =
-    useReportTemplates();
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [uploadSuccess, setUploadSuccess] = useState(false);
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) setSelectedFile(file);
-  };
-
-  const handleUpload = () => {
-    if (!selectedFile) return;
-    uploadTemplate(selectedFile, {
-      onSuccess: () => {
-        setSelectedFile(null);
-        setUploadSuccess(true);
-        setTimeout(() => setUploadSuccess(false), 3000);
-        // Reset file input
-        const input = document.getElementById(
-          "template-file-input"
-        ) as HTMLInputElement;
-        if (input) input.value = "";
-      },
-    });
-  };
-
-  return (
-    <Card className="border bg-card/50 backdrop-blur-sm">
-      <CardHeader className="flex flex-row items-center justify-between">
-        <div>
-          <CardTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5 text-amber-500" />
-            Mẫu báo cáo tài chính (Thông tư 88)
-          </CardTitle>
-          <CardDescription>
-            Upload hoặc cập nhật mẫu báo cáo tài chính theo Thông tư
-            88/2021/TT-BTC
-          </CardDescription>
-        </div>
-        <Button variant="outline" size="sm" onClick={() => refetch()}>
-          <RefreshCcw className="h-3.5 w-3.5" />
-          Tải lại
-        </Button>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        {/* Current Templates */}
-        <div className="rounded-lg border overflow-hidden">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-muted/30 hover:bg-muted/30">
-                <TableHead>Tên mẫu báo cáo</TableHead>
-                <TableHead className="text-center">Phiên bản</TableHead>
-                <TableHead>Cập nhật lần cuối</TableHead>
-                <TableHead className="text-center">Trạng thái</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoadingTemplates ? (
-                <TableRow>
-                  <TableCell colSpan={4} className="p-6">
-                    <div className="space-y-3">
-                      {Array.from({ length: 3 }).map((_, i) => (
-                        <Skeleton key={i} className="h-4 w-full" />
-                      ))}
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ) : (templates ?? []).length === 0 ? (
-                <TableRow>
-                  <TableCell
-                    colSpan={4}
-                    className="py-10 text-center text-sm text-muted-foreground"
-                  >
-                    Chưa có mẫu báo cáo nào. Hãy upload mẫu đầu tiên bên dưới.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                (templates ?? []).map((tpl, i) => (
-                  <motion.tr
-                    key={tpl.id}
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: i * 0.05 }}
-                    className="border-b hover:bg-muted/40 transition-colors"
-                  >
-                    <TableCell className="font-medium">{tpl.name}</TableCell>
-                    <TableCell className="text-center">
-                      <Badge variant="secondary">{tpl.version ?? "—"}</Badge>
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {formatDate(tpl.updatedAt)}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      {tpl.isActive ? (
-                        <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
-                          Đang dùng
-                        </Badge>
-                      ) : (
-                        <Badge variant="secondary">Không dùng</Badge>
-                      )}
-                    </TableCell>
-                  </motion.tr>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
-
-        <Separator />
-
-        {/* Upload New Template */}
-        <div className="space-y-4">
-          <h4 className="text-sm font-semibold">
-            Upload mẫu báo cáo mới
-          </h4>
-          <div className="flex items-end gap-4">
-            <div className="flex-1">
-              <Label htmlFor="template-file-input" className="mb-1.5 block text-sm">
-                Chọn file mẫu (.xlsx, .docx, .pdf)
-              </Label>
-              <Input
-                id="template-file-input"
-                type="file"
-                accept=".xlsx,.xls,.docx,.doc,.pdf"
-                onChange={handleFileChange}
-                className="cursor-pointer"
-              />
-            </div>
-            <Button
-              onClick={handleUpload}
-              disabled={!selectedFile || isPending}
-              className="bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg shadow-amber-500/25 hover:from-amber-400 hover:to-orange-400"
-            >
-              {isPending ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Đang upload...
-                </>
-              ) : (
-                <>
-                  <Upload className="h-4 w-4" />
-                  Upload
-                </>
-              )}
-            </Button>
-          </div>
-          {selectedFile && (
-            <p className="text-sm text-muted-foreground">
-              File đã chọn:{" "}
-              <span className="font-medium text-foreground">
-                {selectedFile.name}
-              </span>{" "}
-              ({(selectedFile.size / 1024).toFixed(1)} KB)
-            </p>
-          )}
-          {uploadSuccess && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="flex items-center gap-2 rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-3 text-sm text-emerald-700 dark:bg-emerald-950/30 dark:border-emerald-800 dark:text-emerald-400"
-            >
-              <CheckCircle2 className="h-4 w-4" />
-              Upload mẫu báo cáo thành công!
-            </motion.div>
-          )}
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
 
 // ── Announcement Tab ──────────────────────────────────────────────────────────
 
@@ -614,18 +438,14 @@ export default function SystemPage() {
       {/* ── Tabs ── */}
       <motion.div variants={itemVariants}>
         <Tabs defaultValue="config" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-3 max-w-lg">
+          <TabsList className="grid w-full grid-cols-2 max-w-lg">
             <TabsTrigger value="config" className="gap-1.5">
               <Settings className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Cấu hình</span>
             </TabsTrigger>
-            <TabsTrigger value="templates" className="gap-1.5">
-              <FileText className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Mẫu báo cáo</span>
-            </TabsTrigger>
             <TabsTrigger value="announcements" className="gap-1.5">
               <Megaphone className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Thông báo</span>
+              <span className="hidden sm:inline">Thông báo hệ thống</span>
             </TabsTrigger>
           </TabsList>
 
@@ -633,9 +453,6 @@ export default function SystemPage() {
             <SystemConfigTab />
           </TabsContent>
 
-          <TabsContent value="templates">
-            <TemplatesTab />
-          </TabsContent>
 
           <TabsContent value="announcements">
             <AnnouncementTab />

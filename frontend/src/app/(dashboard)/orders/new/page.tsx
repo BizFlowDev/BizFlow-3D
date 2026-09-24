@@ -506,8 +506,6 @@ export default function NewOrderPage() {
         <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
           <Kbd>Ctrl+F</Kbd> tìm kiếm
           <span className="text-muted-foreground/40">·</span>
-          <Kbd>Enter</Kbd> thêm món
-          <span className="text-muted-foreground/40">·</span>
           <Kbd>Ctrl+Enter</Kbd> thanh toán
         </div>
       </motion.div>
@@ -1221,8 +1219,8 @@ export default function NewOrderPage() {
                     isDebtExceeded
                       ? "bg-red-600 hover:bg-red-700 shadow-red-500/25 cursor-not-allowed opacity-90"
                       : paymentMethod === "cash"
-                      ? "bg-gradient-to-r from-emerald-600 to-teal-500 shadow-emerald-500/25 hover:from-emerald-500 hover:to-teal-400"
-                      : "bg-gradient-to-r from-amber-600 to-orange-500 shadow-amber-500/25 hover:from-amber-500 hover:to-orange-400",
+                        ? "bg-gradient-to-r from-emerald-600 to-teal-500 shadow-emerald-500/25 hover:from-emerald-500 hover:to-teal-400"
+                        : "bg-gradient-to-r from-amber-600 to-orange-500 shadow-amber-500/25 hover:from-amber-500 hover:to-orange-400",
                   )}
                 >
                   {createMutation.isPending ? (
@@ -1235,10 +1233,10 @@ export default function NewOrderPage() {
                   {isDebtExceeded
                     ? `Vượt hạn mức nợ (+${formatCurrency(excessAmount)})`
                     : (orderDebtAmount > 0 && !customer)
-                    ? "Cần chọn khách hàng để ghi nợ"
-                    : paymentMethod === "cash"
-                    ? "Thanh toán Tiền mặt"
-                    : "Xác nhận Ghi nợ"}
+                      ? "Cần chọn khách hàng để ghi nợ"
+                      : paymentMethod === "cash"
+                        ? "Thanh toán Tiền mặt"
+                        : "Xác nhận Ghi nợ"}
                 </Button>
               )}
 

@@ -37,6 +37,7 @@ import { OrderSuccessModal } from "./_components/OrderSuccessModal";
 import { CameraPresetsBar } from "./_components/CameraPresetsBar";
 import { UpgradePlanModal } from "@/components/shared/UpgradePlanModal";
 import { useCurrentStore } from "@/hooks/useStore";
+import { useAuthStore } from "@/stores/auth-store";
 
 // ── Lazy load 3D components ───────────────────────────────────────────────────
 
@@ -92,6 +93,7 @@ export default function Store3DPage() {
   const [isHUDCollapsed, setIsHUDCollapsed] = useState(false);
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
   const { data: store } = useCurrentStore();
+  const user = useAuthStore((state) => state.user);
 
   // Order Lines State (Các mặt hàng trong đơn)
   const [orderLines, setOrderLines] = useState<CartItem3D[]>([]);
@@ -1095,21 +1097,6 @@ export default function Store3DPage() {
                   </button>
                 )}
 
-                {/* Nút Nâng Cấp Gói Dịch Vụ */}
-                <button
-                  type="button"
-                  onClick={() => setUpgradeModalOpen(true)}
-                  className="flex items-center gap-1.5 rounded-2xl border border-amber-500/40 bg-gradient-to-r from-amber-600/40 to-orange-600/40 hover:from-amber-600/60 hover:to-orange-600/60 px-3.5 py-2.5 text-xs font-bold text-amber-200 shadow-xl shadow-amber-500/10 backdrop-blur-xl transition-all hover:scale-105"
-                  title="Nâng cấp hoặc gia hạn gói dịch vụ cửa hàng"
-                >
-                  <Crown className="h-4 w-4 text-amber-400" />
-                  <span className="hidden sm:inline">
-                    Gói: <strong className="capitalize">{store?.subscriptionPlan || "Basic"}</strong>
-                  </span>
-                  <span className="text-[10px] bg-amber-500/30 px-1.5 py-0.5 rounded text-amber-300 font-extrabold uppercase">
-                    Nâng cấp
-                  </span>
-                </button>
 
                 {/* Nút Tạo Đơn Hàng (Zoom camera vào màn hình máy tính quầy POS) */}
                 <button
@@ -1126,30 +1113,18 @@ export default function Store3DPage() {
                   )}
                 </button>
 
-                {/* Lịch sử đơn hàng */}
-                <button
-                  type="button"
-                  onClick={handleOpenPOS}
-                  title="Lịch sử đơn hàng"
-                  className="relative rounded-2xl border border-white/15 bg-slate-900/80 p-2.5 text-white shadow-2xl backdrop-blur-xl transition-all hover:bg-white/10"
-                >
-                  <Receipt className="h-4 w-4" />
-                  {pendingCount > 0 && (
-                    <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-amber-500 text-[9px] font-black text-white shadow">
-                      {pendingCount}
-                    </span>
-                  )}
-                </button>
 
-                {/* Nút Chuyển về Dashboard 2D */}
-                <button
-                  type="button"
-                  onClick={handleToggle2D}
-                  className="flex items-center gap-1.5 rounded-2xl border border-white/15 bg-slate-900/80 px-3.5 py-2.5 text-xs font-semibold text-slate-200 shadow-2xl backdrop-blur-xl transition-all hover:bg-white/10 hover:text-white"
-                >
-                  <LayoutDashboard className="h-4 w-4 text-indigo-400" />
-                  <span className="hidden sm:inline">Dashboard 2D</span>
-                </button>
+                {/* Nút Chuyển về Dashboard 2D (chỉ hiển thị với chủ cửa hàng / admin, ẩn với employee) */}
+                {user?.role !== "employee" && (
+                  <button
+                    type="button"
+                    onClick={handleToggle2D}
+                    className="flex items-center gap-1.5 rounded-2xl border border-white/15 bg-slate-900/80 px-3.5 py-2.5 text-xs font-semibold text-slate-200 shadow-2xl backdrop-blur-xl transition-all hover:bg-white/10 hover:text-white"
+                  >
+                    <LayoutDashboard className="h-4 w-4 text-indigo-400" />
+                    <span className="hidden sm:inline">Dashboard 2D</span>
+                  </button>
+                )}
 
                 {/* Nút Thu gọn giao diện */}
                 <button
@@ -1324,8 +1299,8 @@ export default function Store3DPage() {
               <span className="hidden lg:inline text-slate-500">•</span>
               <span className="hidden lg:inline text-slate-400">
                 {isPOSActive
-                  ? "🖥️ Đang tương tác trên Màn Hình POS [ESC để rời quầy]"
-                  : "🖱️ Click màn hình máy tính để lên đơn như ngoài đời thực"}
+                  ? "Đang tương tác trên Màn Hình POS [ESC để rời quầy]"
+                  : "Click màn hình máy tính để lên đơn"}
               </span>
             </div>
           </div>

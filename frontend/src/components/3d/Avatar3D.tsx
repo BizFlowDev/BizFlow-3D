@@ -207,34 +207,6 @@ export default function Avatar3D({
           </mesh>
         </animated.group>
 
-        {/* ── Bong Bóng Thoại Tương Tác (Speech Bubble) ──────────────── */}
-        {!hideBubble && (
-          <Html
-            occlude
-            position={[0, HEAD_RADIUS + 0.45, 0]}
-            center
-            distanceFactor={5.2}
-            zIndexRange={[15, 0]}
-            style={{ pointerEvents: "auto" }}
-          >
-            <div
-              onClick={handleBotClick}
-              className="animate-in fade-in zoom-in-95 group flex max-w-[220px] cursor-pointer items-start gap-2 rounded-2xl border border-indigo-400/40 bg-slate-900/95 p-3 text-white shadow-2xl backdrop-blur-xl transition-all hover:scale-105 hover:border-indigo-400"
-            >
-              <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-indigo-500/20 text-indigo-400">
-                <Bot className="h-3.5 w-3.5 animate-pulse" />
-              </div>
-              <div className="text-left">
-                <div className="flex items-center gap-1 font-bold text-[10px] text-indigo-300">
-                  AI Assistant <Sparkles className="h-2.5 w-2.5 text-amber-400" />
-                </div>
-                <p className="mt-0.5 text-xs leading-relaxed text-slate-100">
-                  {currentSpeech}
-                </p>
-              </div>
-            </div>
-          </Html>
-        )}
       </group>
 
       {/* ── Vệt bóng đổ dưới sàn (Floor Shadow Ring) ─────────────────── */}

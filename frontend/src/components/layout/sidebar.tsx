@@ -14,6 +14,8 @@ interface SidebarProps {
 }
 
 export function Sidebar({ role, collapsed, onToggleCollapsed }: SidebarProps) {
+  const homeHref = role === "admin" ? "/admin/stores" : role === "employee" ? "/orders/new" : "/";
+
   return (
     <aside
       className={cn(
@@ -27,7 +29,7 @@ export function Sidebar({ role, collapsed, onToggleCollapsed }: SidebarProps) {
           collapsed && "justify-center px-0"
         )}
       >
-        <Link href="/" className="flex items-center gap-2">
+        <Link href={homeHref} className="flex items-center gap-2">
           <Boxes className="h-7 w-7 shrink-0 text-primary" />
           {!collapsed && <span className="whitespace-nowrap text-lg font-bold">BizFlow 3D</span>}
         </Link>

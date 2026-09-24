@@ -13,14 +13,20 @@ import { LoginForm } from "./_components/login-form";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { isAuthenticated, _hasHydrated } = useAuthStore();
+  const { isAuthenticated, _hasHydrated, user } = useAuthStore();
 
   // Redirect nếu đã login
   useEffect(() => {
     if (_hasHydrated && isAuthenticated) {
-      router.replace("/");
+      const dest =
+        user?.role === "admin"
+          ? "/admin/stores"
+          : user?.role === "employee"
+            ? "/orders/new"
+            : "/";
+      router.replace(dest);
     }
-  }, [_hasHydrated, isAuthenticated, router]);
+  }, [_hasHydrated, isAuthenticated, user, router]);
 
   // Chờ hydrate xong mới render (tránh flash)
   if (!_hasHydrated) {

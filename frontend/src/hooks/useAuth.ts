@@ -70,7 +70,12 @@ export function useAuth() {
 
         // Redirect theo role — dùng window.location để full-reload,
         // đảm bảo cookie đã được gửi đến middleware (router.push có thể race condition)
-        const dest = authUser.role === "admin" ? "/admin/stores" : "/";
+        const dest =
+          authUser.role === "admin"
+            ? "/admin/stores"
+            : authUser.role === "employee"
+              ? "/orders/new"
+              : "/";
         window.location.href = dest;
 
         return res;

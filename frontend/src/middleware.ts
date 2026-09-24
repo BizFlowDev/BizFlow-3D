@@ -47,7 +47,7 @@ export function middleware(request: NextRequest) {
       const payload = decodeJwtPayload(token);
       if (payload) {
         const role = payload.role as string;
-        const dest = role === "admin" ? "/admin/stores" : "/";
+        const dest = role === "admin" ? "/admin/stores" : role === "employee" ? "/orders/new" : "/";
         if (pathname !== dest) {
           return NextResponse.redirect(new URL(dest, request.url));
         }
@@ -81,9 +81,14 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/admin/stores", request.url));
   }
 
-  // Employee/Owner truy cập /admin → redirect về dashboard
+  // Employee/Owner truy cập /admin → redirect về trang phù hợp
   if ((role === "employee" || role === "owner") && pathname.startsWith("/admin")) {
-    return NextResponse.redirect(new URL("/", request.url));
+    return NextResponse.redirect(new URL(role === "employee" ? "/orders/new" : "/", request.url));
+  }
+
+  // Employee không truy cập trang Tổng quan (/) → redirect về /orders/new
+  if (role === "employee" && pathname === "/") {
+    return NextResponse.redirect(new URL("/orders/new", request.url));
   }
 
   return NextResponse.next();

@@ -97,7 +97,7 @@ export function EmployeeFormDialog({
     store?.subscriptionStatus === "expired" ||
     Boolean(
       store?.subscriptionExpiresAt &&
-        new Date(store.subscriptionExpiresAt) < new Date()
+      new Date(store.subscriptionExpiresAt) < new Date()
     );
 
   const {
@@ -290,16 +290,16 @@ export function EmployeeFormDialog({
                     </div>
                     {(errorMessage.toLowerCase().includes("gói") ||
                       errorMessage.toLowerCase().includes("nâng cấp")) && (
-                      <Button
-                        type="button"
-                        size="sm"
-                        onClick={() => setUpgradeModalOpen(true)}
-                        className="w-full gap-1.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-semibold shadow-xs"
-                      >
-                        <Crown className="h-3.5 w-3.5" />
-                        Nâng cấp gói ngay
-                      </Button>
-                    )}
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={() => setUpgradeModalOpen(true)}
+                          className="w-full gap-1.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-semibold shadow-xs"
+                        >
+                          <Crown className="h-3.5 w-3.5" />
+                          Nâng cấp gói ngay
+                        </Button>
+                      )}
                   </div>
                 )}
 
@@ -407,49 +407,6 @@ export function EmployeeFormDialog({
                     </div>
                   </div>
 
-                  {/* Send Email Checkbox */}
-                  <div className="flex items-center gap-3 rounded-xl border border-border/50 bg-muted/30 p-3">
-                    <button
-                      type="button"
-                      role="checkbox"
-                      aria-checked={sendEmail}
-                      disabled={isLimitReached || isExpired}
-                      onClick={() =>
-                        !isLimitReached && !isExpired && reset({ ...watch(), sendEmail: !sendEmail })
-                      }
-                      className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 transition-all ${
-                        sendEmail
-                          ? "border-blue-500 bg-blue-500 text-white"
-                          : "border-muted-foreground/30 bg-background"
-                      }`}
-                    >
-                      {sendEmail && (
-                        <motion.svg
-                          initial={{ scale: 0 }}
-                          animate={{ scale: 1 }}
-                          xmlns="http://www.w3.org/2000/svg"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth={3}
-                          className="h-3 w-3"
-                        >
-                          <polyline points="20 6 9 17 4 12" />
-                        </motion.svg>
-                      )}
-                    </button>
-                    <div className="flex items-center gap-2">
-                      <Send className="h-4 w-4 text-muted-foreground" />
-                      <div>
-                        <p className="text-sm font-medium">
-                          Gửi email thông báo tạo tài khoản
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          Nhân viên sẽ nhận email chứa thông tin đăng nhập
-                        </p>
-                      </div>
-                    </div>
-                  </div>
 
                   <DialogFooter className="pt-2">
                     <Button

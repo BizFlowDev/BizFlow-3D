@@ -39,7 +39,7 @@ export const NAV_SECTIONS: NavSection[] = [
         title: "Tổng quan",
         href: "/",
         icon: LayoutDashboard,
-        roles: ["employee", "owner"],
+        roles: ["owner"],
       },
       {
         title: "Cửa hàng 3D",

@@ -314,7 +314,7 @@ export default function AccountingPage() {
                 Kế toán
               </h1>
               <p className="mt-0.5 text-sm text-muted-foreground">
-                Báo cáo tài chính theo Thông tư 88/2021/TT-BTC ·{" "}
+                Báo cáo tài chính ·{" "}
                 <span className="font-medium">{periodLabel}</span>
               </p>
             </div>
@@ -501,7 +501,7 @@ export default function AccountingPage() {
         <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs text-muted-foreground">
             Báo cáo tài chính được lập theo mẫu rút gọn dành cho hộ kinh doanh
-            (Thông tư 88/2021/TT-BTC). Số liệu được tính từ sổ cái hạch toán
+            . Số liệu được tính từ sổ cái hạch toán
             tự động.
           </p>
           <p className="text-xs text-muted-foreground whitespace-nowrap">

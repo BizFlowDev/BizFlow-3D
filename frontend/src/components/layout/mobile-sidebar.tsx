@@ -15,6 +15,7 @@ import { SidebarNav } from "@/components/layout/sidebar-nav";
 
 export function MobileSidebar({ role }: { role: UserRole }) {
   const [open, setOpen] = useState(false);
+  const homeHref = role === "admin" ? "/admin/stores" : role === "employee" ? "/orders/new" : "/";
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
@@ -30,9 +31,15 @@ export function MobileSidebar({ role }: { role: UserRole }) {
       </SheetTrigger>
       <SheetContent side="left" className="w-72 p-0">
         <SheetTitle className="sr-only">Menu điều hướng</SheetTitle>
-        <div className="flex h-16 items-center gap-2 border-b px-4">
-          <Boxes className="h-7 w-7 shrink-0 text-primary" />
-          <span className="text-lg font-bold">BizFlow 3D</span>
+        <div className="flex h-16 items-center border-b px-4">
+          <Link
+            href={homeHref}
+            onClick={() => setOpen(false)}
+            className="flex items-center gap-2"
+          >
+            <Boxes className="h-7 w-7 shrink-0 text-primary" />
+            <span className="text-lg font-bold">BizFlow 3D</span>
+          </Link>
         </div>
         <SidebarNav role={role} onNavigate={() => setOpen(false)} />
       </SheetContent>
