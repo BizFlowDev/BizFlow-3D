@@ -23,7 +23,7 @@ const benefits = [
   },
   {
     icon: FileSpreadsheet,
-    title: "Kế toán tự động TT 88/2021/TT-BTC",
+    title: "Kế toán tự động",
     desc: "Tự động sinh sổ sách thu chi, giá vốn COGS và báo cáo thuế chuẩn luật.",
     color: "from-emerald-500/20 to-teal-500/20 border-emerald-500/30 text-emerald-400",
   },

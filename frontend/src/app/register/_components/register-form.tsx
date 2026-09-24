@@ -369,11 +369,10 @@ export function RegisterForm() {
                     {[1, 2, 3, 4].map((step) => (
                       <div
                         key={step}
-                        className={`rounded-full transition-all duration-300 ${
-                          strength.score >= step
-                            ? strength.color
-                            : "bg-white/10"
-                        }`}
+                        className={`rounded-full transition-all duration-300 ${strength.score >= step
+                          ? strength.color
+                          : "bg-white/10"
+                          }`}
                       />
                     ))}
                   </div>
@@ -461,24 +460,6 @@ export function RegisterForm() {
               </div>
             </motion.div>
 
-            {/* Terms checkbox */}
-            <motion.div variants={itemVariants} className="pt-2">
-              <label className="flex items-start gap-2.5 cursor-pointer text-xs text-slate-400">
-                <input
-                  type="checkbox"
-                  {...register("termsAccepted")}
-                  className="mt-0.5 h-4 w-4 rounded border-white/20 bg-white/5 text-blue-600 focus:ring-blue-500"
-                />
-                <span>
-                  Tôi đồng ý với{" "}
-                  <span className="text-blue-400 hover:underline">Điều khoản dịch vụ</span> và{" "}
-                  <span className="text-blue-400 hover:underline">Chính sách bảo mật</span> của BizFlow 3D.
-                </span>
-              </label>
-              {errors.termsAccepted && (
-                <p className="mt-1 text-[11px] text-red-400">{errors.termsAccepted.message}</p>
-              )}
-            </motion.div>
 
             {/* Submit button */}
             <motion.div variants={itemVariants} className="pt-2">
