@@ -27,6 +27,18 @@ interface RefreshResponse {
   refreshToken: string;
 }
 
+export interface RegisterStorePayload {
+  storeName: string;
+  storeAddress?: string | null;
+  storePhone?: string | null;
+  storeEmail?: string | null;
+  taxCode?: string | null;
+  ownerFullName: string;
+  ownerEmail: string;
+  ownerPhone?: string | null;
+  ownerPassword: string;
+}
+
 // ── Hook ─────────────────────────────────────────────────────────────────────
 
 export function useAuth() {
@@ -138,6 +150,44 @@ export function useAuth() {
     [],
   );
 
+  /** POST /auth/register — đăng ký cửa hàng mới, tự động đăng nhập và chuyển hướng vào dashboard */
+  const registerStore = useCallback(
+    async (payload: RegisterStorePayload) => {
+      setLoading(true);
+      try {
+        const { data: res } = await apiClient.post<ApiResponseData<LoginResponse>>(
+          "/auth/register",
+          payload,
+        );
+
+        if (!res.data) {
+          throw new Error(res.message || "Đăng ký thất bại");
+        }
+
+        const { accessToken, refreshToken, user: userData } = res.data;
+
+        if (accessToken && refreshToken && userData) {
+          const authUser: AuthUser = {
+            id: userData.id,
+            fullName: userData.fullName,
+            email: userData.email,
+            role: userData.role as AuthUser["role"],
+            storeId: userData.storeId,
+            storeName: userData.storeName,
+          };
+
+          setAuth(authUser, accessToken, refreshToken);
+          window.location.href = "/";
+        }
+
+        return res;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [setAuth, setLoading],
+  );
+
   return {
     user,
     isAuthenticated,
@@ -146,5 +196,6 @@ export function useAuth() {
     logout,
     refresh,
     changePassword,
+    registerStore,
   };
 }
