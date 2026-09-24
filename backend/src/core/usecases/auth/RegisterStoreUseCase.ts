@@ -6,6 +6,8 @@ import { IUserRepository } from '../../repositories/IUserRepository.js';
 import { ConflictError } from '../../errors/ConflictError.js';
 import { ValidationError } from '../../errors/ValidationError.js';
 
+import { ITokenService, IRefreshTokenStore } from './LoginUseCase.js';
+
 export interface IPasswordHasher {
   hash(plain: string): Promise<string>;
 }
@@ -28,6 +30,8 @@ export type RegisterStoreInput = z.infer<typeof RegisterInputSchema>;
 export interface RegisterStoreOutput {
   store: Store;
   owner: User;
+  accessToken?: string;
+  refreshToken?: string;
 }
 
 export class RegisterStoreUseCase {
@@ -35,6 +39,8 @@ export class RegisterStoreUseCase {
     private readonly storeRepo: IStoreRepository,
     private readonly userRepo: IUserRepository,
     private readonly passwordHasher: IPasswordHasher,
+    private readonly tokenService?: ITokenService,
+    private readonly refreshTokenStore?: IRefreshTokenStore,
   ) {}
 
   async execute(input: RegisterStoreInput): Promise<RegisterStoreOutput> {
@@ -80,6 +86,20 @@ export class RegisterStoreUseCase {
     });
     const createdOwner = await this.userRepo.create(owner);
 
-    return { store: createdStore, owner: createdOwner };
+    // 5. Generate tokens if token service is available
+    let accessToken: string | undefined;
+    let refreshToken: string | undefined;
+    if (this.tokenService && this.refreshTokenStore) {
+      const payload = { userId: createdOwner.id, storeId: createdStore.id, role: createdOwner.role };
+      accessToken = this.tokenService.generateAccessToken(payload);
+      refreshToken = this.tokenService.generateRefreshToken(payload);
+      try {
+        await this.refreshTokenStore.save(createdOwner.id, refreshToken);
+      } catch (err) {
+        console.error('[AUTH_REGISTER] Failed to persist refresh token to Redis:', err);
+      }
+    }
+
+    return { store: createdStore, owner: createdOwner, accessToken, refreshToken };
   }
 }

@@ -185,7 +185,13 @@ const loginUseCase = new LoginUseCase(
   tokenService,
   refreshTokenStore,
 );
-const registerStoreUseCase = new RegisterStoreUseCase(storeRepo, userRepo, passwordService);
+const registerStoreUseCase = new RegisterStoreUseCase(
+  storeRepo,
+  userRepo,
+  passwordService,
+  tokenService,
+  refreshTokenStore,
+);
 const refreshTokenUseCase = new RefreshTokenUseCase(tokenService, tokenService, refreshTokenStore);
 const logoutUseCase = new LogoutUseCase(tokenService, refreshTokenStore);
 

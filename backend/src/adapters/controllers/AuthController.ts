@@ -55,12 +55,24 @@ export class AuthController {
 
       const response = ApiResponse.created(
         {
+          accessToken: result.accessToken,
+          refreshToken: result.refreshToken,
           store: result.store,
           owner: {
             id: result.owner.id,
             fullName: result.owner.fullName,
             email: result.owner.email,
             role: result.owner.role,
+            storeId: result.store.id,
+            storeName: result.store.name,
+          },
+          user: {
+            id: result.owner.id,
+            fullName: result.owner.fullName,
+            email: result.owner.email,
+            role: result.owner.role,
+            storeId: result.store.id,
+            storeName: result.store.name,
           },
         },
         'Đăng ký cửa hàng thành công',

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -380,6 +381,19 @@ export function LoginForm() {
                   <GoogleIcon />
                   <span className="ml-2.5">{t.google}</span>
                 </Button>
+              </motion.div>
+
+              {/* Link to Register */}
+              <motion.div variants={itemVariants} className="text-center pt-2">
+                <p className="text-xs text-slate-400">
+                  {lang === "vi" ? "Chưa có tài khoản?" : "Don't have an account?"}{" "}
+                  <Link
+                    href="/register"
+                    className="font-semibold text-blue-400 hover:text-blue-300 hover:underline transition-colors"
+                  >
+                    {lang === "vi" ? "Đăng ký dùng thử 14 ngày" : "Sign up for 14-day trial"}
+                  </Link>
+                </p>
               </motion.div>
             </form>
 
