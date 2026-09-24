@@ -132,11 +132,8 @@ export function LoginForm() {
       showPassword: "Hiện mật khẩu",
       hidePassword: "Ẩn mật khẩu",
       rememberMe: "Ghi nhớ đăng nhập",
-      forgotPassword: "Quên mật khẩu?",
       login: "Đăng nhập",
       loggingIn: "Đang đăng nhập...",
-      orContinue: "hoặc tiếp tục với",
-      google: "Tiếp tục với Google",
       footer: "© 2026 BizFlow 3D — Nền tảng chuyển đổi số cho hộ kinh doanh",
     },
     en: {
@@ -312,20 +309,6 @@ export function LoginForm() {
                 variants={itemVariants}
                 className="flex items-center justify-between"
               >
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="login-remember"
-                    className="h-4 w-4 rounded border-white/20 bg-white/5 text-blue-500 transition-colors focus:ring-blue-500/50 focus:ring-offset-0"
-                    {...register("rememberMe")}
-                  />
-                  <Label
-                    htmlFor="login-remember"
-                    className="cursor-pointer text-sm font-normal text-slate-400"
-                  >
-                    {t.rememberMe}
-                  </Label>
-                </div>
                 <button
                   type="button"
                   className="text-sm font-medium text-blue-400 transition-colors hover:text-blue-300"
@@ -356,30 +339,6 @@ export function LoginForm() {
                       </>
                     )}
                   </span>
-                </Button>
-              </motion.div>
-
-              {/* Divider */}
-              <motion.div
-                variants={itemVariants}
-                className="relative flex items-center py-1"
-              >
-                <div className="flex-1 border-t border-white/[0.06]" />
-                <span className="mx-4 text-xs text-slate-500">
-                  {t.orContinue}
-                </span>
-                <div className="flex-1 border-t border-white/[0.06]" />
-              </motion.div>
-
-              {/* Google button */}
-              <motion.div variants={itemVariants}>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="h-11 w-full border-white/[0.08] bg-white/[0.03] font-medium text-slate-300 transition-all duration-300 hover:border-white/20 hover:bg-white/[0.06] hover:text-white hover:scale-[1.02] active:scale-[0.98]"
-                >
-                  <GoogleIcon />
-                  <span className="ml-2.5">{t.google}</span>
                 </Button>
               </motion.div>
 
