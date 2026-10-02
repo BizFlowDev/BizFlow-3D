@@ -32,7 +32,6 @@ export function CameraPresetsBar({
       { id: "shelfSideLeft", label: "Kệ Hông Trái (C)", icon: Package, shortLabel: "Kệ C" },
       { id: "shelfSideRight", label: "Kệ Hông Phải (D)", icon: Package, shortLabel: "Kệ D" },
       { id: "posScreen", label: "Màn hình POS", icon: CreditCard, shortLabel: "Màn Hình POS" },
-      { id: "avatar", label: "Trợ lý AI", icon: Bot, shortLabel: "Trợ lý AI" },
     ];
 
   return (
@@ -51,8 +50,8 @@ export function CameraPresetsBar({
             onClick={() => onSelectPreset(item.id)}
             title={item.label}
             className={`group relative flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold transition-all ${isActive
-                ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/30 scale-105"
-                : "text-slate-300 hover:bg-white/10 hover:text-white"
+              ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/30 scale-105"
+              : "text-slate-300 hover:bg-white/10 hover:text-white"
               }`}
           >
             <Icon className={`h-4 w-4 ${isActive ? "text-white" : "text-slate-400 group-hover:text-white"}`} />

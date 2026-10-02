@@ -849,22 +849,7 @@ export default function Store3DPage() {
             />
 
             {/* Trợ lý AI Robot — cạnh quầy (ẩn bong bóng thoại khi mở Modal hoặc Màn hình POS) */}
-            <Avatar3D
-              isProcessing={false}
-              message={
-                pendingCount > 0
-                  ? `Có ${pendingCount} đơn hàng chờ duyệt tại quầy!`
-                  : null
-              }
-              position={[2.5, 0, 2.5]}
-              rotation={[0, -0.35, 0]}
-              onClick={() => setCameraPreset("avatar")}
-              hideBubble={
-                !!selectedProductForDetail ||
-                (!!createdOrder && !isPOSActive) ||
-                isPOSActive
-              }
-            />
+
           </StoreViewer>
         </Suspense>
 
