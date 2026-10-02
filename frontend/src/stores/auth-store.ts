@@ -43,6 +43,21 @@ function deleteCookie(name: string) {
   document.cookie = `${name}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
 }
 
+export function isTokenValid(token: string | null): boolean {
+  if (!token) return false;
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return false;
+    const payload = JSON.parse(
+      atob(parts[1].replace(/-/g, "+").replace(/_/g, "/"))
+    );
+    if (!payload.exp || typeof payload.exp !== "number") return false;
+    return payload.exp * 1000 > Date.now();
+  } catch {
+    return false;
+  }
+}
+
 // ── Store ─────────────────────────────────────────────────────────────────────
 
 export const useAuthStore = create<AuthState & AuthActions>()(
@@ -120,7 +135,14 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         isAuthenticated: state.isAuthenticated,
       }),
       onRehydrateStorage: () => (state) => {
-        state?.setHasHydrated(true);
+        if (state) {
+          if (state.accessToken && !isTokenValid(state.accessToken)) {
+            state.clearAuth();
+          } else if (state.accessToken && isTokenValid(state.accessToken)) {
+            setCookie("bizflow.accessToken", state.accessToken, 7);
+          }
+          state.setHasHydrated(true);
+        }
       },
     },
   ),

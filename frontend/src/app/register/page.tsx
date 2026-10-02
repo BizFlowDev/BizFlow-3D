@@ -4,34 +4,41 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useAuthStore } from "@/stores/auth-store";
+import { useAuthStore, isTokenValid } from "@/stores/auth-store";
 import { AnimatedBackground } from "../login/_components/animated-background";
 import { RegisterShowcase } from "./_components/register-showcase";
 import { RegisterForm } from "./_components/register-form";
 
 export default function RegisterPage() {
   const router = useRouter();
-  const { isAuthenticated, _hasHydrated } = useAuthStore();
+  const { isAuthenticated, _hasHydrated, accessToken, clearAuth } =
+    useAuthStore();
 
   // Redirect nếu đã login
   useEffect(() => {
-    if (_hasHydrated && isAuthenticated) {
-      router.replace("/");
-    }
-  }, [_hasHydrated, isAuthenticated, router]);
+    if (_hasHydrated) {
+      if (isAuthenticated) {
+        const hasCookie =
+          typeof document !== "undefined" &&
+          document.cookie.includes("bizflow.accessToken");
 
-  // Chờ hydrate xong mới render (tránh flash UI)
-  if (!_hasHydrated) {
+        if (!accessToken || !isTokenValid(accessToken) || !hasCookie) {
+          clearAuth();
+          return;
+        }
+
+        router.replace("/");
+      }
+    }
+  }, [_hasHydrated, isAuthenticated, accessToken, router, clearAuth]);
+
+  // Chờ hydrate xong hoặc đang redirect (tránh màn hình trắng)
+  if (!_hasHydrated || isAuthenticated) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-950 via-blue-950 to-slate-900">
         <Loader2 className="h-8 w-8 animate-spin text-blue-400" />
       </div>
     );
-  }
-
-  // Đã login → đang redirect
-  if (isAuthenticated) {
-    return null;
   }
 
   return (

@@ -28,6 +28,11 @@ function decodeJwtPayload(token: string): Record<string, unknown> | null {
   }
 }
 
+function isJwtExpired(payload: Record<string, unknown> | null): boolean {
+  if (!payload || typeof payload.exp !== "number") return true;
+  return payload.exp * 1000 <= Date.now();
+}
+
 // ── Middleware ─────────────────────────────────────────────────────────────────
 
 export function middleware(request: NextRequest) {
@@ -42,32 +47,39 @@ export function middleware(request: NextRequest) {
 
   // ── Public pages ──
   if (isPublicPath(pathname)) {
-    // Nếu đã login → redirect khỏi login page
+    // Nếu đã login và token còn hạn → redirect khỏi login page
     if (token) {
       const payload = decodeJwtPayload(token);
-      if (payload) {
+      if (payload && !isJwtExpired(payload)) {
         const role = payload.role as string;
         const dest = role === "admin" ? "/admin/stores" : role === "employee" ? "/orders/new" : "/";
         if (pathname !== dest) {
           return NextResponse.redirect(new URL(dest, request.url));
         }
+      } else {
+        // Token malformed hoặc đã hết hạn → xóa cookie
+        const response = NextResponse.next();
+        response.cookies.delete("bizflow.accessToken");
+        return response;
       }
     }
     return NextResponse.next();
   }
 
-  // ── Protected pages — cần token ──
+  // ── Protected pages — cần token còn hạn ──
   if (!token) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("callbackUrl", pathname);
     return NextResponse.redirect(loginUrl);
   }
 
-  // Decode JWT để lấy role
+  // Decode JWT để lấy role và check hạn
   const payload = decodeJwtPayload(token);
-  if (!payload) {
-    // Token malformed → redirect login
-    const response = NextResponse.redirect(new URL("/login", request.url));
+  if (!payload || isJwtExpired(payload)) {
+    // Token malformed hoặc đã hết hạn → xóa cookie & redirect login
+    const loginUrl = new URL("/login", request.url);
+    loginUrl.searchParams.set("callbackUrl", pathname);
+    const response = NextResponse.redirect(loginUrl);
     response.cookies.delete("bizflow.accessToken");
     return response;
   }
