@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
-import { Boxes, Menu } from "lucide-react";
+import { Menu } from "lucide-react";
 import type { UserRole } from "@/config/navigation";
 import { Button } from "@/components/ui/button";
 import {
@@ -37,7 +38,7 @@ export function MobileSidebar({ role }: { role: UserRole }) {
             onClick={() => setOpen(false)}
             className="flex items-center gap-2"
           >
-            <Boxes className="h-7 w-7 shrink-0 text-primary" />
+            <Image src="/images/logo.png" alt="BizFlow 3D" width={32} height={32} />
             <span className="text-lg font-bold">BizFlow 3D</span>
           </Link>
         </div>

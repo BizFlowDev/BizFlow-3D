@@ -30,7 +30,7 @@ export function Sidebar({ role, collapsed, onToggleCollapsed }: SidebarProps) {
         )}
       >
         <Link href={homeHref} className="flex items-center gap-2">
-          <Boxes className="h-7 w-7 shrink-0 text-primary" />
+          <img src="/images/logo.png" alt="BizFlow 3D" width={32} height={32} />
           {!collapsed && <span className="whitespace-nowrap text-lg font-bold">BizFlow 3D</span>}
         </Link>
       </div>

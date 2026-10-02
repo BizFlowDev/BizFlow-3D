@@ -76,12 +76,12 @@ export function Header({ role }: HeaderProps) {
   // Tạo initials từ tên user (VD: "Nguyễn Văn A" → "NA")
   const initials = user?.fullName
     ? user.fullName
-        .split(" ")
-        .filter(Boolean)
-        .map((w) => w[0])
-        .slice(0, 2)
-        .join("")
-        .toUpperCase()
+      .split(" ")
+      .filter(Boolean)
+      .map((w) => w[0])
+      .slice(0, 2)
+      .join("")
+      .toUpperCase()
     : "NV";
 
   const displayName = user?.fullName || "Người dùng";
@@ -119,7 +119,7 @@ export function Header({ role }: HeaderProps) {
                 className="flex items-center gap-2 rounded-md border bg-muted/50 px-2 py-1.5"
                 aria-label="Chế độ 3D"
               >
-                <Boxes className="hidden h-4 w-4 shrink-0 text-muted-foreground md:block" />
+                <img src="/images/logo.png" alt="Bizflow 3D" width={20} height={20} />
                 <span className="hidden text-xs font-medium md:block">Chế độ 3D</span>
                 {mounted ? (
                   <Switch
@@ -132,11 +132,7 @@ export function Header({ role }: HeaderProps) {
                 )}
               </div>
             </TooltipTrigger>
-            <TooltipContent>
-              {is3DEnabled
-                ? "Chế độ 3D đang bật — chọn để chuyển sang giao diện 2D nhanh"
-                : "Chế độ 3D đang tắt — giao diện 2D thuần (nhanh, tiết kiệm pin)"}
-            </TooltipContent>
+
           </Tooltip>
         )}
 

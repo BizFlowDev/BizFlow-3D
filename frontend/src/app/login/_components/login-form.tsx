@@ -197,7 +197,7 @@ export function LoginForm() {
                   alt="BizFlow 3D Logo"
                   width={72}
                   height={72}
-                  className="h-18 w-18 rounded-2xl border border-white/10 drop-shadow-lg"
+                  className="h-18 w-18 rounded-2xl border border-white/10 drop-shadow-lg bg-white p-1"
                   priority
                 />
                 {/* Pulse ring */}

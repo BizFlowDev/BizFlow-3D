@@ -7,7 +7,7 @@ import { SocketProvider } from "@/components/layout/socket-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuthStore } from "@/stores/auth-store";
 import type { UserRole } from "@/config/navigation";
-import { Loader2 } from "lucide-react";
+import { BizFlowSplash } from "@/components/shared/bizflow-splash";
 
 export default function DashboardLayout({
   children,
@@ -20,13 +20,9 @@ export default function DashboardLayout({
   // Lấy role từ auth store, fallback "owner" khi chưa hydrate
   const role: UserRole = user?.role ?? "owner";
 
-  // Loading state khi Zustand chưa hydrate từ localStorage
+  // Màn hình chờ thương hiệu khi Zustand đang hydrate từ localStorage
   if (!_hasHydrated) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <BizFlowSplash message="Đang khởi tạo hệ thống..." />;
   }
 
   return (
