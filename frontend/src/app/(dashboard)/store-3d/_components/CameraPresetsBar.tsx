@@ -3,11 +3,8 @@
 import {
   Globe,
   Package,
-  Store,
   CreditCard,
-  Bot,
   RotateCcw,
-  MousePointer,
 } from "lucide-react";
 import type { CameraPreset } from "@/components/3d/CameraController";
 

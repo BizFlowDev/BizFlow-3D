@@ -2,7 +2,6 @@ import type { LucideIcon } from "lucide-react";
 import {
   BarChart3,
   BookOpen,
-  Bot,
   Box,
   Boxes,
   Cog,
@@ -68,12 +67,6 @@ export const NAV_SECTIONS: NavSection[] = [
         title: "Khách hàng",
         href: "/customers",
         icon: Users,
-        roles: ["employee", "owner"],
-      },
-      {
-        title: "AI Đơn hàng",
-        href: "/ai-orders",
-        icon: Bot,
         roles: ["employee", "owner"],
       },
     ],

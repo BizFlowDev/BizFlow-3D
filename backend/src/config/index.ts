@@ -15,9 +15,6 @@ const env = {
   JWT_ACCESS_EXPIRES_IN: process.env.JWT_ACCESS_EXPIRES_IN || '15m',
   JWT_REFRESH_EXPIRES_IN: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
 
-  OPENAI_API_KEY: process.env.OPENAI_API_KEY || '',
-  GEMINI_API_KEY: process.env.GEMINI_API_KEY || '',
-
   CORS_ORIGIN: process.env.CORS_ORIGIN || 'http://localhost:3000',
 
   CLOUDINARY_CLOUD_NAME: process.env.CLOUDINARY_CLOUD_NAME || '',

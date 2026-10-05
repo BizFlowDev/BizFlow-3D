@@ -94,7 +94,7 @@ export async function printInvoice(order: Order): Promise<void> {
       ["Mã đơn", getOrderCode(order)],
       ["Ngày tạo", formatDateTime(order.createdAt)],
       ["Khách hàng", order.customerName || "Khách lẻ"],
-      ["Loại đơn", order.orderType === "counter" ? "Bán tại quầy" : "AI tạo"],
+      ["Loại đơn", order.orderType === "counter" ? "Bán tại quầy" : "Khác"],
       ["Hình thức TT", paymentMethodText],
       ["Ghi chú", order.note || "—"],
     ],

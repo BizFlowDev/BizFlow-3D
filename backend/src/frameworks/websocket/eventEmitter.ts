@@ -3,14 +3,6 @@ import { emitToStore, emitToUser } from './socketServer.js';
 
 // ── Typed Event Definitions ──────────────────────────────
 
-export interface DraftCreatedEvent {
-  storeId: string;
-  draftOrderId: string;
-  customerName: string | null;
-  itemCount: number;
-  totalAmount: number;
-}
-
 export interface OrderConfirmedEvent {
   storeId: string;
   orderId: string;
@@ -42,7 +34,6 @@ export interface GeneralNotificationEvent {
 
 /** Map of all application event names to their payload types. */
 export interface AppEventMap {
-  'draft:created': DraftCreatedEvent;
   'order:confirmed': OrderConfirmedEvent;
   'order:created': OrderCreatedEvent;
   'inventory:low_stock': LowStockEvent;
@@ -77,17 +68,6 @@ export const appEventEmitter = new AppEventEmitter();
  * Call this once after `initSocketServer()` during server bootstrap.
  */
 export function initEventListeners(): void {
-  // Draft order created (e.g. by AI or manual draft flow)
-  appEventEmitter.on('draft:created', (data) => {
-    emitToStore(data.storeId, 'new_draft_order', {
-      draftOrderId: data.draftOrderId,
-      customerName: data.customerName,
-      itemCount: data.itemCount,
-      totalAmount: data.totalAmount,
-    });
-    console.log(`[Event] draft:created → store:${data.storeId}`);
-  });
-
   // Order confirmed
   appEventEmitter.on('order:confirmed', (data) => {
     emitToStore(data.storeId, 'order_confirmed', {

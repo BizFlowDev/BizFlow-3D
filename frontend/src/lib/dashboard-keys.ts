@@ -96,6 +96,5 @@ export const dashboardKeys = {
   recentOrders: ["dashboard", "recent-orders"] as const,
   lowStock: ["dashboard", "low-stock"] as const,
   totalDebt: ["dashboard", "total-debt"] as const,
-  pendingDrafts: ["dashboard", "pending-drafts"] as const,
 };
 

@@ -54,10 +54,6 @@ const Counter = dynamic(() => import("@/components/3d/Counter"), {
   ssr: false,
 });
 
-const Avatar3D = dynamic(() => import("@/components/3d/Avatar3D"), {
-  ssr: false,
-});
-
 // ── Loading fallback ──────────────────────────────────────────────────────────
 
 function SceneLoading() {
@@ -847,9 +843,6 @@ export default function Store3DPage() {
               recentOrders={ordersData?.items ?? []}
               position={[0, 0, 2]}
             />
-
-            {/* Trợ lý AI Robot — cạnh quầy (ẩn bong bóng thoại khi mở Modal hoặc Màn hình POS) */}
-
           </StoreViewer>
         </Suspense>
 

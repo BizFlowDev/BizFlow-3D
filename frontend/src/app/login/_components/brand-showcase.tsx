@@ -5,8 +5,6 @@ import {
   BarChart3,
   ShoppingCart,
   Package,
-  Bot,
-  Sparkles,
   ArrowUpRight,
   DollarSign,
 } from "lucide-react";
@@ -114,39 +112,6 @@ function DashboardIllustration() {
   );
 }
 
-// ── AI Assistant Bubble ───────────────────────────────────────────────────────
-
-function AiAssistantBubble() {
-  return (
-    <motion.div
-      initial={{ opacity: 0, x: 20 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={{ duration: 0.6, delay: 1.5 }}
-      className="absolute -right-4 bottom-24 z-10"
-    >
-      <div className="flex items-start gap-2 rounded-2xl rounded-br-sm border border-cyan-500/20 bg-gradient-to-br from-cyan-500/15 to-blue-500/10 px-4 py-3 shadow-lg shadow-cyan-500/10 backdrop-blur-xl">
-        <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-cyan-400 to-blue-500">
-          <Bot className="h-4 w-4 text-white" />
-        </div>
-        <div>
-          <div className="mb-0.5 flex items-center gap-1">
-            <span className="text-xs font-semibold text-cyan-300">
-              BizFlow AI
-            </span>
-            <Sparkles className="h-3 w-3 text-cyan-400" />
-          </div>
-          <p className="text-[11px] leading-relaxed text-slate-300">
-            Doanh thu tăng 23% so với tuần trước.
-            <br />
-            Đề xuất nhập thêm{" "}
-            <span className="font-medium text-cyan-300">SP-042</span>
-          </p>
-        </div>
-      </div>
-    </motion.div>
-  );
-}
-
 // ── Main Showcase Component ───────────────────────────────────────────────────
 
 export function BrandShowcase() {
@@ -209,9 +174,6 @@ export function BrandShowcase() {
 
         {/* Dashboard mockup */}
         <DashboardIllustration />
-
-        {/* AI Assistant */}
-        <AiAssistantBubble />
       </div>
 
       {/* Trust badges */}

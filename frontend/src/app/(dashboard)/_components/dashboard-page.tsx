@@ -10,7 +10,6 @@ import { useAuthStore } from "@/stores/auth-store";
 import {
   DollarSign,
   ShoppingCart,
-  Bot,
   RefreshCcw,
   CalendarDays,
   Receipt,
@@ -42,7 +41,6 @@ import {
   useRecentOrders,
   useLowStockItems,
   useTotalDebt,
-  usePendingDrafts,
 } from "@/hooks/useDashboard";
 
 // Lazy-load scene 3D (three.js) — chỉ tải khi bật chế độ 3D (nguyên tắc hiệu suất)
@@ -159,7 +157,6 @@ export default function DashboardPage() {
   const recentOrders = useRecentOrders();
   const lowStock = useLowStockItems();
   const totalDebt = useTotalDebt();
-  const pendingDrafts = usePendingDrafts();
 
   // ── Order detail dialog ──
   const { toasts, showToast, dismiss } = useToast();
@@ -193,8 +190,6 @@ export default function DashboardPage() {
       : ordersToday > 0
         ? 100
         : 0;
-
-  const draftCount = pendingDrafts.data ?? 0;
 
   // ── Handlers ──
   const handleRefresh = () => {
@@ -245,7 +240,7 @@ export default function DashboardPage() {
       </motion.div>
 
       {/* ── Stat Cards ── */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           index={0}
           title="Doanh thu hôm nay"
@@ -265,16 +260,6 @@ export default function DashboardPage() {
           trend={{ value: ordersChange, label: "vs hôm qua" }}
           sub="đơn hàng"
           loading={revenue.isLoading}
-        />
-        <StatCard
-          index={2}
-          title="Đơn nháp chờ xử lý"
-          value={`${draftCount}`}
-          icon={Bot}
-          color="amber"
-          sub="đơn nháp AI chờ duyệt"
-          href="/ai-orders"
-          loading={pendingDrafts.isLoading}
         />
         <TotalDebtWidget
           debtSummary={totalDebt.data}
