@@ -8,6 +8,7 @@ import {
   Cog,
   CreditCard,
   LayoutDashboard,
+  Megaphone,
   Package,
   PieChart,
   Receipt,
@@ -134,9 +135,9 @@ export const NAV_SECTIONS: NavSection[] = [
         roles: ["admin"],
       },
       {
-        title: "Cấu hình hệ thống",
+        title: "Thông báo nền tảng",
         href: "/admin/system",
-        icon: Cog,
+        icon: Megaphone,
         roles: ["admin"],
       },
       {

@@ -1,49 +1,40 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { motion } from "motion/react";
 import {
-  Settings,
-  Save,
-  Upload,
-  FileText,
   Megaphone,
   Send,
   Loader2,
   CheckCircle2,
   AlertTriangle,
   RefreshCcw,
-  Pencil,
-  X,
-  Check,
+  History,
+  Radio,
+  Calendar,
+  User,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Separator } from "@/components/ui/separator";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  useSystemConfig,
-  useUpdateSystemConfig,
   useBroadcastAnnouncement,
   useAnnouncements,
 } from "@/hooks/useAdmin";
-import type {
-  SystemConfig,
-  SystemConfigUpdateData,
-} from "@/hooks/useAdmin";
+
+const ITEMS_PER_PAGE = 5;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -63,7 +54,7 @@ const containerVariants = {
   hidden: { opacity: 0 },
   show: {
     opacity: 1,
-    transition: { staggerChildren: 0.06, delayChildren: 0.1 },
+    transition: { staggerChildren: 0.08, delayChildren: 0.1 },
   },
 } as const;
 
@@ -76,345 +67,73 @@ const itemVariants = {
   },
 } as const;
 
-// ── System Config Tab ─────────────────────────────────────────────────────────
+// ── Page Component ────────────────────────────────────────────────────────────
 
-function SystemConfigTab() {
-  const { data: configs, isLoading, refetch } = useSystemConfig();
-  const { mutate: updateConfig, isPending: isSaving } = useUpdateSystemConfig();
-  const [editingKey, setEditingKey] = useState<string | null>(null);
-  const [editValue, setEditValue] = useState("");
-  const [saveSuccess, setSaveSuccess] = useState(false);
+export default function SystemPage() {
+  const { mutate: broadcastAnnouncement, isPending } = useBroadcastAnnouncement();
+  const {
+    data: announcements,
+    isLoading: isLoadingAnnouncements,
+    refetch,
+    isRefetching,
+  } = useAnnouncements();
 
-  const handleEdit = (config: SystemConfig) => {
-    setEditingKey(config.key);
-    setEditValue(config.value);
-  };
-
-  const handleCancel = () => {
-    setEditingKey(null);
-    setEditValue("");
-  };
-
-  const handleSave = (key: string) => {
-    const updates: SystemConfigUpdateData[] = [{ key, value: editValue }];
-    updateConfig(updates, {
-      onSuccess: () => {
-        setEditingKey(null);
-        setEditValue("");
-        setSaveSuccess(true);
-        setTimeout(() => setSaveSuccess(false), 2000);
-      },
-    });
-  };
-
-  if (isLoading) {
-    return (
-      <div className="space-y-4">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className="flex items-center gap-4">
-            <Skeleton className="h-4 w-[200px]" />
-            <Skeleton className="h-4 w-[150px]" />
-            <Skeleton className="h-4 w-[100px]" />
-          </div>
-        ))}
-      </div>
-    );
-  }
-
-  return (
-    <Card className="border bg-card/50 backdrop-blur-sm">
-      <CardHeader className="flex flex-row items-center justify-between">
-        <div>
-          <CardTitle className="flex items-center gap-2">
-            <Settings className="h-5 w-5 text-blue-500" />
-            Cấu hình hệ thống
-          </CardTitle>
-          <CardDescription>
-            Cập nhật các tham số cấu hình key-value của nền tảng
-          </CardDescription>
-        </div>
-        <div className="flex items-center gap-2">
-          {saveSuccess && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.8 }}
-              className="flex items-center gap-1 text-sm text-emerald-600"
-            >
-              <CheckCircle2 className="h-4 w-4" />
-              Đã lưu
-            </motion.div>
-          )}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => refetch()}
-          >
-            <RefreshCcw className="h-3.5 w-3.5" />
-            Tải lại
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="overflow-x-auto rounded-lg border">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-muted/30 hover:bg-muted/30">
-                <TableHead className="min-w-[200px]">Key</TableHead>
-                <TableHead className="min-w-[200px]">Giá trị</TableHead>
-                <TableHead className="min-w-[250px]">Mô tả</TableHead>
-                <TableHead className="min-w-[140px]">Cập nhật lúc</TableHead>
-                <TableHead className="w-[100px] text-center">
-                  Thao tác
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {(configs ?? []).map((config, index) => (
-                <motion.tr
-                  key={config.id}
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: index * 0.04 }}
-                  className="group border-b transition-colors hover:bg-muted/40"
-                >
-                  <TableCell>
-                    <code className="rounded-md bg-muted/50 px-2 py-1 text-xs font-mono text-blue-600 dark:text-blue-400">
-                      {config.key}
-                    </code>
-                  </TableCell>
-                  <TableCell>
-                    {editingKey === config.key ? (
-                      <Input
-                        value={editValue}
-                        onChange={(e) => setEditValue(e.target.value)}
-                        className="h-8 text-sm"
-                        autoFocus
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") handleSave(config.key);
-                          if (e.key === "Escape") handleCancel();
-                        }}
-                      />
-                    ) : (
-                      <span className="font-medium tabular-nums">
-                        {config.value}
-                      </span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {config.description}
-                  </TableCell>
-                  <TableCell className="text-xs text-muted-foreground">
-                    {formatDate(config.updatedAt)}
-                  </TableCell>
-                  <TableCell className="text-center">
-                    {editingKey === config.key ? (
-                      <div className="flex items-center justify-center gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-emerald-600"
-                          onClick={() => handleSave(config.key)}
-                          disabled={isSaving}
-                        >
-                          {isSaving ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            <Check className="h-3.5 w-3.5" />
-                          )}
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-muted-foreground"
-                          onClick={handleCancel}
-                        >
-                          <X className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    ) : (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 opacity-0 transition-opacity group-hover:opacity-100"
-                        onClick={() => handleEdit(config)}
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
-                    )}
-                  </TableCell>
-                </motion.tr>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-
-// ── Announcement Tab ──────────────────────────────────────────────────────────
-
-function AnnouncementTab() {
-  const { mutate: broadcastAnnouncement, isPending } =
-    useBroadcastAnnouncement();
-  const { data: announcements, isLoading: isLoadingAnnouncements, refetch } =
-    useAnnouncements();
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [sendSuccess, setSendSuccess] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const handleSend = () => {
     if (!title.trim() || !content.trim()) return;
     broadcastAnnouncement(
-      { title, content },
+      { title: title.trim(), content: content.trim() },
       {
         onSuccess: () => {
           setTitle("");
           setContent("");
           setSendSuccess(true);
-          setTimeout(() => setSendSuccess(false), 3000);
+          setCurrentPage(1); // Về trang 1 để xem thông báo mới gửi
+          setTimeout(() => setSendSuccess(false), 3500);
         },
       }
     );
   };
 
-  return (
-    <Card className="border bg-card/50 backdrop-blur-sm">
-      <CardHeader className="flex flex-row items-center justify-between">
-        <div>
-          <CardTitle className="flex items-center gap-2">
-            <Megaphone className="h-5 w-5 text-rose-500" />
-            Thông báo hệ thống
-          </CardTitle>
-          <CardDescription>
-            Tạo và broadcast thông báo đến tất cả cửa hàng trên nền tảng
-          </CardDescription>
-        </div>
-        <Button variant="outline" size="sm" onClick={() => refetch()}>
-          <RefreshCcw className="h-3.5 w-3.5" />
-          Tải lại
-        </Button>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        {/* Compose */}
-        <div className="space-y-4 rounded-xl border bg-muted/20 p-4">
-          <h4 className="text-sm font-semibold">Tạo thông báo mới</h4>
-          <div>
-            <Label htmlFor="announcement-title" className="mb-1.5 block text-sm">
-              Tiêu đề
-            </Label>
-            <Input
-              id="announcement-title"
-              placeholder="Nhập tiêu đề thông báo..."
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-            />
-          </div>
-          <div>
-            <Label htmlFor="announcement-content" className="mb-1.5 block text-sm">
-              Nội dung
-            </Label>
-            <Textarea
-              id="announcement-content"
-              placeholder="Nhập nội dung thông báo..."
-              rows={5}
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-            />
-          </div>
-          <div className="flex items-center justify-between">
-            <p className="text-xs text-muted-foreground">
-              <AlertTriangle className="mr-1 inline h-3.5 w-3.5 text-amber-500" />
-              Thông báo sẽ được gửi đến tất cả cửa hàng
-            </p>
-            <Button
-              onClick={handleSend}
-              disabled={isPending || !title.trim() || !content.trim()}
-              className="bg-gradient-to-r from-rose-500 to-pink-500 text-white shadow-lg shadow-rose-500/25 hover:from-rose-400 hover:to-pink-400"
-            >
-              {isPending ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Đang gửi...
-                </>
-              ) : (
-                <>
-                  <Send className="h-4 w-4" />
-                  Gửi thông báo
-                </>
-              )}
-            </Button>
-          </div>
-          {sendSuccess && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="flex items-center gap-2 rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-3 text-sm text-emerald-700 dark:bg-emerald-950/30 dark:border-emerald-800 dark:text-emerald-400"
-            >
-              <CheckCircle2 className="h-4 w-4" />
-              Thông báo đã được gửi thành công đến tất cả cửa hàng!
-            </motion.div>
-          )}
-        </div>
-
-        <Separator />
-
-        {/* Recent Announcements */}
-        <div>
-          <h4 className="mb-3 text-sm font-semibold text-muted-foreground">
-            Thông báo gần đây
-          </h4>
-          {isLoadingAnnouncements ? (
-            <div className="space-y-3">
-              {Array.from({ length: 3 }).map((_, i) => (
-                <Skeleton key={i} className="h-20 rounded-xl" />
-              ))}
-            </div>
-          ) : (announcements ?? []).length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              Chưa có thông báo nào được gửi.
-            </p>
-          ) : (
-            <div className="space-y-3">
-              {(announcements ?? []).map((ann, i) => (
-                <motion.div
-                  key={ann.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.08 }}
-                  className="rounded-xl border bg-background p-4 transition-colors hover:bg-muted/20"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1">
-                      <h5 className="font-semibold">{ann.title}</h5>
-                      <p className="mt-1 text-sm text-muted-foreground line-clamp-2">
-                        {ann.content}
-                      </p>
-                    </div>
-                    {ann.createdBy && (
-                      <Badge variant="secondary" className="shrink-0">
-                        {ann.createdBy}
-                      </Badge>
-                    )}
-                  </div>
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    {formatDate(ann.createdAt)}
-                  </p>
-                </motion.div>
-              ))}
-            </div>
-          )}
-        </div>
-      </CardContent>
-    </Card>
+  // Phân trang
+  const totalItems = announcements?.length ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalItems / ITEMS_PER_PAGE));
+  const validPage = Math.min(Math.max(1, currentPage), totalPages);
+  const startIndex = (validPage - 1) * ITEMS_PER_PAGE;
+  const paginatedAnnouncements = (announcements ?? []).slice(
+    startIndex,
+    startIndex + ITEMS_PER_PAGE
   );
-}
 
-// ── Page Component ────────────────────────────────────────────────────────────
+  const getVisiblePages = () => {
+    if (totalPages <= 5) {
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    }
+    if (validPage <= 3) {
+      return [1, 2, 3, 4, 5];
+    }
+    if (validPage >= totalPages - 2) {
+      return [
+        totalPages - 4,
+        totalPages - 3,
+        totalPages - 2,
+        totalPages - 1,
+        totalPages,
+      ];
+    }
+    return [
+      validPage - 2,
+      validPage - 1,
+      validPage,
+      validPage + 1,
+      validPage + 2,
+    ];
+  };
 
-export default function SystemPage() {
   return (
     <motion.div
       variants={containerVariants}
@@ -423,42 +142,266 @@ export default function SystemPage() {
       className="space-y-6"
     >
       {/* ── Header ── */}
-      <motion.div variants={itemVariants}>
-        <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight md:text-3xl">
-          <div className="rounded-lg bg-gradient-to-br from-blue-500 to-cyan-500 p-2">
-            <Settings className="h-5 w-5 text-white" />
-          </div>
-          Quản lý Hệ thống
-        </h1>
-        <p className="mt-1 text-muted-foreground">
-          Cấu hình hệ thống, mẫu báo cáo và thông báo nền tảng.
-        </p>
+      <motion.div
+        variants={itemVariants}
+        className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
+      >
+        <div>
+          <h1 className="flex items-center gap-2.5 text-2xl font-bold tracking-tight md:text-3xl">
+            <div className="rounded-xl bg-gradient-to-br from-rose-500 to-pink-500 p-2.5 shadow-md shadow-rose-500/20">
+              <Megaphone className="h-5 w-5 text-white" />
+            </div>
+            Thông báo nền tảng
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground md:text-base">
+            Tạo, quản lý và phát thông báo trực tiếp đến tất cả cửa hàng và người dùng trên hệ thống.
+          </p>
+        </div>
+
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => refetch()}
+          disabled={isRefetching || isLoadingAnnouncements}
+          className="self-start sm:self-auto gap-1.5"
+        >
+          <RefreshCcw className={`h-3.5 w-3.5 ${isRefetching ? "animate-spin" : ""}`} />
+          Tải lại
+        </Button>
       </motion.div>
 
-      {/* ── Tabs ── */}
-      <motion.div variants={itemVariants}>
-        <Tabs defaultValue="config" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-2 max-w-lg">
-            <TabsTrigger value="config" className="gap-1.5">
-              <Settings className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Cấu hình</span>
-            </TabsTrigger>
-            <TabsTrigger value="announcements" className="gap-1.5">
-              <Megaphone className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Thông báo hệ thống</span>
-            </TabsTrigger>
-          </TabsList>
+      {/* ── Content Grid ── */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+        {/* Cột trái: Soạn thông báo mới */}
+        <motion.div variants={itemVariants} className="lg:col-span-5">
+          <Card className="border bg-card/50 backdrop-blur-sm shadow-sm h-full flex flex-col justify-between">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Send className="h-4 w-4 text-rose-500" />
+                Tạo thông báo mới
+              </CardTitle>
+              <CardDescription>
+                Nội dung sẽ được phát tức thời đến toàn bộ cửa hàng đang sử dụng BizFlow
+              </CardDescription>
+            </CardHeader>
 
-          <TabsContent value="config">
-            <SystemConfigTab />
-          </TabsContent>
+            <CardContent className="space-y-4 flex-1">
+              <div className="space-y-1.5">
+                <Label htmlFor="announcement-title" className="text-sm font-medium">
+                  Tiêu đề thông báo <span className="text-rose-500">*</span>
+                </Label>
+                <Input
+                  id="announcement-title"
+                  placeholder="Ví dụ: Lịch bảo trì hệ thống định kỳ..."
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  className="h-10"
+                />
+              </div>
 
+              <div className="space-y-1.5">
+                <Label htmlFor="announcement-content" className="text-sm font-medium">
+                  Nội dung chi tiết <span className="text-rose-500">*</span>
+                </Label>
+                <Textarea
+                  id="announcement-content"
+                  placeholder="Nhập thông tin chi tiết về thông báo hoặc cập nhật mới..."
+                  rows={6}
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                  className="resize-none"
+                />
+              </div>
 
-          <TabsContent value="announcements">
-            <AnnouncementTab />
-          </TabsContent>
-        </Tabs>
-      </motion.div>
+              <div className="rounded-lg border border-amber-200/60 bg-amber-50/50 p-3 text-xs text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-300">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500 mt-0.5" />
+                  <span>
+                    Thông báo này sẽ xuất hiện trên màn hình quản lý của toàn bộ chủ shop và nhân viên.
+                  </span>
+                </div>
+              </div>
+
+              {sendSuccess && (
+                <motion.div
+                  initial={{ opacity: 0, y: -6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-sm text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400"
+                >
+                  <CheckCircle2 className="h-4 w-4 shrink-0" />
+                  <span>Thông báo đã được phát thành công!</span>
+                </motion.div>
+              )}
+
+              <Button
+                onClick={handleSend}
+                disabled={isPending || !title.trim() || !content.trim()}
+                className="w-full bg-gradient-to-r from-rose-500 to-pink-500 text-white shadow-md shadow-rose-500/25 hover:from-rose-600 hover:to-pink-600 font-medium"
+              >
+                {isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Đang phát thông báo...
+                  </>
+                ) : (
+                  <>
+                    <Send className="mr-2 h-4 w-4" />
+                    Phát thông báo ngay
+                  </>
+                )}
+              </Button>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {/* Cột phải: Lịch sử thông báo */}
+        <motion.div variants={itemVariants} className="lg:col-span-7">
+          <Card className="border bg-card/50 backdrop-blur-sm shadow-sm h-full flex flex-col justify-between">
+            <div>
+              <CardHeader className="flex flex-row items-center justify-between pb-3">
+                <div>
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <History className="h-4 w-4 text-primary" />
+                    Lịch sử thông báo
+                  </CardTitle>
+                  <CardDescription>
+                    Danh sách các thông báo hệ thống đã được gửi
+                  </CardDescription>
+                </div>
+                {totalItems > 0 && (
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary" className="font-mono text-xs">
+                      {totalItems} thông báo
+                    </Badge>
+                    {totalPages > 1 && (
+                      <Badge variant="outline" className="text-xs">
+                        Trang {validPage}/{totalPages}
+                      </Badge>
+                    )}
+                  </div>
+                )}
+              </CardHeader>
+
+              <CardContent className="space-y-3">
+                {isLoadingAnnouncements ? (
+                  <div className="space-y-3">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <Skeleton key={i} className="h-20 w-full rounded-xl" />
+                    ))}
+                  </div>
+                ) : totalItems === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-16 text-center text-muted-foreground">
+                    <div className="rounded-full bg-muted/60 p-4 mb-3">
+                      <Megaphone className="h-8 w-8 opacity-40" />
+                    </div>
+                    <p className="font-medium text-foreground">Chưa có thông báo nào</p>
+                    <p className="text-sm mt-1 max-w-sm">
+                      Các thông báo được tạo sẽ hiển thị tại đây để bạn tiện theo dõi lịch sử gửi.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {paginatedAnnouncements.map((ann, i) => (
+                      <motion.div
+                        key={ann.id}
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: i * 0.04 }}
+                        className="group relative rounded-xl border bg-background/80 p-4 transition-all hover:bg-muted/30 hover:border-border/80"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="space-y-1 flex-1">
+                            <div className="flex items-center gap-2">
+                              <Radio className="h-3.5 w-3.5 text-rose-500 animate-pulse shrink-0" />
+                              <h4 className="font-semibold text-foreground text-sm sm:text-base leading-snug">
+                                {ann.title}
+                              </h4>
+                            </div>
+                            <p className="text-sm text-muted-foreground whitespace-pre-line pt-1">
+                              {ann.content}
+                            </p>
+                          </div>
+
+                          {ann.createdBy && (
+                            <Badge
+                              variant="outline"
+                              className="shrink-0 text-xs gap-1 bg-muted/40"
+                            >
+                              <User className="h-3 w-3" />
+                              {ann.createdBy}
+                            </Badge>
+                          )}
+                        </div>
+
+                        <div className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground/80 pt-2 border-t border-border/40">
+                          <Calendar className="h-3 w-3" />
+                          <span>{formatDate(ann.createdAt)}</span>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </div>
+
+            {/* Phân trang Footer */}
+            {totalItems > 0 && totalPages > 1 && (
+              <div className="border-t border-border/50 px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div className="text-xs text-muted-foreground order-2 sm:order-1">
+                  Hiển thị{" "}
+                  <span className="font-medium text-foreground">
+                    {startIndex + 1} - {Math.min(startIndex + ITEMS_PER_PAGE, totalItems)}
+                  </span>{" "}
+                  trên tổng số{" "}
+                  <span className="font-medium text-foreground">{totalItems}</span> thông báo
+                </div>
+
+                <div className="flex items-center gap-1.5 order-1 sm:order-2">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    disabled={validPage <= 1}
+                    title="Trang trước"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+
+                  <div className="flex items-center gap-1">
+                    {getVisiblePages().map((pageNum) => (
+                      <Button
+                        key={pageNum}
+                        variant={pageNum === validPage ? "default" : "outline"}
+                        size="sm"
+                        className={`h-8 min-w-[32px] px-2 text-xs ${
+                          pageNum === validPage
+                            ? "bg-rose-500 hover:bg-rose-600 text-white shadow-sm"
+                            : ""
+                        }`}
+                        onClick={() => setCurrentPage(pageNum)}
+                      >
+                        {pageNum}
+                      </Button>
+                    ))}
+                  </div>
+
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={validPage >= totalPages}
+                    title="Trang sau"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
+          </Card>
+        </motion.div>
+      </div>
     </motion.div>
   );
 }
