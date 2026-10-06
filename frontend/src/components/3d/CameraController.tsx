@@ -12,8 +12,7 @@ export type CameraPreset =
   | "shelfSideLeft"
   | "shelfSideRight"
   | "counter"
-  | "posScreen"
-  | "avatar";
+  | "posScreen";
 
 export interface CameraPresetConfig {
   position: [number, number, number];
@@ -56,11 +55,6 @@ export const CAMERA_PRESETS: Record<CameraPreset, CameraPresetConfig> = {
     position: [0.45, 2.2, 2.95],
     target: [0.45, 1.85, 1.95],
     label: "Màn hình POS",
-  },
-  avatar: {
-    position: [1.9, 1.8, 4.0],
-    target: [2.5, 1.3, 2.5],
-    label: "Trợ lý AI",
   },
 };
 

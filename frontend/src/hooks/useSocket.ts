@@ -18,14 +18,6 @@ export interface UseSocketOptions {
   autoConnect?: boolean;
 }
 
-/** Payload sự kiện `new_draft_order` (từ socketServer backend) */
-export interface NewDraftOrderPayload {
-  draftOrderId: string;
-  customerName: string | null;
-  itemCount: number;
-  totalAmount: number;
-}
-
 /** Payload sự kiện `order_confirmed` */
 export interface OrderConfirmedPayload {
   orderId: string;
@@ -77,8 +69,6 @@ const SOCKET_URL =
 
 interface SocketEventState {
   status: SocketStatus;
-  /** Số đơn nháp mới nhận được — badge trên menu "AI Đơn hàng" */
-  draftCount: number;
   notifications: NotificationItem[];
   unreadCount: number;
   /** Các id thông báo user đã xóa — giữ nguyên qua các lần fetch/đăng nhập */
@@ -87,8 +77,6 @@ interface SocketEventState {
 
 interface SocketEventActions {
   setStatus: (status: SocketStatus) => void;
-  incrementDraftCount: () => void;
-  resetDraftCount: () => void;
   pushNotification: (item: NotificationItem) => void;
   markNotificationsRead: () => void;
   clearNotifications: () => void;
@@ -123,15 +111,11 @@ export const useSocketStore = create<SocketEventState & SocketEventActions>()(
   persist(
     (set) => ({
       status: "disconnected",
-      draftCount: 0,
       notifications: [],
       unreadCount: 0,
       deletedIds: [],
 
       setStatus: (status) => set({ status }),
-      incrementDraftCount: () =>
-        set((s) => ({ draftCount: s.draftCount + 1 })),
-      resetDraftCount: () => set({ draftCount: 0 }),
       pushNotification: (item) =>
         set((s) => ({
           notifications: [item, ...s.notifications].slice(0, 50),
@@ -313,17 +297,6 @@ function createSocket(url: string): Socket {
   // ── Subscribe sự kiện: cập nhật badge / notification bell ──
   // (listener giữ nguyên khi reconnect — socket.io không tự xoá)
 
-  socket.on("new_draft_order", (data: NewDraftOrderPayload) => {
-    useSocketStore.getState().incrementDraftCount();
-    useSocketStore.getState().pushNotification(
-      makeNotification({
-        type: "draft",
-        title: "Đơn nháp mới",
-        message: `Đơn nháp ${data.draftOrderId} · ${data.itemCount} mặt hàng · ${formatVND(data.totalAmount)}${data.customerName ? ` · ${data.customerName}` : ""}`,
-      }),
-    );
-  });
-
   socket.on("order_confirmed", (data: OrderConfirmedPayload) => {
     useSocketStore.getState().pushNotification(
       makeNotification({
@@ -399,7 +372,6 @@ function detachSocket(url: string) {
 export interface UseSocketReturn {
   status: SocketStatus;
   socket: Socket | null;
-  draftCount: number;
   notifications: NotificationItem[];
   unreadCount: number;
   connect: () => void;
@@ -416,7 +388,6 @@ export function useSocket(options: UseSocketOptions = {}): UseSocketReturn {
   const socketRef = useRef<Socket | null>(null);
 
   const status = useSocketStore((s) => s.status);
-  const draftCount = useSocketStore((s) => s.draftCount);
   const notifications = useSocketStore((s) => s.notifications);
   const unreadCount = useSocketStore((s) => s.unreadCount);
 
@@ -467,7 +438,6 @@ export function useSocket(options: UseSocketOptions = {}): UseSocketReturn {
   return {
     status,
     socket: socketRef.current,
-    draftCount,
     notifications,
     unreadCount,
     connect,

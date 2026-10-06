@@ -29,7 +29,7 @@ interface StatCardProps {
   trend?: StatTrend;
   /** Dòng mô tả phụ bên dưới value */
   sub?: string;
-  /** Link điều hướng (VD: Pending Drafts → /ai-orders) */
+  /** Link điều hướng (VD: /orders) */
   href?: string;
   /** Stagger delay (giây) cho animation */
   index?: number;

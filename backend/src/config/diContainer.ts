@@ -25,7 +25,6 @@ import { RedisRefreshTokenStore } from '../frameworks/redis/RedisRefreshTokenSto
 import { IPasswordService } from '../adapters/controllers/AuthController.js';
 import { ITokenService, IRefreshTokenStore } from '../core/usecases/auth/LoginUseCase.js';
 import { ITokenVerifier } from '../core/usecases/auth/RefreshTokenUseCase.js';
-import { IAIService, ParsedOrderItem } from '../core/usecases/ai/ProcessNaturalLanguageOrderUseCase.js';
 
 // Import Auth Use Cases
 import { LoginUseCase } from '../core/usecases/auth/LoginUseCase.js';
@@ -67,9 +66,6 @@ import { GetTopProductsUseCase } from '../core/usecases/report/GetTopProductsUse
 import { GetDebtSummaryUseCase } from '../core/usecases/report/GetDebtSummaryUseCase.js';
 import { GetRevenueByCategoryUseCase } from '../core/usecases/report/GetRevenueByCategoryUseCase.js';
 
-import { ProcessNaturalLanguageOrderUseCase } from '../core/usecases/ai/ProcessNaturalLanguageOrderUseCase.js';
-import { GenerateDraftOrderUseCase } from '../core/usecases/ai/GenerateDraftOrderUseCase.js';
-
 import { ManageStoreSubscriptionUseCase } from '../core/usecases/admin/ManageStoreSubscriptionUseCase.js';
 import { ToggleStoreStatusUseCase } from '../core/usecases/admin/ToggleStoreStatusUseCase.js';
 import { GetSystemAnalyticsUseCase } from '../core/usecases/admin/GetSystemAnalyticsUseCase.js';
@@ -91,7 +87,6 @@ import { OrderController } from '../adapters/controllers/OrderController.js';
 import { InventoryController } from '../adapters/controllers/InventoryController.js';
 import { DebtController } from '../adapters/controllers/DebtController.js';
 import { ReportController } from '../adapters/controllers/ReportController.js';
-import { AiOrderController } from '../adapters/controllers/AiOrderController.js';
 import { AccountingController } from '../adapters/controllers/AccountingController.js';
 import { AdminController } from '../adapters/controllers/AdminController.js';
 import { EmployeeController } from '../adapters/controllers/EmployeeController.js';
@@ -108,12 +103,6 @@ class BcryptPasswordService implements IPasswordService {
   }
 }
 
-class MockAIService implements IAIService {
-  async parseOrderFromText(text: string): Promise<ParsedOrderItem[]> {
-    console.log('[MockAIService] Parsing text:', text);
-    return [{ productNameOrCode: 'SP-1', quantity: 1 }];
-  }
-}
 
 /**
  * JWT token service.
@@ -171,7 +160,6 @@ const subscriptionHistoryRepo = new PostgresSubscriptionHistoryRepository();
 
 // ── Initialize Services ──────────────────────────────────────────────────────
 const passwordService = new BcryptPasswordService();
-const aiService = new MockAIService();
 const tokenService = new JwtTokenService();
 
 // Redis-backed refresh token store
@@ -226,9 +214,6 @@ const getDailyRevenueUseCase = new GetDailyRevenueUseCase(orderRepo);
 const getTopProductsUseCase = new GetTopProductsUseCase(orderRepo);
 const getDebtSummaryUseCase = new GetDebtSummaryUseCase(debtPaymentRepo);
 const getRevenueByCategoryUseCase = new GetRevenueByCategoryUseCase(orderRepo);
-
-const processNLOrderUseCase = new ProcessNaturalLanguageOrderUseCase(aiService, productRepo);
-const generateDraftOrderUseCase = new GenerateDraftOrderUseCase(orderRepo, productRepo);
 
 const generateFinancialReportUseCase = new GenerateFinancialReportUseCase(
   orderRepo,
@@ -304,12 +289,6 @@ export const controllers = {
     getTopProductsUseCase,
     getDebtSummaryUseCase,
     getRevenueByCategoryUseCase,
-  ),
-  aiOrderController: new AiOrderController(
-    processNLOrderUseCase,
-    generateDraftOrderUseCase,
-    confirmOrderUseCase,
-    orderRepo,
   ),
   accountingController: new AccountingController(generateFinancialReportUseCase),
   employeeController: new EmployeeController(

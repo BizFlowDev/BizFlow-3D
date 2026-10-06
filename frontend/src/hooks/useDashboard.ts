@@ -94,8 +94,6 @@ const MOCK_DEBT_SUMMARY: DebtSummary = {
   customerCount: 12,
 };
 
-const MOCK_PENDING_DRAFTS = 3;
-
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function delay(ms: number) {
@@ -286,34 +284,6 @@ export function useTotalDebt() {
       }
       await delay(400);
       return MOCK_DEBT_SUMMARY;
-    },
-    staleTime: 60_000,
-  });
-}
-
-/** Số đơn nháp (AI orders) đang chờ xử lý */
-export function usePendingDrafts() {
-  return useQuery({
-    queryKey: dashboardKeys.pendingDrafts,
-    queryFn: async (): Promise<number> => {
-      try {
-        const { data } = await apiClient.get<
-          ApiResponseData<{ items: RawOrder[] }>
-        >("/ai/draft-orders", { params: { status: "pending" } });
-        if (data.data) return data.data.items.length;
-      } catch {
-        // Fallback: thử endpoint /ai-orders/drafts
-        try {
-          const { data } = await apiClient.get<
-            ApiResponseData<{ items: RawOrder[] }>
-          >("/ai-orders/drafts");
-          if (data.data) return data.data.items.length;
-        } catch {
-          // Fallback mock
-        }
-      }
-      await delay(400);
-      return MOCK_PENDING_DRAFTS;
     },
     staleTime: 60_000,
   });

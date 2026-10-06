@@ -169,19 +169,4 @@ export async function prefetchDashboard(queryClient: QueryClient): Promise<void>
   } catch {
     // ignore
   }
-
-  // c. Pending drafts (đếm số lượng) — GET /ai/draft-orders?status=pending, fallback /ai-orders/drafts
-  try {
-    const page = await apiGet<Paginated<RawOrder>>("/ai/draft-orders", token, {
-      status: "pending",
-    });
-    queryClient.setQueryData(dashboardKeys.pendingDrafts, page.items.length);
-  } catch {
-    try {
-      const page = await apiGet<Paginated<RawOrder>>("/ai-orders/drafts", token);
-      queryClient.setQueryData(dashboardKeys.pendingDrafts, page.items.length);
-    } catch {
-      // ignore
-    }
-  }
 }

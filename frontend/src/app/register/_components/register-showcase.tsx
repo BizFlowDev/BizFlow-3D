@@ -4,7 +4,7 @@ import { motion } from "motion/react";
 import {
   Sparkles,
   Store,
-  Bot,
+  ShoppingCart,
   FileSpreadsheet,
   ShieldCheck,
   CheckCircle2,
@@ -16,9 +16,9 @@ import Image from "next/image";
 
 const benefits = [
   {
-    icon: Bot,
-    title: "Trợ lý AI tạo đơn tức thì",
-    desc: "Chuyển giọng nói và tin nhắn tự nhiên thành đơn hàng trong 3 giây.",
+    icon: ShoppingCart,
+    title: "Bán hàng POS trực quan",
+    desc: "Tạo đơn hàng nhanh chóng, tích hợp quầy thu ngân 3D và hóa đơn PDF.",
     color: "from-blue-500/20 to-cyan-500/20 border-blue-500/30 text-blue-400",
   },
   {

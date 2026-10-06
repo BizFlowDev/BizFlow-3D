@@ -24,10 +24,6 @@ Nền tảng hỗ trợ chuyển đổi số cho hộ kinh doanh với giao di�
 - **3D:** Three.js (React Three Fiber + Drei)
 - **HTTP Client:** Axios
 
-### AI
-- **NLP:** OpenAI GPT / Google Gemini
-- **STT:** Google Speech-to-Text / Whisper
-
 ## Cấu trúc thư mục
 
 ```
