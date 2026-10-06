@@ -1,14 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "motion/react";
 import {
   Crown,
   Zap,
   Star,
   Loader2,
-  Plus,
-  X,
+  CheckCircle2,
   Sparkles,
   Palette,
 } from "lucide-react";
@@ -47,6 +45,12 @@ interface PlanEditorDialogProps {
 }
 
 // ── Config ────────────────────────────────────────────────────────────────────
+
+const DEFAULT_FEATURES = [
+  "Quản lý sản phẩm cơ bản",
+  "Báo cáo doanh thu",
+  "Kế toán tự động",
+];
 
 const ICON_OPTIONS = [
   { value: "Zap", label: "Zap ⚡", component: Zap },
@@ -88,8 +92,7 @@ export function PlanEditorDialog({
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState<number>(199000);
   const [maxEmployees, setMaxEmployees] = useState<number>(3);
-  const [features, setFeatures] = useState<string[]>([]);
-  const [newFeature, setNewFeature] = useState("");
+  const [features, setFeatures] = useState<string[]>(DEFAULT_FEATURES);
   const [isActive, setIsActive] = useState(true);
   const [sortOrder, setSortOrder] = useState<number>(0);
   const [icon, setIcon] = useState("Zap");
@@ -111,9 +114,13 @@ export function PlanEditorDialog({
       setDescription(plan.description ?? "");
       setPrice(plan.price);
       setMaxEmployees(plan.maxEmployees);
-      setFeatures([...plan.features]);
+      setFeatures(
+        plan.features && plan.features.length > 0
+          ? plan.features
+          : DEFAULT_FEATURES
+      );
       setIsActive(plan.isActive);
-      setSortOrder(plan.sortOrder);
+      setSortOrder(plan.sortOrder ?? 0);
       setIcon(plan.icon ?? "Zap");
       const gIdx = GRADIENT_PRESETS.findIndex(
         (g) => g.from === plan.colorFrom && g.to === plan.colorTo
@@ -125,13 +132,12 @@ export function PlanEditorDialog({
       setDescription("");
       setPrice(199000);
       setMaxEmployees(3);
-      setFeatures([]);
+      setFeatures(DEFAULT_FEATURES);
       setIsActive(true);
       setSortOrder(0);
       setIcon("Zap");
       setGradientIdx(0);
     }
-    setNewFeature("");
   }, [open, plan]);
 
   // Auto-generate slug from name (only in create mode)
@@ -148,20 +154,13 @@ export function PlanEditorDialog({
     }
   };
 
-  const handleAddFeature = () => {
-    const trimmed = newFeature.trim();
-    if (trimmed && !features.includes(trimmed)) {
-      setFeatures([...features, trimmed]);
-      setNewFeature("");
-    }
-  };
-
-  const handleRemoveFeature = (idx: number) => {
-    setFeatures(features.filter((_, i) => i !== idx));
-  };
-
   const handleSubmit = () => {
     const gradient = GRADIENT_PRESETS[gradientIdx];
+
+    const finalFeatures = [
+      ...DEFAULT_FEATURES,
+      `Tối đa ${maxEmployees} nhân viên`,
+    ];
 
     if (isEdit && plan) {
       updatePlan(
@@ -171,7 +170,7 @@ export function PlanEditorDialog({
             name,
             description: description || undefined,
             price,
-            features,
+            features: finalFeatures,
             maxEmployees,
             isActive,
             sortOrder,
@@ -191,9 +190,9 @@ export function PlanEditorDialog({
           slug,
           description: description || undefined,
           price,
-          features,
+          features: finalFeatures,
           maxEmployees,
-          sortOrder,
+          sortOrder: 0,
           colorFrom: gradient.from,
           colorTo: gradient.to,
           icon,
@@ -285,7 +284,7 @@ export function PlanEditorDialog({
           </div>
 
           {/* ── Price & Limits ── */}
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 gap-4">
             <div>
               <Label htmlFor="plan-price" className="mb-1.5 block text-sm font-medium">
                 Giá/tháng (VNĐ) *
@@ -309,18 +308,6 @@ export function PlanEditorDialog({
                 value={maxEmployees}
                 onChange={(e) => setMaxEmployees(Number(e.target.value))}
                 min={1}
-              />
-            </div>
-            <div>
-              <Label htmlFor="plan-sort" className="mb-1.5 block text-sm font-medium">
-                Thứ tự
-              </Label>
-              <Input
-                id="plan-sort"
-                type="number"
-                value={sortOrder}
-                onChange={(e) => setSortOrder(Number(e.target.value))}
-                min={0}
               />
             </div>
           </div>
@@ -367,58 +354,36 @@ export function PlanEditorDialog({
             </div>
           </div>
 
-          {/* ── Features ── */}
-          <div>
-            <Label className="mb-1.5 block text-sm font-medium">
-              Tính năng ({features.length})
-            </Label>
-            <div className="flex gap-2 mb-2">
-              <Input
-                value={newFeature}
-                onChange={(e) => setNewFeature(e.target.value)}
-                placeholder="Thêm tính năng mới..."
-                onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleAddFeature())}
-              />
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                onClick={handleAddFeature}
-                disabled={!newFeature.trim()}
+          {/* ── Default Features & Limits ── */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-sm font-medium">
+                Tính năng & Hạn mức áp dụng
+              </Label>
+              <span className="text-xs text-muted-foreground">Tự động áp dụng</span>
+            </div>
+            <div className="flex flex-wrap gap-2 rounded-lg border bg-muted/20 p-3">
+              {DEFAULT_FEATURES.map((feature) => (
+                <Badge
+                  key={feature}
+                  variant="secondary"
+                  className="gap-1.5 px-3 py-1.5 text-xs sm:text-sm font-normal bg-background/80 border"
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                  {feature}
+                </Badge>
+              ))}
+              <Badge
+                variant="secondary"
+                className="gap-1.5 px-3 py-1.5 text-xs sm:text-sm font-medium bg-background/80 border text-blue-600 dark:text-blue-400"
               >
-                <Plus className="h-4 w-4" />
-              </Button>
+                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                Tối đa {maxEmployees} nhân viên
+              </Badge>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <AnimatePresence>
-                {features.map((f, i) => (
-                  <motion.div
-                    key={f}
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.8 }}
-                  >
-                    <Badge
-                      variant="secondary"
-                      className="gap-1.5 px-3 py-1 text-sm"
-                    >
-                      {f}
-                      <button
-                        onClick={() => handleRemoveFeature(i)}
-                        className="ml-0.5 rounded-full hover:bg-foreground/10 p-0.5"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </Badge>
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-              {features.length === 0 && (
-                <p className="text-sm text-muted-foreground">
-                  Chưa có tính năng nào. Thêm bằng cách nhập và nhấn Enter.
-                </p>
-              )}
-            </div>
+            <p className="text-xs text-muted-foreground">
+              Gói hiển thị 3 tính năng mặc định (Quản lý sản phẩm, Báo cáo doanh thu, Kế toán tự động) cùng hạn mức nhân viên tương ứng.
+            </p>
           </div>
 
           {/* ── Active Toggle ── */}

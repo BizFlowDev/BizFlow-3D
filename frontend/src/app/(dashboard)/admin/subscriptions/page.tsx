@@ -49,7 +49,6 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   useSubscriptionPlans,
-  useDeleteSubscriptionPlan,
   useStoreList,
   usePlatformAnalytics,
   useSubscriptionHistory,
@@ -60,6 +59,7 @@ import type {
   SubscriptionHistoryParams,
 } from "@/hooks/useAdmin";
 import { PlanEditorDialog } from "./_components/PlanEditorDialog";
+import { DeletePlanDialog } from "./_components/DeletePlanDialog";
 import { PaymentQrSettingsSection } from "./_components/PaymentQrSettingsSection";
 
 // ── Icon Mapper ───────────────────────────────────────────────────────────────
@@ -73,6 +73,12 @@ const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
 function getPlanIcon(iconName: string | null) {
   return ICON_MAP[iconName ?? "Zap"] ?? Zap;
 }
+
+const DEFAULT_PLAN_FEATURES = [
+  "Quản lý sản phẩm cơ bản",
+  "Báo cáo doanh thu",
+  "Kế toán tự động",
+];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -269,7 +275,7 @@ function PlanCardsSection({
                       size="icon"
                       className="h-8 w-8 text-destructive hover:text-destructive"
                       onClick={() => onDelete(plan)}
-                      disabled={totalStores > 0}
+                      title={totalStores > 0 ? `Đang có ${totalStores} cửa hàng sử dụng` : "Xoá gói"}
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
@@ -309,13 +315,17 @@ function PlanCardsSection({
 
                 {/* Features */}
                 <ul className="space-y-1.5">
-                  {plan.features.map((feature) => (
+                  <li className="flex items-start gap-2 text-sm text-foreground font-medium">
+                    <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-500" />
+                    <span>Tối đa {plan.maxEmployees} nhân viên</span>
+                  </li>
+                  {DEFAULT_PLAN_FEATURES.map((feature) => (
                     <li
                       key={feature}
                       className="flex items-start gap-2 text-sm text-muted-foreground"
                     >
                       <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-500" />
-                      {feature}
+                      <span>{feature}</span>
                     </li>
                   ))}
                 </ul>
@@ -490,15 +500,15 @@ function StoresByPlanTable({
                           store.subscriptionStatus === "active"
                             ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
                             : store.subscriptionStatus === "trial"
-                            ? "bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-400"
-                            : "bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-400"
+                              ? "bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-400"
+                              : "bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-400"
                         }
                       >
                         {store.subscriptionStatus === "active"
                           ? "Hoạt động"
                           : store.subscriptionStatus === "trial"
-                          ? "Dùng thử"
-                          : "Hết hạn"}
+                            ? "Dùng thử"
+                            : "Hết hạn"}
                       </Badge>
                     </TableCell>
                     <TableCell>
@@ -679,10 +689,11 @@ function HistorySection() {
 export default function AdminSubscriptionsPage() {
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingPlan, setEditingPlan] = useState<SubscriptionPlan | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deletingPlan, setDeletingPlan] = useState<SubscriptionPlan | null>(null);
 
   const { data: plans, isLoading: plansLoading, refetch, isFetching } = useSubscriptionPlans();
   const { data: analytics, isLoading: analyticsLoading } = usePlatformAnalytics();
-  const { mutate: deletePlan, isPending: isDeleting } = useDeleteSubscriptionPlan();
 
   const allPlans = plans ?? [];
 
@@ -697,9 +708,8 @@ export default function AdminSubscriptionsPage() {
   };
 
   const handleDeletePlan = (plan: SubscriptionPlan) => {
-    if (confirm(`Bạn có chắc muốn xoá gói "${plan.name}"?`)) {
-      deletePlan(plan.id);
-    }
+    setDeletingPlan(plan);
+    setDeleteDialogOpen(true);
   };
 
   return (
@@ -802,6 +812,13 @@ export default function AdminSubscriptionsPage() {
         open={editorOpen}
         onOpenChange={setEditorOpen}
         plan={editingPlan}
+      />
+
+      {/* ── Delete Plan Dialog ── */}
+      <DeletePlanDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        plan={deletingPlan}
       />
     </motion.div>
   );

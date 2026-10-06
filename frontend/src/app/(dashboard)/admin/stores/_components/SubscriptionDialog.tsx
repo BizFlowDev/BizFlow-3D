@@ -49,6 +49,12 @@ function getPlanIcon(iconName: string | null) {
   return ICON_MAP[iconName ?? "Zap"] ?? Zap;
 }
 
+const DEFAULT_PLAN_FEATURES = [
+  "Quản lý sản phẩm cơ bản",
+  "Báo cáo doanh thu",
+  "Kế toán tự động",
+];
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function formatCurrency(amount: number): string {
@@ -275,15 +281,19 @@ export function SubscriptionDialog({
                     </p>
 
                     <ul className="space-y-1.5">
-                      {plan.features.map((feature) => (
+                      {DEFAULT_PLAN_FEATURES.map((feature) => (
                         <li
                           key={feature}
                           className="flex items-start gap-1.5 text-xs text-muted-foreground"
                         >
                           <CheckCircle2 className="h-3.5 w-3.5 mt-0.5 shrink-0 text-emerald-500" />
-                          {feature}
+                          <span>{feature}</span>
                         </li>
                       ))}
+                      <li className="flex items-start gap-1.5 text-xs text-foreground font-medium">
+                        <CheckCircle2 className="h-3.5 w-3.5 mt-0.5 shrink-0 text-emerald-500" />
+                        <span>Tối đa {plan.maxEmployees} nhân viên</span>
+                      </li>
                     </ul>
 
                     <AnimatePresence>

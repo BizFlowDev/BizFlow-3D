@@ -358,8 +358,9 @@ export class AdminController {
         throw new ValidationError('Gói đăng ký không tồn tại');
       }
 
-      if (existing.storeCount && existing.storeCount > 0) {
-        throw new ValidationError(`Không thể xoá gói đang có ${existing.storeCount} cửa hàng sử dụng`);
+      const storeCount = Number(existing.storeCount ?? 0);
+      if (storeCount > 0) {
+        throw new ValidationError(`Không thể xoá gói đang có ${storeCount} cửa hàng đang sử dụng`);
       }
 
       await this.subscriptionPlanRepo.delete(planId as string);
