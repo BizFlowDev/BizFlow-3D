@@ -337,6 +337,16 @@ function createSocket(url: string): Socket {
     );
   });
 
+  socket.on("subscription:upgraded", (data: { plan: string; planName?: string }) => {
+    useSocketStore.getState().pushNotification(
+      makeNotification({
+        type: "success",
+        title: "Nâng cấp gói thành công!",
+        message: `Cửa hàng đã được kích hoạt gói ${data.planName || data.plan}.`,
+      }),
+    );
+  });
+
   return socket;
 }
 

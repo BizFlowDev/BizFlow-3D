@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import {
   Crown,
   Zap,
@@ -15,6 +15,12 @@ import {
   Clock,
   CheckCircle2,
   Calendar,
+  CreditCard,
+  Building2,
+  Loader2,
+  RefreshCw,
+  Smartphone,
+  ChevronRight,
 } from "lucide-react";
 import {
   Dialog,
@@ -26,15 +32,21 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   useCurrentStore,
   useStoreSubscriptionPlans,
   useUpgradeStoreSubscription,
   useSubscriptionPaymentBank,
-  type SubscriptionPlanItem,
+  useCreateStripeUpgradeSession,
+  useSubscriptionOrderStatus,
+  STORE_QUERY_KEY,
+  type StripeUpgradeSessionData,
 } from "@/hooks/useStore";
+import { useSocket } from "@/hooks/useSocket";
 import { generateVietQRUrl, getBankByCode } from "@/lib/vietqr";
 import { useToast } from "@/components/ui/toast";
+import { QRCodeSVG } from "qrcode.react";
 
 export interface UpgradePlanModalProps {
   open: boolean;
@@ -55,8 +67,6 @@ const DURATION_OPTIONS = [
   { value: 12, label: "12 tháng", discount: 20 },
 ];
 
-
-
 function formatVND(amount: number): string {
   return new Intl.NumberFormat("vi-VN", {
     style: "currency",
@@ -65,7 +75,7 @@ function formatVND(amount: number): string {
   }).format(amount);
 }
 
-function formatDate(dateStr: string | null): string {
+function formatDate(dateStr: string | null | undefined): string {
   if (!dateStr) return "Không thời hạn";
   try {
     return new Intl.DateTimeFormat("vi-VN", {
@@ -79,10 +89,13 @@ function formatDate(dateStr: string | null): string {
 }
 
 export function UpgradePlanModal({ open, onOpenChange }: UpgradePlanModalProps) {
+  const queryClient = useQueryClient();
   const { data: store } = useCurrentStore();
   const { data: plansData, isLoading: isLoadingPlans } = useStoreSubscriptionPlans();
   const { data: paymentBankConfig } = useSubscriptionPaymentBank();
-  const { mutate: upgradeSub, isPending } = useUpgradeStoreSubscription();
+  const { mutate: upgradeSubManual, isPending: isManualPending } = useUpgradeStoreSubscription();
+  const { mutate: createStripeSession, isPending: isCreatingStripeSession } = useCreateStripeUpgradeSession();
+  const { socket } = useSocket();
   const { showToast } = useToast();
 
   const paymentBank = useMemo(() => ({
@@ -93,24 +106,47 @@ export function UpgradePlanModal({ open, onOpenChange }: UpgradePlanModalProps) 
   }), [paymentBankConfig]);
 
   const bankInfo = getBankByCode(paymentBank.bankCode);
-
   const plans = useMemo(() => plansData ?? [], [plansData]);
 
+  // Selected state
   const [selectedPlanSlug, setSelectedPlanSlug] = useState<string>("");
   const [durationMonths, setDurationMonths] = useState<number>(1);
+  const [paymentMethod, setPaymentMethod] = useState<"stripe" | "vietqr">("stripe");
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
-  // Mặc định chọn gói cao hơn gói hiện tại hoặc gói đầu tiên
+  // Stripe Session State
+  const [stripeSession, setStripeSession] = useState<StripeUpgradeSessionData | null>(null);
+  const [stripeError, setStripeError] = useState<string | null>(null);
+  const [isSuccess, setIsSuccess] = useState<boolean>(false);
+  const [successInfo, setSuccessInfo] = useState<{ planName?: string; expiresAt?: string } | null>(null);
+
+  // Giữ trạng thái modal đã khởi tạo để tránh store refetch làm reset selection hoặc nhảy sang gói khác
+  const hasInitializedRef = useRef<boolean>(false);
+
+  // Mặc định chọn gói khi modal mở lần đầu
   useEffect(() => {
-    if (open && plans.length > 0) {
-      if (store?.subscriptionPlan) {
-        const nextPlan = plans.find((p) => p.slug !== store.subscriptionPlan && p.isActive);
-        setSelectedPlanSlug(nextPlan?.slug ?? store.subscriptionPlan);
+    if (!open) {
+      hasInitializedRef.current = false;
+      return;
+    }
+
+    if (open && !hasInitializedRef.current && plans.length > 0) {
+      hasInitializedRef.current = true;
+      setIsSuccess(false);
+      setSuccessInfo(null);
+      setStripeError(null);
+      setStripeSession(null);
+
+      // Nếu store đã có gói và gói đó nằm trong danh sách plans -> giữ nguyên gói hiện tại
+      // Ngược lại chọn gói đầu tiên
+      const currentStorePlan = store?.subscriptionPlan;
+      if (currentStorePlan && plans.some((p) => p.slug === currentStorePlan)) {
+        setSelectedPlanSlug(currentStorePlan);
       } else {
         setSelectedPlanSlug(plans[0].slug);
       }
     }
-  }, [open, plans, store]);
+  }, [open, plans, store?.subscriptionPlan]);
 
   const selectedPlan = useMemo(() => {
     return plans.find((p) => p.slug === selectedPlanSlug) ?? plans[0];
@@ -121,11 +157,11 @@ export function UpgradePlanModal({ open, onOpenChange }: UpgradePlanModalProps) 
   }, [durationMonths]);
 
   // Tính số tiền thanh toán
-  const basePrice = (selectedPlan?.price ?? 0) * durationMonths;
+  const basePrice = (Number(selectedPlan?.price) || 0) * durationMonths;
   const discountAmount = Math.round((basePrice * (durationOption.discount ?? 0)) / 100);
   const finalPrice = Math.max(0, basePrice - discountAmount);
 
-  // Sinh mã VietQR
+  // Sinh mã VietQR thủ công
   const paymentMemo = useMemo(() => {
     const storeCode = store?.id ? store.id.slice(0, 8).toUpperCase() : "STORE";
     const planCode = (selectedPlan?.slug ?? "PRO").toUpperCase().replace(/[^A-Z0-9]/g, "");
@@ -133,7 +169,7 @@ export function UpgradePlanModal({ open, onOpenChange }: UpgradePlanModalProps) 
     return `${prefix} ${storeCode} ${planCode} ${durationMonths}M`;
   }, [store?.id, selectedPlan?.slug, durationMonths, paymentBank.memoPrefix]);
 
-  const qrUrl = useMemo(() => {
+  const vietQrUrl = useMemo(() => {
     return generateVietQRUrl({
       bankCode: paymentBank.bankCode,
       accountNumber: paymentBank.accountNumber,
@@ -144,6 +180,132 @@ export function UpgradePlanModal({ open, onOpenChange }: UpgradePlanModalProps) 
     });
   }, [paymentBank, finalPrice, paymentMemo]);
 
+  // Hàm làm mới / tạo lại phiên Stripe
+  const initStripeSession = useCallback(() => {
+    if (!selectedPlanSlug || finalPrice <= 0 || isSuccess) return;
+    setStripeError(null);
+    setStripeSession(null);
+    createStripeSession(
+      {
+        plan: selectedPlanSlug,
+        durationMonths,
+      },
+      {
+        onSuccess: (data) => {
+          setStripeSession(data);
+          setStripeError(null);
+        },
+        onError: (err: any) => {
+          const msg = err?.message || "Không thể khởi tạo cổng Stripe";
+          setStripeError(msg);
+          showToast("error", msg);
+        },
+      },
+    );
+  }, [selectedPlanSlug, durationMonths, finalPrice, isSuccess, createStripeSession, showToast]);
+
+  // Tự động khởi tạo phiên Stripe mới khi người dùng chọn gói khác hoặc chu kỳ khác
+  // (Nếu đang xem gói hiện tại với chu kỳ mặc định, không tự động tạo đơn rác mà để người dùng bấm nút chủ động)
+  useEffect(() => {
+    if (!open || isSuccess || paymentMethod !== "stripe" || !selectedPlanSlug || finalPrice <= 0) {
+      return;
+    }
+
+    const isCurrentPlanDefaultView =
+      store?.subscriptionPlan === selectedPlanSlug && durationMonths === 1;
+    if (isCurrentPlanDefaultView) {
+      return;
+    }
+
+    // Reset session cũ ngay lập tức để người dùng không quét nhầm mã QR giá cũ
+    setStripeError(null);
+    setStripeSession(null);
+
+    let isSubscribed = true;
+    const timer = setTimeout(() => {
+      createStripeSession(
+        {
+          plan: selectedPlanSlug,
+          durationMonths,
+        },
+        {
+          onSuccess: (data) => {
+            if (isSubscribed) {
+              setStripeSession(data);
+              setStripeError(null);
+            }
+          },
+          onError: (err: any) => {
+            if (isSubscribed) {
+              const msg = err?.message || "Không thể khởi tạo cổng Stripe";
+              setStripeError(msg);
+              showToast("error", msg);
+            }
+          },
+        },
+      );
+    }, 450);
+
+    return () => {
+      isSubscribed = false;
+      clearTimeout(timer);
+    };
+  }, [open, isSuccess, paymentMethod, selectedPlanSlug, durationMonths, finalPrice, store?.subscriptionPlan]);
+
+  const isStripeSessionValid = useMemo(() => {
+    return Boolean(
+      stripeSession &&
+      Number(stripeSession.amount) === Number(finalPrice) &&
+      stripeSession.planSlug === selectedPlanSlug &&
+      Number(stripeSession.durationMonths) === Number(durationMonths)
+    );
+  }, [stripeSession, finalPrice, selectedPlanSlug, durationMonths]);
+
+  // Fallback Polling đơn hàng
+  const { data: orderStatus } = useSubscriptionOrderStatus(
+    stripeSession?.orderId ?? null,
+    open && !isSuccess && paymentMethod === "stripe",
+  );
+
+  useEffect(() => {
+    if (orderStatus?.status === "completed" && !isSuccess) {
+      setIsSuccess(true);
+      setSuccessInfo({
+        planName: selectedPlan?.name,
+      });
+      queryClient.invalidateQueries({ queryKey: STORE_QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: ["admin", "stores"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "subscription-history"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "subscription-orders"] });
+      showToast("success", `Thanh toán thành công! Gói ${selectedPlan?.name} đã được kích hoạt.`);
+    }
+  }, [orderStatus?.status, isSuccess, selectedPlan?.name, queryClient, showToast]);
+
+  // Lắng nghe Realtime qua Socket.IO
+  useEffect(() => {
+    if (!socket || !open) return;
+
+    const handleUpgraded = (data: any) => {
+      if (data?.storeId === store?.id || (stripeSession?.orderId && data?.orderId === stripeSession.orderId)) {
+        setIsSuccess(true);
+        setSuccessInfo({
+          planName: data?.planName || selectedPlan?.name,
+          expiresAt: data?.expiresAt,
+        });
+        queryClient.invalidateQueries({ queryKey: STORE_QUERY_KEY });
+        queryClient.invalidateQueries({ queryKey: ["admin", "stores"] });
+        queryClient.invalidateQueries({ queryKey: ["admin", "subscription-history"] });
+        queryClient.invalidateQueries({ queryKey: ["admin", "subscription-orders"] });
+        showToast("success", `Nâng cấp lên gói ${data?.planName || selectedPlan?.name} thành công!`);
+      }
+    };
+
+    socket.on("subscription:upgraded", handleUpgraded);
+    return () => {
+      socket.off("subscription:upgraded", handleUpgraded);
+    };
+  }, [socket, open, store?.id, stripeSession?.orderId, selectedPlan?.name, queryClient, showToast]);
+
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
     setCopiedField(label);
@@ -151,22 +313,27 @@ export function UpgradePlanModal({ open, onOpenChange }: UpgradePlanModalProps) 
     setTimeout(() => setCopiedField(null), 2500);
   };
 
-  const handleConfirmUpgrade = () => {
+  // Xác nhận thủ công cho VietQR
+  const handleConfirmManualUpgrade = () => {
     if (!selectedPlanSlug) {
       showToast("error", "Vui lòng chọn gói dịch vụ");
       return;
     }
 
-    upgradeSub(
+    upgradeSubManual(
       {
         plan: selectedPlanSlug,
         durationMonths,
         paymentMethod: "vietqr",
       },
       {
-        onSuccess: () => {
+        onSuccess: (updatedStore) => {
+          setIsSuccess(true);
+          setSuccessInfo({
+            planName: selectedPlan?.name,
+            expiresAt: updatedStore.subscriptionExpiresAt ? String(updatedStore.subscriptionExpiresAt) : undefined,
+          });
           showToast("success", `Nâng cấp lên gói ${selectedPlan?.name ?? selectedPlanSlug} thành công!`);
-          onOpenChange(false);
         },
         onError: (err: any) => {
           showToast("error", err?.message || "Có lỗi xảy ra khi nâng cấp gói");
@@ -191,7 +358,7 @@ export function UpgradePlanModal({ open, onOpenChange }: UpgradePlanModalProps) 
                 </DialogTitle>
               </div>
               <DialogDescription className="text-sm text-muted-foreground">
-                Mở rộng tính năng bán hàng POS, quản lý chi nhánh, kế toán tự động và đồ họa 3D tương tác.
+                Mở rộng hạn mức nhân sự, quản lý bán hàng POS, kế toán tự động và chế độ 3D tương tác.
               </DialogDescription>
             </div>
 
@@ -212,279 +379,582 @@ export function UpgradePlanModal({ open, onOpenChange }: UpgradePlanModalProps) 
           </div>
         </div>
 
-        <div className="p-6 space-y-6">
-          {/* 1. Chọn gói dịch vụ */}
-          <div>
-            <Label className="text-sm font-semibold flex items-center gap-1.5 mb-3">
-              <Sparkles className="h-4 w-4 text-primary" />
-              1. Chọn gói dịch vụ mong muốn:
-            </Label>
-
-            {isLoadingPlans ? (
-              <div className="py-8 text-center text-sm text-muted-foreground">
-                Đang tải danh sách các gói dịch vụ...
+        {/* Màn hình thông báo thành công (Celebration Screen) */}
+        {isSuccess ? (
+          <div className="p-8 text-center space-y-6 animate-in fade-in zoom-in-95 duration-300">
+            <div className="relative inline-flex items-center justify-center">
+              <div className="w-20 h-20 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center animate-bounce">
+                <CheckCircle2 className="h-12 w-12" />
               </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                {plans.map((p) => {
-                  const IconComponent = ICON_MAP[p.icon ?? "Zap"] ?? Zap;
-                  const isSelected = selectedPlanSlug === p.slug;
-                  const isCurrent = store?.subscriptionPlan === p.slug;
+              <Sparkles className="h-6 w-6 text-amber-500 absolute -top-1 -right-1 animate-spin" />
+            </div>
 
-                  return (
-                    <div
-                      key={p.id}
-                      onClick={() => setSelectedPlanSlug(p.slug)}
-                      className={`relative flex flex-col justify-between p-4 rounded-xl border-2 cursor-pointer transition-all duration-200 ${
-                        isSelected
-                          ? "border-primary bg-primary/5 shadow-md shadow-primary/10 ring-1 ring-primary"
-                          : "border-border hover:border-muted-foreground/40 hover:bg-muted/30"
-                      }`}
-                    >
-                      {isCurrent && (
-                        <Badge className="absolute -top-2.5 right-3 bg-emerald-600 text-white text-[10px] h-5">
-                          Đang dùng
-                        </Badge>
-                      )}
+            <div className="space-y-2">
+              <h3 className="text-2xl font-black text-foreground">
+                Kích Hoạt Gói Thành Công!
+              </h3>
+              <p className="text-sm text-muted-foreground max-w-md mx-auto">
+                Cửa hàng của bạn đã được nâng cấp lên gói{" "}
+                <span className="font-bold text-primary">{successInfo?.planName || selectedPlan?.name}</span>.
+                Toàn bộ tính năng cao cấp đã được mở khóa ngay lập tức.
+              </p>
+            </div>
 
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <div
-                            className={`p-2 rounded-lg ${
-                              isSelected ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-                            }`}
-                          >
-                            <IconComponent className="h-4 w-4" />
-                          </div>
-                          <div>
-                            <div className="font-bold text-sm leading-none">{p.name}</div>
-                            <div className="text-[11px] text-muted-foreground mt-0.5">
-                              {p.maxEmployees ? `Tối đa ${p.maxEmployees} nhân viên` : "Không giới hạn nhân sự"}
+            <div className="inline-flex items-center gap-2 bg-muted/60 border rounded-lg px-4 py-2 text-xs font-medium">
+              <Calendar className="h-4 w-4 text-primary" />
+              <span>
+                Thời hạn mới: <strong>{formatDate(successInfo?.expiresAt || store?.subscriptionExpiresAt)}</strong>
+              </span>
+            </div>
+
+            <div className="pt-4 flex justify-center">
+              <Button
+                onClick={() => onOpenChange(false)}
+                className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold px-8 shadow-lg shadow-primary/20"
+              >
+                Bắt Đầu Trải Nghiệm Ngay
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="p-6 space-y-6">
+            {/* 1. Chọn gói dịch vụ */}
+            <div>
+              <Label className="text-sm font-semibold flex items-center gap-1.5 mb-3">
+                <Sparkles className="h-4 w-4 text-primary" />
+                1. Chọn gói dịch vụ mong muốn:
+              </Label>
+
+              {isLoadingPlans ? (
+                <div className="py-8 text-center text-sm text-muted-foreground flex items-center justify-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                  Đang tải danh sách các gói dịch vụ...
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {plans.map((p) => {
+                    const IconComponent = ICON_MAP[p.icon ?? "Zap"] ?? Zap;
+                    const isSelected = selectedPlanSlug === p.slug;
+                    const isCurrent = store?.subscriptionPlan === p.slug;
+
+                    return (
+                      <div
+                        key={p.id}
+                        onClick={() => setSelectedPlanSlug(p.slug)}
+                        className={`relative flex flex-col justify-between p-4 rounded-xl border-2 cursor-pointer transition-all duration-200 ${
+                          isSelected
+                            ? "border-primary bg-primary/5 shadow-md shadow-primary/10 ring-1 ring-primary"
+                            : "border-border hover:border-muted-foreground/40 hover:bg-muted/30"
+                        }`}
+                      >
+                        {isCurrent && (
+                          <Badge className="absolute -top-2.5 right-3 bg-emerald-600 text-white text-[10px] h-5">
+                            Đang dùng
+                          </Badge>
+                        )}
+
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <div
+                              className={`p-2 rounded-lg ${
+                                isSelected ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                              }`}
+                            >
+                              <IconComponent className="h-4 w-4" />
+                            </div>
+                            <div>
+                              <div className="font-bold text-sm leading-none">{p.name}</div>
+                              <div className="text-[11px] text-muted-foreground mt-0.5">
+                                {p.maxEmployees ? `Tối đa ${p.maxEmployees} nhân viên` : "Không giới hạn nhân sự"}
+                              </div>
                             </div>
                           </div>
-                        </div>
 
-                        <div className="pt-2">
-                          <div className="text-lg font-black text-foreground">
-                            {p.price === 0 ? "Miễn phí" : `${formatVND(p.price)}/tháng`}
+                          <div className="pt-2">
+                            <div className="text-lg font-black text-foreground">
+                              {p.price === 0 ? "Miễn phí" : `${formatVND(p.price)}/tháng`}
+                            </div>
+                            {p.description && (
+                              <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
+                                {p.description}
+                              </p>
+                            )}
                           </div>
-                          {p.description && (
-                            <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
-                              {p.description}
-                            </p>
+
+                          {p.features && p.features.length > 0 && (
+                            <ul className="pt-2 space-y-1 text-xs border-t mt-2">
+                              {p.features.slice(0, 3).map((feat, idx) => (
+                                <li key={idx} className="flex items-center gap-1.5 text-muted-foreground">
+                                  <Check className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                                  <span className="line-clamp-1">{feat}</span>
+                                </li>
+                              ))}
+                            </ul>
                           )}
                         </div>
 
-                        {p.features && p.features.length > 0 && (
-                          <ul className="pt-2 space-y-1 text-xs border-t mt-2">
-                            {p.features.slice(0, 3).map((feat, idx) => (
-                              <li key={idx} className="flex items-center gap-1.5 text-muted-foreground">
-                                <Check className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
-                                <span className="line-clamp-1">{feat}</span>
-                              </li>
-                            ))}
-                          </ul>
+                        <div className="pt-3 mt-3 border-t">
+                          <div
+                            className={`text-center text-xs font-semibold py-1.5 rounded-md transition-colors ${
+                              isSelected
+                                ? "bg-primary text-primary-foreground"
+                                : "bg-muted text-muted-foreground"
+                            }`}
+                          >
+                            {isSelected ? "Đang chọn gói này" : "Chọn gói"}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* 2. Chọn thời hạn & Thanh toán */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 pt-2">
+              {/* Cột trái: Thời hạn & Tóm tắt chi phí (7 cols) */}
+              <div className="lg:col-span-7 space-y-5">
+                <div>
+                  <Label className="text-sm font-semibold flex items-center gap-1.5 mb-2.5">
+                    <Clock className="h-4 w-4 text-primary" />
+                    2. Chọn chu kỳ thanh toán:
+                  </Label>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {DURATION_OPTIONS.map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setDurationMonths(opt.value)}
+                        className={`relative flex flex-col items-center justify-center p-2.5 rounded-lg border-2 text-center transition-all ${
+                          durationMonths === opt.value
+                            ? "border-primary bg-primary/10 font-bold text-primary"
+                            : "border-border hover:bg-muted/40 text-muted-foreground"
+                        }`}
+                      >
+                        {opt.discount > 0 && (
+                          <span className="absolute -top-2 right-1 bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.2 rounded-full">
+                            -{opt.discount}%
+                          </span>
                         )}
+                        <span className="text-xs">{opt.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Tóm tắt bảng tính tiền */}
+                <div className="rounded-xl border bg-muted/30 p-4 space-y-2.5 text-xs">
+                  <div className="font-semibold text-sm pb-1 border-b flex items-center justify-between">
+                    <span>Chi tiết thanh toán</span>
+                    <Badge variant="outline" className="text-xs font-normal">
+                      {durationOption.label}
+                    </Badge>
+                  </div>
+
+                  <div className="flex justify-between text-muted-foreground">
+                    <span>Đơn giá gói ({selectedPlan?.name}):</span>
+                    <span>{formatVND(selectedPlan?.price ?? 0)}/tháng</span>
+                  </div>
+
+                  <div className="flex justify-between text-muted-foreground">
+                    <span>Thời hạn sử dụng:</span>
+                    <span>{durationMonths} tháng</span>
+                  </div>
+
+                  {discountAmount > 0 && (
+                    <div className="flex justify-between text-emerald-600 font-medium">
+                      <span>Ưu đãi thanh toán dài hạn ({durationOption.discount}%):</span>
+                      <span>-{formatVND(discountAmount)}</span>
+                    </div>
+                  )}
+
+                  <div className="pt-2 border-t flex justify-between items-baseline font-bold text-sm text-foreground">
+                    <span>Tổng thanh toán:</span>
+                    <span className="text-lg text-primary">{formatVND(finalPrice)}</span>
+                  </div>
+                </div>
+
+                {/* 3. Lựa chọn Phương Thức Thanh Toán */}
+                <div className="space-y-2.5">
+                  <Label className="text-sm font-semibold flex items-center gap-1.5">
+                    <CreditCard className="h-4 w-4 text-primary" />
+                    3. Phương thức thanh toán:
+                  </Label>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    {/* Option: Stripe QR */}
+                    <div
+                      onClick={() => setPaymentMethod("stripe")}
+                      className={`relative flex items-start gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${
+                        paymentMethod === "stripe"
+                          ? "border-primary bg-primary/5 shadow-sm"
+                          : "border-border hover:bg-muted/30"
+                      }`}
+                    >
+                      <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 mt-0.5">
+                        <QrCode className="h-4 w-4" />
+                      </div>
+                      <div className="flex-1 space-y-0.5">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-bold">Quét QR Stripe</span>
+                          <Badge className="bg-emerald-600 text-[9px] px-1.5 py-0 h-4">
+                            Tự động
+                          </Badge>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground">
+                          Thẻ quốc tế, Visa, MasterCard, Apple/Google Pay. Kích hoạt ngay.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Option: VietQR Napas */}
+                    <div
+                      onClick={() => setPaymentMethod("vietqr")}
+                      className={`flex items-start gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${
+                        paymentMethod === "vietqr"
+                          ? "border-primary bg-primary/5 shadow-sm"
+                          : "border-border hover:bg-muted/30"
+                      }`}
+                    >
+                      <div className="p-2 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 mt-0.5">
+                        <Building2 className="h-4 w-4" />
+                      </div>
+                      <div className="flex-1 space-y-0.5">
+                        <div className="text-xs font-bold">Chuyển khoản VietQR</div>
+                        <p className="text-[11px] text-muted-foreground">
+                          Quét mã ngân hàng nội địa Napas247, xác nhận chuyển khoản.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Cam kết & quyền lợi */}
+                <div className="flex items-start gap-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 p-3 text-xs text-emerald-700 dark:text-emerald-400">
+                  <ShieldCheck className="h-4 w-4 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-semibold">Thanh toán bảo mật:</span> Gói dịch vụ sẽ được kích hoạt tức thì ngay khi hệ thống nhận được tín hiệu thanh toán thành công.
+                  </div>
+                </div>
+              </div>
+
+              {/* Cột phải: Khung Mã QR Thanh Toán (5 cols) */}
+              <div className="lg:col-span-5 flex flex-col items-center justify-between rounded-xl border bg-muted/20 p-4 text-center">
+                {paymentMethod === "stripe" ? (
+                  /* ── KHUNG STRIPE ONLINE QR ── */
+                  <div className="w-full flex flex-col items-center justify-between h-full space-y-3">
+                    <div className="w-full space-y-1">
+                      <div className="flex items-center justify-center gap-1.5 font-bold text-sm text-foreground">
+                        <QrCode className="h-4 w-4 text-indigo-500" />
+                        Quét Mã QR Stripe Thanh Toán
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">
+                        Dùng camera điện thoại quét mã QR để mở trang thanh toán bảo mật Stripe
+                      </p>
+                    </div>
+
+                    {/* Thẻ hiển thị số tiền thanh toán chính xác */}
+                    <div className="w-full bg-indigo-500/10 border border-indigo-500/30 rounded-xl p-2.5 flex items-center justify-between text-xs">
+                      <div className="text-left">
+                        <span className="text-muted-foreground block text-[10px]">Gói & Kỳ hạn:</span>
+                        <span className="font-bold text-foreground capitalize">
+                          {selectedPlan?.name} · {durationMonths} tháng
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-muted-foreground block text-[10px]">Số tiền cần thanh toán:</span>
+                        <span className="font-black text-sm text-indigo-600 dark:text-indigo-400 font-mono">
+                          {formatVND(finalPrice)}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Khung ảnh QR Code Stripe (Hiển thị mượt mà với fallback dự phòng) */}
+                    <div className="my-1 bg-white p-3 rounded-xl shadow-md border relative">
+                      {isCreatingStripeSession ? (
+                        <div className="w-48 h-48 flex flex-col items-center justify-center gap-2 text-muted-foreground p-2 text-center">
+                          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                          <span className="text-xs font-semibold text-foreground">
+                            Đang tạo mã QR {formatVND(finalPrice)}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground">
+                            Đồng bộ đúng gói {selectedPlan?.name} ({durationMonths} tháng)...
+                          </span>
+                        </div>
+                      ) : stripeError ? (
+                        <div className="w-48 h-48 flex flex-col items-center justify-center gap-2 p-3 text-center">
+                          <div className="p-2 rounded-full bg-destructive/10 text-destructive">
+                            <RefreshCw className="h-5 w-5" />
+                          </div>
+                          <p className="text-xs font-medium text-destructive line-clamp-2">
+                            {stripeError}
+                          </p>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={initStripeSession}
+                            className="text-xs h-7 mt-1"
+                          >
+                            <RefreshCw className="h-3 w-3 mr-1" /> Thử lại
+                          </Button>
+                        </div>
+                      ) : isStripeSessionValid && stripeSession ? (
+                        <div className="relative group flex items-center justify-center">
+                          {stripeSession.qrCodeUrl ? (
+                            /* eslint-disable-next-line @next/next/no-img-element */
+                            <img
+                              src={stripeSession.qrCodeUrl}
+                              alt={`Mã QR Stripe Checkout - ${formatVND(finalPrice)}`}
+                              className="w-48 h-48 object-contain rounded"
+                            />
+                          ) : stripeSession.checkoutUrl ? (
+                            <div className="p-2 bg-white rounded flex items-center justify-center">
+                              <QRCodeSVG
+                                value={stripeSession.checkoutUrl}
+                                size={180}
+                                level="M"
+                              />
+                            </div>
+                          ) : null}
+                          <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px] opacity-0 group-hover:opacity-100 transition-opacity rounded flex items-center justify-center">
+                            <a
+                              href={stripeSession.checkoutUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-white text-xs font-bold flex items-center gap-1 bg-indigo-600 px-3 py-1.5 rounded-lg shadow"
+                            >
+                              <ExternalLink className="h-3.5 w-3.5" />
+                              Mở cổng Stripe
+                            </a>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="w-48 h-48 flex flex-col items-center justify-center gap-2 p-2 text-center">
+                          {isCurrentPlanSelected ? (
+                            <>
+                              <Crown className="h-7 w-7 text-amber-500 animate-pulse" />
+                              <div className="text-xs font-semibold text-foreground">Bạn đang dùng gói này</div>
+                              <p className="text-[10px] text-muted-foreground">Nhấn bên dưới nếu muốn gia hạn</p>
+                              <Button
+                                size="sm"
+                                onClick={initStripeSession}
+                                disabled={isCreatingStripeSession}
+                                className="text-xs h-8 bg-amber-500 hover:bg-amber-600 text-white font-medium shadow-sm"
+                              >
+                                {isCreatingStripeSession ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+                                ) : (
+                                  <RefreshCw className="h-3.5 w-3.5 mr-1" />
+                                )}
+                                Tạo mã QR gia hạn
+                              </Button>
+                            </>
+                          ) : (
+                            <>
+                              <p className="text-xs text-muted-foreground">Chưa có mã QR</p>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={initStripeSession}
+                                disabled={isCreatingStripeSession}
+                              >
+                                <RefreshCw className={`h-3 w-3 mr-1 ${isCreatingStripeSession ? "animate-spin" : ""}`} /> Tạo mã QR thanh toán
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Status pulsing bar */}
+                    <div className="w-full flex items-center justify-center gap-2 py-1.5 px-3 rounded-lg bg-background border text-[11px]">
+                      <span className="relative flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                      </span>
+                      <span className="text-muted-foreground font-medium">
+                        Đang chờ bạn quét mã thanh toán đúng <strong>{formatVND(finalPrice)}</strong>...
+                      </span>
+                    </div>
+
+                    {/* Direct link button if user prefers desktop */}
+                    {isStripeSessionValid && stripeSession?.checkoutUrl && (
+                      <div className="w-full pt-1">
+                        <a
+                          href={stripeSession.checkoutUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="w-full inline-flex items-center justify-center gap-1.5 text-xs font-semibold py-2 px-3 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition-colors shadow"
+                        >
+                          <Smartphone className="h-3.5 w-3.5" />
+                          Hoặc mở trang Stripe ({formatVND(finalPrice)})
+                          <ExternalLink className="h-3 w-3 ml-1" />
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  /* ── KHUNG VIETQR NAPAS ── */
+                  <div className="w-full flex flex-col items-center justify-between h-full space-y-3">
+                    <div className="w-full space-y-1">
+                      <div className="flex items-center justify-center gap-1.5 font-bold text-sm text-foreground">
+                        <QrCode className="h-4 w-4 text-primary" />
+                        Quét Mã VietQR Chuyển Khoản
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">
+                        Mở app Mobile Banking quét mã Napas247 để chuyển tiền
+                      </p>
+                    </div>
+
+                    {/* Thẻ hiển thị số tiền thanh toán chính xác */}
+                    <div className="w-full bg-blue-500/10 border border-blue-500/30 rounded-xl p-2.5 flex items-center justify-between text-xs">
+                      <div className="text-left">
+                        <span className="text-muted-foreground block text-[10px]">Gói & Kỳ hạn:</span>
+                        <span className="font-bold text-foreground capitalize">
+                          {selectedPlan?.name} · {durationMonths} tháng
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-muted-foreground block text-[10px]">Số tiền chuyển khoản:</span>
+                        <span className="font-black text-sm text-blue-600 dark:text-blue-400 font-mono">
+                          {formatVND(finalPrice)}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Khung ảnh QR VietQR */}
+                    <div className="my-1 bg-white p-2 rounded-lg shadow-sm border">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={vietQrUrl}
+                        alt={`Mã VietQR nâng cấp gói ${selectedPlan?.name} - ${formatVND(finalPrice)}`}
+                        className="w-48 h-48 object-contain rounded"
+                      />
+                    </div>
+
+                    {/* Thông tin tài khoản, số tiền & memo */}
+                    <div className="w-full space-y-1.5 text-left text-[11px] bg-background border rounded-lg p-2.5">
+                      <div className="flex justify-between items-center py-1 border-b border-border/50">
+                        <span className="text-muted-foreground font-semibold">Số tiền cần chuyển:</span>
+                        <div className="flex items-center gap-1 font-mono font-black text-emerald-600 dark:text-emerald-400 text-xs">
+                          <span>{formatVND(finalPrice)}</span>
+                          <button
+                            type="button"
+                            onClick={() => copyToClipboard(String(finalPrice), "Số tiền")}
+                            className="text-muted-foreground hover:text-foreground"
+                            title="Sao chép số tiền"
+                          >
+                            {copiedField === "Số tiền" ? (
+                              <Check className="h-3 w-3 text-emerald-500" />
+                            ) : (
+                              <Copy className="h-3 w-3" />
+                            )}
+                          </button>
+                        </div>
                       </div>
 
-                      <div className="pt-3 mt-3 border-t">
-                        <div
-                          className={`text-center text-xs font-semibold py-1.5 rounded-md transition-colors ${
-                            isSelected
-                              ? "bg-primary text-primary-foreground"
-                              : "bg-muted text-muted-foreground"
-                          }`}
-                        >
-                          {isSelected ? "Đang chọn gói này" : "Chọn gói"}
+                      <div className="flex justify-between items-center">
+                        <span className="text-muted-foreground">Ngân hàng:</span>
+                        <span className="font-semibold text-blue-600 dark:text-blue-400">
+                          {bankInfo?.shortName || paymentBank.bankCode}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-muted-foreground">Số tài khoản:</span>
+                        <div className="flex items-center gap-1 font-mono font-bold">
+                          <span>{paymentBank.accountNumber}</span>
+                          <button
+                            type="button"
+                            onClick={() => copyToClipboard(paymentBank.accountNumber, "Số tài khoản")}
+                            className="text-muted-foreground hover:text-foreground"
+                          >
+                            {copiedField === "Số tài khoản" ? (
+                              <Check className="h-3 w-3 text-emerald-500" />
+                            ) : (
+                              <Copy className="h-3 w-3" />
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-muted-foreground">Chủ tài khoản:</span>
+                        <span className="font-semibold uppercase">{paymentBank.accountHolder}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-muted-foreground">Nội dung:</span>
+                        <div className="flex items-center gap-1 font-mono font-bold text-primary">
+                          <span className="truncate max-w-[140px]">{paymentMemo}</span>
+                          <button
+                            type="button"
+                            onClick={() => copyToClipboard(paymentMemo, "Nội dung chuyển khoản")}
+                            className="text-muted-foreground hover:text-foreground shrink-0"
+                          >
+                            {copiedField === "Nội dung chuyển khoản" ? (
+                              <Check className="h-3 w-3 text-emerald-500" />
+                            ) : (
+                              <Copy className="h-3 w-3" />
+                            )}
+                          </button>
                         </div>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* 2. Chọn thời hạn & Thanh toán */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 pt-2">
-            {/* Cột trái: Thời hạn & Tóm tắt chi phí (7 cols) */}
-            <div className="lg:col-span-7 space-y-5">
-              <div>
-                <Label className="text-sm font-semibold flex items-center gap-1.5 mb-2.5">
-                  <Clock className="h-4 w-4 text-primary" />
-                  2. Chọn chu kỳ thanh toán:
-                </Label>
-
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  {DURATION_OPTIONS.map((opt) => (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() => setDurationMonths(opt.value)}
-                      className={`relative flex flex-col items-center justify-center p-2.5 rounded-lg border-2 text-center transition-all ${
-                        durationMonths === opt.value
-                          ? "border-primary bg-primary/10 font-bold text-primary"
-                          : "border-border hover:bg-muted/40 text-muted-foreground"
-                      }`}
-                    >
-                      {opt.discount > 0 && (
-                        <span className="absolute -top-2 right-1 bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.2 rounded-full">
-                          -{opt.discount}%
-                        </span>
-                      )}
-                      <span className="text-xs">{opt.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Tóm tắt bảng tính tiền */}
-              <div className="rounded-xl border bg-muted/30 p-4 space-y-2.5 text-xs">
-                <div className="font-semibold text-sm pb-1 border-b flex items-center justify-between">
-                  <span>Chi tiết thanh toán</span>
-                  <Badge variant="outline" className="text-xs font-normal">
-                    {durationOption.label}
-                  </Badge>
-                </div>
-
-                <div className="flex justify-between text-muted-foreground">
-                  <span>Đơn giá gói ({selectedPlan?.name}):</span>
-                  <span>{formatVND(selectedPlan?.price ?? 0)}/tháng</span>
-                </div>
-
-                <div className="flex justify-between text-muted-foreground">
-                  <span>Thời hạn sử dụng:</span>
-                  <span>{durationMonths} tháng</span>
-                </div>
-
-                {discountAmount > 0 && (
-                  <div className="flex justify-between text-emerald-600 font-medium">
-                    <span>Ưu đãi thanh toán dài hạn ({durationOption.discount}%):</span>
-                    <span>-{formatVND(discountAmount)}</span>
                   </div>
                 )}
-
-                <div className="pt-2 border-t flex justify-between items-baseline font-bold text-sm text-foreground">
-                  <span>Tổng thanh toán:</span>
-                  <span className="text-lg text-primary">{formatVND(finalPrice)}</span>
-                </div>
-              </div>
-
-              {/* Cam kết & quyền lợi */}
-              <div className="flex items-start gap-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 p-3 text-xs text-emerald-700 dark:text-emerald-400">
-                <ShieldCheck className="h-4 w-4 shrink-0 mt-0.5" />
-                <div>
-                  <span className="font-semibold">Kích hoạt tức thì:</span> Gói dịch vụ sẽ được cập nhật tự động ngay khi bạn quét mã VietQR và xác nhận bên dưới.
-                </div>
-              </div>
-            </div>
-
-            {/* Cột phải: Khung VietQR Thanh Toán (5 cols) */}
-            <div className="lg:col-span-5 flex flex-col items-center justify-between rounded-xl border bg-muted/20 p-4 text-center">
-              <div className="w-full space-y-1">
-                <div className="flex items-center justify-center gap-1.5 font-bold text-sm text-foreground">
-                  <QrCode className="h-4 w-4 text-primary" />
-                  Quét Mã VietQR Thanh Toán
-                </div>
-                <p className="text-[11px] text-muted-foreground">
-                  Mở ứng dụng ngân hàng hoặc MoMo quét mã chuyển khoản nhanh
-                </p>
-              </div>
-
-              {/* Khung ảnh QR */}
-              <div className="my-3 bg-white p-2 rounded-lg shadow-sm border">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={qrUrl}
-                  alt="Mã VietQR nâng cấp gói"
-                  className="w-48 h-48 object-contain rounded"
-                />
-              </div>
-
-              {/* Thông tin tài khoản & memo */}
-              <div className="w-full space-y-1.5 text-left text-[11px] bg-background border rounded-lg p-2.5">
-                <div className="flex justify-between items-center">
-                  <span className="text-muted-foreground">Ngân hàng:</span>
-                  <span className="font-semibold text-blue-600 dark:text-blue-400">
-                    {bankInfo?.shortName || paymentBank.bankCode}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-muted-foreground">Số tài khoản:</span>
-                  <div className="flex items-center gap-1 font-mono font-bold">
-                    <span>{paymentBank.accountNumber}</span>
-                    <button
-                      type="button"
-                      onClick={() => copyToClipboard(paymentBank.accountNumber, "Số tài khoản")}
-                      className="text-muted-foreground hover:text-foreground"
-                    >
-                      {copiedField === "Số tài khoản" ? (
-                        <Check className="h-3 w-3 text-emerald-500" />
-                      ) : (
-                        <Copy className="h-3 w-3" />
-                      )}
-                    </button>
-                  </div>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-muted-foreground">Chủ tài khoản:</span>
-                  <span className="font-semibold uppercase">{paymentBank.accountHolder}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-muted-foreground">Nội dung:</span>
-                  <div className="flex items-center gap-1 font-mono font-bold text-primary">
-                    <span className="truncate max-w-[140px]">{paymentMemo}</span>
-                    <button
-                      type="button"
-                      onClick={() => copyToClipboard(paymentMemo, "Nội dung chuyển khoản")}
-                      className="text-muted-foreground hover:text-foreground shrink-0"
-                    >
-                      {copiedField === "Nội dung chuyển khoản" ? (
-                        <Check className="h-3 w-3 text-emerald-500" />
-                      ) : (
-                        <Copy className="h-3 w-3" />
-                      )}
-                    </button>
-                  </div>
-                </div>
               </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Footer Actions */}
-        <div className="p-4 bg-muted/40 border-t flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="text-xs text-muted-foreground">
-            {isCurrentPlanSelected ? (
-              <span>Gia hạn thêm {durationMonths} tháng cho gói hiện tại.</span>
-            ) : (
-              <span>
-                Nâng cấp từ gói <strong className="capitalize">{store?.subscriptionPlan || "Basic"}</strong> lên gói{" "}
-                <strong className="text-primary">{selectedPlan?.name}</strong>.
-              </span>
-            )}
-          </div>
+        {!isSuccess && (
+          <div className="p-4 bg-muted/40 border-t flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="text-xs text-muted-foreground">
+              {isCurrentPlanSelected ? (
+                <span>Gia hạn thêm {durationMonths} tháng cho gói hiện tại.</span>
+              ) : (
+                <span>
+                  Nâng cấp từ gói <strong className="capitalize">{store?.subscriptionPlan || "Basic"}</strong> lên gói{" "}
+                  <strong className="text-primary">{selectedPlan?.name}</strong>.
+                </span>
+              )}
+            </div>
 
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onOpenChange(false)}
-              disabled={isPending}
-            >
-              Hủy
-            </Button>
-            <Button
-              size="sm"
-              onClick={handleConfirmUpgrade}
-              disabled={isPending}
-              className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold flex items-center gap-1.5"
-            >
-              <CheckCircle2 className="h-4 w-4" />
-              {isPending ? "Đang xử lý..." : "Xác Nhận Đã Thanh Toán"}
-            </Button>
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onOpenChange(false)}
+                disabled={isManualPending || isCreatingStripeSession}
+              >
+                Hủy
+              </Button>
+
+              {paymentMethod === "stripe" ? (
+                <Button
+                  size="sm"
+                  onClick={initStripeSession}
+                  disabled={isCreatingStripeSession}
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold flex items-center gap-1.5"
+                >
+                  <RefreshCw className={`h-4 w-4 ${isCreatingStripeSession ? "animate-spin" : ""}`} />
+                  {isCreatingStripeSession ? "Đang tạo mã..." : "Tạo Lại Mã QR"}
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  onClick={handleConfirmManualUpgrade}
+                  disabled={isManualPending}
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold flex items-center gap-1.5"
+                >
+                  <CheckCircle2 className="h-4 w-4" />
+                  {isManualPending ? "Đang xử lý..." : "Xác Nhận Đã Chuyển Khoản"}
+                </Button>
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </DialogContent>
     </Dialog>
   );

@@ -25,6 +25,7 @@ import announcementRoutes from './routes/announcementRoutes.js';
 import storeRoutes from './routes/storeRoutes.js';
 import uploadRoutes from './routes/uploadRoutes.js';
 import employeeRoutes from './routes/employeeRoutes.js';
+import webhookRoutes from './routes/webhookRoutes.js';
 
 export function createServer(): Express {
   const app = express();
@@ -32,6 +33,10 @@ export function createServer(): Express {
   // 1. Security and standard middlewares
   app.use(helmet());
   app.use(cors({ origin: env.CORS_ORIGIN }));
+
+  // 1.5. Webhooks requiring raw body (Must be before express.json())
+  app.use('/api/v1/webhooks', webhookRoutes);
+
   app.use(express.json());
 
   // 2. Request logging

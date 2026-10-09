@@ -195,3 +195,75 @@ export function useSubscriptionPaymentBank() {
   });
 }
 
+export interface StripeUpgradeSessionData {
+  orderId: string;
+  sessionId: string;
+  checkoutUrl: string;
+  qrCodeUrl: string;
+  amount: number;
+  currency: string;
+  planSlug: string;
+  planName: string;
+  durationMonths: number;
+  expiresAt: string;
+}
+
+/**
+ * Hook tạo phiên thanh toán Stripe Checkout và nhận mã QR
+ */
+export function useCreateStripeUpgradeSession() {
+  return useMutation({
+    mutationFn: async (payload: { plan: string; durationMonths: number }) => {
+      const { data } = await apiClient.post<ApiResponseData<StripeUpgradeSessionData>>(
+        "/stores/upgrade-session/stripe",
+        payload,
+      );
+      if (!data.success || !data.data) {
+        throw new Error(data.message || "Tạo phiên thanh toán Stripe thất bại");
+      }
+      return data.data;
+    },
+  });
+}
+
+export interface SubscriptionOrderStatusData {
+  id: string;
+  storeId: string;
+  planSlug: string;
+  durationMonths: number;
+  amount: number;
+  currency: string;
+  status: "pending" | "completed" | "failed" | "expired" | "cancelled";
+  checkoutUrl: string | null;
+  qrCodeUrl: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Hook kiểm tra trạng thái đơn nâng cấp gói (phục vụ fallback polling)
+ */
+export function useSubscriptionOrderStatus(orderId: string | null, enabled: boolean = true) {
+  return useQuery({
+    queryKey: ["stores", "subscription-orders", orderId, "status"],
+    queryFn: async (): Promise<SubscriptionOrderStatusData> => {
+      const { data } = await apiClient.get<ApiResponseData<SubscriptionOrderStatusData>>(
+        `/stores/subscription-orders/${orderId}/status`,
+      );
+      if (!data.success || !data.data) {
+        throw new Error(data.message || "Không thể kiểm tra trạng thái đơn hàng");
+      }
+      return data.data;
+    },
+    enabled: Boolean(orderId && enabled),
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      if (status === "completed" || status === "failed" || status === "expired" || status === "cancelled") {
+        return false;
+      }
+      return 3000;
+    },
+  });
+}
+
+

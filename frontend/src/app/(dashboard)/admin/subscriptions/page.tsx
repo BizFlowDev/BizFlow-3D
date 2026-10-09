@@ -61,6 +61,7 @@ import type {
 import { PlanEditorDialog } from "./_components/PlanEditorDialog";
 import { DeletePlanDialog } from "./_components/DeletePlanDialog";
 import { PaymentQrSettingsSection } from "./_components/PaymentQrSettingsSection";
+import { SubscriptionOrdersSection } from "./_components/SubscriptionOrdersSection";
 
 // ── Icon Mapper ───────────────────────────────────────────────────────────────
 
@@ -778,6 +779,10 @@ export default function AdminSubscriptionsPage() {
               <History className="h-3.5 w-3.5" />
               Lịch sử
             </TabsTrigger>
+            <TabsTrigger value="transactions" className="gap-1.5">
+              <CreditCard className="h-3.5 w-3.5 text-indigo-500" />
+              Giao dịch Stripe/QR
+            </TabsTrigger>
             <TabsTrigger value="qr-settings" className="gap-1.5">
               <QrCode className="h-3.5 w-3.5 text-blue-500" />
               Cài đặt VietQR nhận tiền
@@ -799,6 +804,10 @@ export default function AdminSubscriptionsPage() {
 
           <TabsContent value="history">
             <HistorySection />
+          </TabsContent>
+
+          <TabsContent value="transactions">
+            <SubscriptionOrdersSection />
           </TabsContent>
 
           <TabsContent value="qr-settings">

@@ -62,8 +62,10 @@ router.post('/subscription-plans', adminController.createSubscriptionPlan);
 router.put('/subscription-plans/:planId', adminController.updateSubscriptionPlan);
 router.delete('/subscription-plans/:planId', adminController.deleteSubscriptionPlan);
 
-// Subscription History
+// Subscription History & Orders
 router.get('/subscription-history', adminController.listSubscriptionHistory);
+router.get('/subscription-orders', adminController.listSubscriptionOrders);
+router.post('/subscription-orders/:orderId/sync', adminController.syncSubscriptionOrder);
 
 // Analytics
 router.get('/analytics', adminController.getSystemAnalytics);

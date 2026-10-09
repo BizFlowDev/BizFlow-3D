@@ -10,9 +10,13 @@ import { IAnnouncementRepository } from '../../core/repositories/IAnnouncementRe
 import { ITemplateRepository } from '../../core/repositories/ITemplateRepository.js';
 import { ISubscriptionPlanRepository } from '../../core/repositories/ISubscriptionPlanRepository.js';
 import { ISubscriptionHistoryRepository } from '../../core/repositories/ISubscriptionHistoryRepository.js';
+import { ISubscriptionOrderRepository } from '../../core/repositories/ISubscriptionOrderRepository.js';
 import { ApiResponse } from '../presenters/ApiResponse.js';
 import { ValidationError } from '../../core/errors/ValidationError.js';
+import { NotFoundError } from '../../core/errors/NotFoundError.js';
 import { emitToAll, emitToAllExcept } from '../../frameworks/websocket/socketServer.js';
+import { StripeGateway } from '../../frameworks/payment/StripeGateway.js';
+import { HandleStripeWebhookUseCase } from '../../core/usecases/subscription/HandleStripeWebhookUseCase.js';
 
 /**
  * Admin controller.
@@ -31,6 +35,9 @@ export class AdminController {
     private readonly templateRepo: ITemplateRepository,
     private readonly subscriptionPlanRepo: ISubscriptionPlanRepository,
     private readonly subscriptionHistoryRepo: ISubscriptionHistoryRepository,
+    private readonly subscriptionOrderRepo: ISubscriptionOrderRepository,
+    private readonly stripeGateway?: StripeGateway,
+    private readonly handleStripeWebhookUseCase?: HandleStripeWebhookUseCase,
   ) {}
 
   /**
@@ -392,4 +399,57 @@ export class AdminController {
       next(error);
     }
   };
+
+  // ── Subscription Orders (Stripe / QR Transactions) ─────────────────────────
+
+  /**
+   * GET /api/admin/subscription-orders
+   * Query: { storeId?, status?, page?, limit? }
+   */
+  listSubscriptionOrders = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      // Lấy danh sách đơn hàng gói dịch vụ
+      const result = await this.subscriptionOrderRepo.findAll({
+        storeId: req.query.storeId as string | undefined,
+        status: req.query.status as any,
+        page: req.query.page ? parseInt(req.query.page as string, 10) : undefined,
+        limit: req.query.limit ? parseInt(req.query.limit as string, 10) : undefined,
+      });
+
+      const response = ApiResponse.success(result, 'Lấy danh sách đơn hàng gói dịch vụ thành công');
+      res.status(response.statusCode).json(response.toJSON());
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * POST /api/admin/subscription-orders/:orderId/sync
+   * Đồng bộ thủ công trạng thái giao dịch từ Stripe
+   */
+  syncSubscriptionOrder = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const orderId = String(req.params.orderId);
+      const order = await this.subscriptionOrderRepo.findById(orderId);
+      if (!order) {
+        throw new NotFoundError('Đơn hàng không tồn tại');
+      }
+
+      if (order.paymentMethod === 'stripe' && order.stripeSessionId && this.stripeGateway && this.handleStripeWebhookUseCase) {
+        const session = await this.stripeGateway.retrieveCheckoutSession(order.stripeSessionId);
+        if (session.payment_status === 'paid') {
+          await this.handleStripeWebhookUseCase.handleCheckoutSessionCompleted(session);
+        } else if (session.status === 'expired') {
+          await this.handleStripeWebhookUseCase.handleCheckoutSessionExpired(session);
+        }
+      }
+
+      const updated = await this.subscriptionOrderRepo.findById(orderId);
+      const response = ApiResponse.success(updated, 'Đồng bộ đơn hàng với Stripe thành công');
+      res.status(response.statusCode).json(response.toJSON());
+    } catch (error) {
+      next(error);
+    }
+  };
 }
+

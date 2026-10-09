@@ -9,15 +9,30 @@ const router = Router();
 // Tất cả route đều yêu cầu xác thực
 router.use(authMiddleware);
 
+async function getEffectiveStoreId(req: Request): Promise<string> {
+  let storeId = req.user?.storeId;
+  if (!storeId && req.user?.role === 'admin') {
+    if (req.body?.storeId) {
+      return String(req.body.storeId);
+    }
+    const storeResult = await controllers.storeRepo.searchAdmin({ limit: 1 });
+    if (storeResult.data.length > 0) {
+      return storeResult.data[0].id;
+    }
+  }
+  if (!storeId) {
+    throw new AuthenticationError('Store không xác định');
+  }
+  return storeId;
+}
+
 /**
  * GET /api/v1/stores/me
  * Trả về thông tin cửa hàng hiện tại (bao gồm bank info).
  */
 router.get('/me', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const storeId = req.user?.storeId;
-    if (!storeId) throw new AuthenticationError('Store không xác định');
-
+    const storeId = await getEffectiveStoreId(req);
     const store = await controllers.storeRepo.findById(storeId);
     if (!store) throw new AuthenticationError('Store không tồn tại');
 
@@ -126,8 +141,7 @@ router.get('/subscription-payment-bank', async (_req: Request, res: Response, ne
  */
 router.post('/upgrade-subscription', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const storeId = req.user?.storeId;
-    if (!storeId) throw new AuthenticationError('Store không xác định');
+    const storeId = await getEffectiveStoreId(req);
 
     const { plan, durationMonths = 1, paymentMethod = 'vietqr' } = req.body;
     if (!plan) {
@@ -152,7 +166,7 @@ router.post('/upgrade-subscription', async (req: Request, res: Response, next: N
       oldStatus: currentStore.subscriptionStatus,
       newStatus: 'active',
       changedBy: req.user?.userId,
-      changedByName: 'Chủ cửa hàng',
+      changedByName: req.user?.role === 'admin' ? 'Quản trị viên' : 'Chủ cửa hàng',
       note: `Nâng cấp gói qua thanh toán ${paymentMethod.toUpperCase()}`,
     });
 
@@ -163,4 +177,50 @@ router.post('/upgrade-subscription', async (req: Request, res: Response, next: N
   }
 });
 
+/**
+ * POST /api/v1/stores/upgrade-session/stripe
+ * Tạo phiên thanh toán nâng cấp gói qua Stripe Checkout và sinh mã QR
+ */
+router.post('/upgrade-session/stripe', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const storeId = await getEffectiveStoreId(req);
+
+    const { plan, durationMonths = 1 } = req.body;
+    if (!plan) {
+      throw new Error('Vui lòng chọn gói dịch vụ');
+    }
+
+    const sessionData = await controllers.createStripeUpgradeSessionUseCase.execute({
+      storeId,
+      planSlug: plan,
+      durationMonths: Number(durationMonths) || 1,
+      userEmail: (req.user as any)?.email,
+    });
+
+    const response = ApiResponse.success(sessionData, 'Tạo phiên thanh toán Stripe thành công');
+    res.status(response.statusCode).json(response.toJSON());
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * GET /api/v1/stores/subscription-orders/:orderId/status
+ * Kiểm tra trạng thái đơn nâng cấp gói (phục vụ fallback polling)
+ */
+router.get('/subscription-orders/:orderId/status', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const storeId = await getEffectiveStoreId(req);
+
+    const orderId = String(req.params.orderId);
+    const orderData = await controllers.getSubscriptionOrderStatusUseCase.execute(orderId, storeId);
+
+    const response = ApiResponse.success(orderData, 'Lấy trạng thái đơn hàng thành công');
+    res.status(response.statusCode).json(response.toJSON());
+  } catch (error) {
+    next(error);
+  }
+});
+
 export default router;
+

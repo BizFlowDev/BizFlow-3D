@@ -17,6 +17,11 @@ import { PostgresAnnouncementRepository } from '../frameworks/database/repositor
 import { PostgresTemplateRepository } from '../frameworks/database/repositories/PostgresTemplateRepository.js';
 import { PostgresSubscriptionPlanRepository } from '../frameworks/database/repositories/PostgresSubscriptionPlanRepository.js';
 import { PostgresSubscriptionHistoryRepository } from '../frameworks/database/repositories/PostgresSubscriptionHistoryRepository.js';
+import { PostgresSubscriptionOrderRepository } from '../frameworks/database/repositories/PostgresSubscriptionOrderRepository.js';
+import { StripeGateway } from '../frameworks/payment/StripeGateway.js';
+import { CreateStripeUpgradeSessionUseCase } from '../core/usecases/subscription/CreateStripeUpgradeSessionUseCase.js';
+import { HandleStripeWebhookUseCase } from '../core/usecases/subscription/HandleStripeWebhookUseCase.js';
+import { GetSubscriptionOrderStatusUseCase } from '../core/usecases/subscription/GetSubscriptionOrderStatusUseCase.js';
 
 // Import Redis Token Store
 import { RedisRefreshTokenStore } from '../frameworks/redis/RedisRefreshTokenStore.js';
@@ -157,6 +162,8 @@ const announcementRepo = new PostgresAnnouncementRepository();
 const templateRepo = new PostgresTemplateRepository();
 const subscriptionPlanRepo = new PostgresSubscriptionPlanRepository();
 const subscriptionHistoryRepo = new PostgresSubscriptionHistoryRepository();
+const subscriptionOrderRepo = new PostgresSubscriptionOrderRepository();
+const stripeGateway = new StripeGateway();
 
 // ── Initialize Services ──────────────────────────────────────────────────────
 const passwordService = new BcryptPasswordService();
@@ -243,6 +250,25 @@ const toggleEmployeeStatusUseCase = new ToggleEmployeeStatusUseCase(userRepo);
 const resetEmployeePasswordUseCase = new ResetEmployeePasswordUseCase(userRepo, passwordService);
 const softDeleteEmployeeUseCase = new SoftDeleteEmployeeUseCase(userRepo);
 
+const createStripeUpgradeSessionUseCase = new CreateStripeUpgradeSessionUseCase(
+  storeRepo,
+  subscriptionPlanRepo,
+  subscriptionOrderRepo,
+  stripeGateway,
+);
+const handleStripeWebhookUseCase = new HandleStripeWebhookUseCase(
+  stripeGateway,
+  storeRepo,
+  subscriptionOrderRepo,
+  subscriptionHistoryRepo,
+  manageStoreSubscriptionUseCase,
+);
+const getSubscriptionOrderStatusUseCase = new GetSubscriptionOrderStatusUseCase(
+  subscriptionOrderRepo,
+  stripeGateway,
+  handleStripeWebhookUseCase,
+);
+
 // ── Initialize Controllers ───────────────────────────────────────────────────
 export const controllers = {
   authController: new AuthController(
@@ -312,6 +338,9 @@ export const controllers = {
     templateRepo,
     subscriptionPlanRepo,
     subscriptionHistoryRepo,
+    subscriptionOrderRepo,
+    stripeGateway,
+    handleStripeWebhookUseCase,
   ),
   // Also export auditLogRepo to be used by the requestLogger middleware
   auditLogRepo,
@@ -321,4 +350,9 @@ export const controllers = {
   subscriptionHistoryRepo,
   manageStoreSubscriptionUseCase,
   systemConfigRepo,
+  subscriptionOrderRepo,
+  stripeGateway,
+  createStripeUpgradeSessionUseCase,
+  handleStripeWebhookUseCase,
+  getSubscriptionOrderStatusUseCase,
 };

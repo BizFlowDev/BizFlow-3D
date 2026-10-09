@@ -546,3 +546,82 @@ export function useSubscriptionHistory(
     staleTime: 30_000,
   });
 }
+
+// ── Subscription Orders (Transactions) ──────────────────────────────────────
+
+export interface AdminSubscriptionOrder {
+  id: string;
+  storeId: string;
+  planId: string | null;
+  planSlug: string;
+  durationMonths: number;
+  amount: number;
+  currency: string;
+  paymentMethod: string;
+  status: "pending" | "completed" | "failed" | "expired" | "cancelled";
+  stripeSessionId: string | null;
+  stripePaymentIntentId: string | null;
+  checkoutUrl: string | null;
+  qrCodeUrl: string | null;
+  metadata: Record<string, any>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SubscriptionOrderParams {
+  storeId?: string;
+  status?: string;
+  page?: number;
+  limit?: number;
+}
+
+interface SubscriptionOrderListResponse {
+  items: AdminSubscriptionOrder[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+/** Lấy danh sách giao dịch đơn hàng gói dịch vụ (Stripe/QR) */
+export function useSubscriptionOrders(params: SubscriptionOrderParams = {}) {
+  return useQuery({
+    queryKey: ["admin", "subscription-orders", params],
+    queryFn: async (): Promise<SubscriptionOrderListResponse> => {
+      const { data } = await apiClient.get<ApiResponseData<SubscriptionOrderListResponse>>(
+        "/admin/subscription-orders",
+        {
+          params: {
+            storeId: params.storeId || undefined,
+            status: params.status || undefined,
+            page: params.page,
+            limit: params.limit,
+          },
+        },
+      );
+      if (!data.data) throw new Error(data.message);
+      return data.data;
+    },
+    staleTime: 15_000,
+  });
+}
+
+/** Đồng bộ trạng thái giao dịch với Stripe thủ công */
+export function useSyncSubscriptionOrder() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (orderId: string): Promise<AdminSubscriptionOrder> => {
+      const { data } = await apiClient.post<ApiResponseData<AdminSubscriptionOrder>>(
+        `/admin/subscription-orders/${orderId}/sync`,
+      );
+      if (!data.data) throw new Error(data.message || "Đồng bộ thất bại");
+      return data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "subscription-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "stores"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "subscription-history"] });
+    },
+  });
+}
