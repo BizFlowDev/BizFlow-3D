@@ -24,6 +24,11 @@ const env = {
 
   LOW_STOCK_THRESHOLD: parseInt(process.env.LOW_STOCK_THRESHOLD || '10', 10),
 
+  STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY || '',
+  STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET || '',
+  STRIPE_CURRENCY: (process.env.STRIPE_CURRENCY || 'vnd').toLowerCase(),
+  FRONTEND_URL: process.env.FRONTEND_URL || process.env.CORS_ORIGIN || 'http://localhost:3000',
+
   LOG_LEVEL: process.env.LOG_LEVEL || 'debug',
 
   get isDev() {

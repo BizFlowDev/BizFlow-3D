@@ -32,12 +32,21 @@ export interface GeneralNotificationEvent {
   data?: unknown;
 }
 
+export interface SubscriptionUpgradedEvent {
+  storeId: string;
+  orderId: string;
+  plan: string;
+  planName?: string;
+  expiresAt: string;
+}
+
 /** Map of all application event names to their payload types. */
 export interface AppEventMap {
   'order:confirmed': OrderConfirmedEvent;
   'order:created': OrderCreatedEvent;
   'inventory:low_stock': LowStockEvent;
   'notification:general': GeneralNotificationEvent;
+  'subscription:upgraded': SubscriptionUpgradedEvent;
 }
 
 // ── Typed Event Emitter ──────────────────────────────────
@@ -113,6 +122,17 @@ export function initEventListeners(): void {
       emitToStore(data.storeId, 'notification', payload);
     }
     console.log(`[Event] notification:general → ${data.storeId ? 'store:' + data.storeId : ''} ${data.userId ? 'user:' + data.userId : ''}`);
+  });
+
+  // Store subscription upgraded / renewed
+  appEventEmitter.on('subscription:upgraded', (data) => {
+    emitToStore(data.storeId, 'subscription:upgraded', {
+      orderId: data.orderId,
+      plan: data.plan,
+      planName: data.planName,
+      expiresAt: data.expiresAt,
+    });
+    console.log(`[Event] subscription:upgraded → store:${data.storeId} (plan: ${data.plan})`);
   });
 
   console.log('[Event] All event listeners registered');

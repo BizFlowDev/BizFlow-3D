@@ -290,6 +290,7 @@ GROUP BY p.store_id, p.id, p.code, p.name, pc.name
 ORDER BY total_revenue DESC;
 
 -- vw_customer_debt_summary
+DROP VIEW IF EXISTS vw_customer_debt_summary;
 CREATE OR REPLACE VIEW vw_customer_debt_summary AS
 SELECT
     c.store_id,
