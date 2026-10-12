@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { Text } from "@react-three/drei";
 import { StoreDecorations } from "../StoreDecorations";
-import { Door3D } from "./Door3D";
+import { Door3D, DOOR_TOTAL_HEIGHT } from "./Door3D";
 import { type RoomId, ROOMS } from "./types";
 
 interface ShowroomSceneProps {
@@ -71,9 +71,28 @@ function ShowroomWalls({ onReturnToHallway }: { onReturnToHallway?: () => void }
 
   return (
     <group>
-      {/* ── Tường sau (Accent Back Wall) ── */}
-      <mesh position={[0, STORE_HEIGHT / 2, -STORE_DEPTH / 2]}>
-        <boxGeometry args={[STORE_WIDTH, STORE_HEIGHT, WALL_THICKNESS]} />
+      {/* ── Tường sau có ô cửa mở thông ra Hành Lang ── */}
+      {/* Mảng tường sau bên trái */}
+      <mesh position={[-4.4, STORE_HEIGHT / 2, -STORE_DEPTH / 2]}>
+        <boxGeometry args={[7.2, STORE_HEIGHT, WALL_THICKNESS]} />
+        <meshStandardMaterial color={wallBaseColor} roughness={0.8} />
+      </mesh>
+      {/* Mảng tường sau bên phải */}
+      <mesh position={[4.4, STORE_HEIGHT / 2, -STORE_DEPTH / 2]}>
+        <boxGeometry args={[7.2, STORE_HEIGHT, WALL_THICKNESS]} />
+        <meshStandardMaterial color={wallBaseColor} roughness={0.8} />
+      </mesh>
+      {/* Mảng tường phía trên khung cửa */}
+      <mesh
+        position={[
+          0,
+          DOOR_TOTAL_HEIGHT + (STORE_HEIGHT - DOOR_TOTAL_HEIGHT) / 2,
+          -STORE_DEPTH / 2,
+        ]}
+      >
+        <boxGeometry
+          args={[1.6, STORE_HEIGHT - DOOR_TOTAL_HEIGHT, WALL_THICKNESS]}
+        />
         <meshStandardMaterial color={wallBaseColor} roughness={0.8} />
       </mesh>
 
@@ -91,14 +110,14 @@ function ShowroomWalls({ onReturnToHallway }: { onReturnToHallway?: () => void }
       )}
 
       {/* Tấm phông trung tâm màu navy sậm cho biển hiệu */}
-      <mesh position={[0, STORE_HEIGHT - 1.2, -STORE_DEPTH / 2 + 0.12]}>
-        <boxGeometry args={[5.2, 1.4, 0.08]} />
+      <mesh position={[0, STORE_HEIGHT - 0.8, -STORE_DEPTH / 2 + 0.12]}>
+        <boxGeometry args={[2.2, 1, 0.08]} />
         <meshStandardMaterial color="#1e1b4b" roughness={0.4} metalness={0.2} />
       </mesh>
 
       {/* Viền LED phát sáng quanh bảng hiệu */}
-      <mesh position={[0, STORE_HEIGHT - 1.2, -STORE_DEPTH / 2 + 0.17]}>
-        <boxGeometry args={[5.26, 1.46, 0.02]} />
+      <mesh position={[0, STORE_HEIGHT - 0.8, -STORE_DEPTH / 2 + 0.17]}>
+        <boxGeometry args={[2.26, 1, 0.02]} />
         <meshStandardMaterial
           color="#6366f1"
           emissive="#818cf8"
@@ -107,40 +126,50 @@ function ShowroomWalls({ onReturnToHallway }: { onReturnToHallway?: () => void }
       </mesh>
 
       {/* Biển hiệu 3D LED "BIZFLOW 3D STORE" */}
-      <group position={[0, STORE_HEIGHT - 1.2, -STORE_DEPTH / 2 + 0.19]}>
+      <group position={[0, STORE_HEIGHT - 1.15, -STORE_DEPTH / 2 + 0.19]}>
         <Text
-          position={[0, 0.2, 0]}
-          fontSize={0.44}
-          color="#e0e7ff"
+          position={[0, 0.5, 0]}
+          fontSize={0.2}
+          color="#1b0505"
           anchorX="center"
           anchorY="middle"
           letterSpacing={0.06}
+          outlineWidth={0.02}
+          outlineColor="#3d3d3d"
+          outlineOpacity={0.2}
+          outlineBlur={0.08}
         >
-          BIZFLOW 3D STORE
+          BIZFLOW 3D
         </Text>
         <Text
-          position={[0, -0.22, 0]}
-          fontSize={0.15}
-          color="#38bdf8"
+          position={[0, 0.22, 0]}
+          fontSize={0.2}
+          color="#1b0505"
           anchorX="center"
           anchorY="middle"
-          letterSpacing={0.08}
+          letterSpacing={0.06}
+          outlineWidth={0.02}
+          outlineColor="#3d3d3d"
+          outlineOpacity={0.2}
+          outlineBlur={0.08}
         >
-          SMART RETAIL & WAREHOUSE SHOWROOM
+          STORE
         </Text>
       </group>
 
       {/* ── CỬA THÔNG RA HÀNH LANG (Tường sau) ── */}
-      {onReturnToHallway && (
-        <Door3D
-          position={[0, 0, -STORE_DEPTH / 2 + 0.1]}
-          targetRoom="hallway"
-          label={ROOMS.hallway.name}
-          subLabel="LỐI RA"
-          onEnter={() => onReturnToHallway()}
-          accentColor="#38bdf8"
-        />
-      )}
+      {
+        onReturnToHallway && (
+          <Door3D
+            position={[0, 0, -STORE_DEPTH / 2 + 0.1]}
+            targetRoom="hallway"
+            label={ROOMS.hallway.name}
+            subLabel="LỐI RA"
+            onEnter={() => onReturnToHallway()}
+            accentColor="#38bdf8"
+          />
+        )
+      }
 
       {/* ── Tường trái ── */}
       <mesh
@@ -173,7 +202,7 @@ function ShowroomWalls({ onReturnToHallway }: { onReturnToHallway?: () => void }
         <boxGeometry args={[0.2, STORE_HEIGHT, 0.2]} />
         <meshStandardMaterial color="#090d16" roughness={0.3} metalness={0.7} />
       </mesh>
-    </group>
+    </group >
   );
 }
 

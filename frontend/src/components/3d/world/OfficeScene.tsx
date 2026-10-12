@@ -170,7 +170,7 @@ function WallMountedTV({
           <button
             type="button"
             onClick={onClick}
-            className={`pointer-events-auto flex items-center gap-1.5 rounded-lg border px-3 py-1 text-xs font-bold shadow-xl backdrop-blur-md transition-all ${
+            className={`pointer-events-auto flex items-center gap-1.5 whitespace-nowrap rounded-lg border px-3 py-1 text-xs font-bold shadow-xl backdrop-blur-md transition-all ${
               hovered
                 ? "border-sky-400 bg-sky-600 text-white scale-110 shadow-sky-500/40"
                 : "border-white/20 bg-slate-900/85 text-slate-200"
@@ -541,18 +541,29 @@ export function OfficeScene({
       </mesh>
 
       {/* Tường trước giáp hành lang (z = -18) */}
-      <mesh position={[CENTER_X - 4.5, OFFICE_HEIGHT / 2, -18.1]}>
-        <boxGeometry args={[6, OFFICE_HEIGHT, WALL_THICKNESS]} />
+      <mesh position={[1.45, OFFICE_HEIGHT / 2, -18.1]}>
+        <boxGeometry args={[1.9, OFFICE_HEIGHT, WALL_THICKNESS]} />
         <meshStandardMaterial color="#0f172a" roughness={0.75} />
       </mesh>
-      <mesh position={[CENTER_X + 4.5, OFFICE_HEIGHT / 2, -18.1]}>
-        <boxGeometry args={[6, OFFICE_HEIGHT, WALL_THICKNESS]} />
+      <mesh position={[9.75, OFFICE_HEIGHT / 2, -18.1]}>
+        <boxGeometry args={[11.5, OFFICE_HEIGHT, WALL_THICKNESS]} />
+        <meshStandardMaterial color="#0f172a" roughness={0.75} />
+      </mesh>
+      {/* Mảng tường trên cửa ra hành lang */}
+      <mesh
+        position={[
+          3.2,
+          2.8 + (OFFICE_HEIGHT - 2.8) / 2,
+          -18.1,
+        ]}
+      >
+        <boxGeometry args={[1.6, OFFICE_HEIGHT - 2.8, WALL_THICKNESS]} />
         <meshStandardMaterial color="#0f172a" roughness={0.75} />
       </mesh>
 
-      {/* ── CỬA THÔNG RA HÀNH LANG (x = 8, z = -18.1, quay mặt vào trong văn phòng) ── */}
+      {/* ── CỬA THÔNG RA HÀNH LANG (x = 3.2, z = -18.1, quay mặt vào trong văn phòng) ── */}
       <Door3D
-        position={[CENTER_X, 0, -18.1]}
+        position={[3.2, 0, -18.1]}
         rotation={[0, 0, 0]}
         targetRoom="hallway"
         label={ROOMS.hallway.name}
@@ -606,7 +617,7 @@ export function OfficeScene({
       {/* ── 4. TRANG THIẾT BỊ NỘI THẤT VĂN PHÒNG ───────────────────── */}
       {/* TV treo tường 85 inch hiển thị Dashboard */}
       <WallMountedTV
-        position={[CENTER_X, 2.8, -31.85]}
+        position={[CENTER_X, 2.4, -31.85]}
         revenue={todayRevenue}
         ordersCount={pendingCount}
         onClick={onOpenReports}
@@ -614,20 +625,20 @@ export function OfficeScene({
 
       {/* Bàn làm việc Giám Đốc */}
       <DirectorDesk
-        position={[5.8, 0, -25.5]}
+        position={[6.2, 0, -25.5]}
         onClick={onOpenSettings}
       />
 
       {/* Tủ hồ sơ nhân viên */}
       <EmployeeFilingCabinet
-        position={[12.2, 0, -24.8]}
+        position={[9.8, 0, -25.0]}
         employeeCount={employeeCount}
         onClick={onOpenEmployeeDialog}
       />
 
       {/* Bảng kính KPI trên tường */}
       <KPIGlassBoard
-        position={[15.35, 2.5, -24.5]}
+        position={[15.35, 2.3, -24.5]}
         rotation={[0, -Math.PI / 2, 0]}
         revenue={todayRevenue}
         orders={pendingCount}

@@ -88,9 +88,9 @@ export function RoomNavigationHUD({
   if (isPOSActive) return null;
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-4 z-40 flex flex-col items-center gap-2.5 px-4">
+    <div className="pointer-events-none fixed inset-x-0 bottom-3 sm:bottom-4 z-40 flex flex-col items-center gap-1.5 sm:gap-2.5 px-2 sm:px-4">
       {/* ── 1. THANH ĐIỀU HƯỚNG GÓC NHÌN TRONG PHÒNG ────────────────── */}
-      <div className="pointer-events-auto flex items-center gap-1.5 rounded-2xl border border-white/15 bg-slate-950/85 p-1.5 shadow-2xl backdrop-blur-xl ring-1 ring-white/10 animate-in fade-in slide-in-from-bottom-2 duration-300">
+      <div className="pointer-events-auto flex items-center gap-1 sm:gap-1.5 rounded-2xl border border-white/15 bg-slate-950/85 p-1 sm:p-1.5 shadow-2xl backdrop-blur-xl ring-1 ring-white/10 animate-in fade-in slide-in-from-bottom-2 duration-300">
         <div className="hidden sm:flex items-center gap-1 px-2.5 text-[11px] font-bold text-slate-400 border-r border-white/10 mr-0.5">
           <span>Góc nhìn:</span>
         </div>
@@ -104,9 +104,10 @@ export function RoomNavigationHUD({
           return (
             <button
               key={item.id}
+              id={`btn-preset-${item.id}`}
               type="button"
               onClick={() => onSelectPreset(item.id)}
-              className={`group flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-semibold transition-all ${
+              className={`group flex items-center gap-1.5 rounded-xl px-2 sm:px-2.5 py-1 sm:py-1.5 text-xs font-semibold transition-all ${
                 isActive
                   ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/30 scale-105"
                   : "text-slate-300 hover:bg-white/10 hover:text-white"
@@ -121,9 +122,10 @@ export function RoomNavigationHUD({
         {/* Nút quay lại Hành Lang nhanh khi đang ở trong các phòng */}
         {activeRoom !== "hallway" && (
           <button
+            id="btn-nav-to-hallway"
             type="button"
             onClick={() => onSelectRoom("hallway")}
-            className="flex items-center gap-1 rounded-xl border border-sky-500/30 bg-sky-600/20 px-2.5 py-1.5 text-xs font-semibold text-sky-200 hover:bg-sky-600/40 hover:text-white transition-all ml-1"
+            className="flex items-center gap-1 rounded-xl border border-sky-500/30 bg-sky-600/20 px-2 sm:px-2.5 py-1 sm:py-1.5 text-xs font-semibold text-sky-200 hover:bg-sky-600/40 hover:text-white transition-all ml-1"
           >
             <Compass className="h-3.5 w-3.5" />
             <span>Ra Hành Lang</span>
@@ -132,12 +134,13 @@ export function RoomNavigationHUD({
       </div>
 
       {/* ── 2. THANH CHUYỂN PHÒNG CHÍNH (TOP-LEVEL ROOM TABS) ────────── */}
-      <div className="pointer-events-auto flex items-center gap-1.5 rounded-2xl border border-white/20 bg-slate-950/90 p-1.5 shadow-2xl backdrop-blur-2xl ring-1 ring-white/10">
+      <div className="pointer-events-auto flex items-center gap-1 sm:gap-1.5 rounded-2xl border border-white/20 bg-slate-950/90 p-1 sm:p-1.5 shadow-2xl backdrop-blur-2xl ring-1 ring-white/10">
         {/* Nút thoát về 2D */}
         <button
+          id="btn-nav-2d"
           type="button"
           onClick={onToggle2D}
-          className="flex items-center gap-1 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-slate-400 hover:bg-white/10 hover:text-white transition-all mr-1 border-r border-white/10"
+          className="flex items-center gap-1 rounded-xl px-2 sm:px-2.5 py-1 sm:py-1.5 text-xs font-semibold text-slate-400 hover:bg-white/10 hover:text-white transition-all mr-1 border-r border-white/10"
           title="Quay lại giao diện bảng điều khiển 2D"
         >
           <ArrowLeft className="h-3.5 w-3.5" />
@@ -152,9 +155,10 @@ export function RoomNavigationHUD({
           return (
             <button
               key={room.id}
+              id={`btn-room-${room.id}`}
               type="button"
               onClick={() => onSelectRoom(room.id)}
-              className={`flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-bold transition-all ${
+              className={`flex items-center gap-1.5 rounded-xl px-2.5 sm:px-3.5 py-1.5 sm:py-2 text-xs font-bold transition-all ${
                 isActive
                   ? "text-white shadow-xl scale-105"
                   : "text-slate-400 hover:bg-white/10 hover:text-slate-200"

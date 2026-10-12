@@ -32,7 +32,7 @@ interface Door3DProps {
 function DoorLODPreview({ room }: { room: RoomId }) {
   if (room === "showroom") {
     return (
-      <group position={[0, 0, -0.6]} scale={0.25}>
+      <group position={[0, 0.22, -0.45]} scale={0.25}>
         {/* Kệ hàng mini LOD */}
         <mesh position={[-1.2, 0.4, 0]}>
           <boxGeometry args={[0.8, 1.2, 0.4]} />
@@ -55,7 +55,7 @@ function DoorLODPreview({ room }: { room: RoomId }) {
 
   if (room === "warehouse") {
     return (
-      <group position={[0, 0, -0.6]} scale={0.25}>
+      <group position={[0, 0.22, -0.45]} scale={0.25}>
         {/* Thùng hàng mini trên pallet */}
         <mesh position={[-0.8, 0.3, 0]}>
           <boxGeometry args={[0.9, 0.8, 0.9]} />
@@ -77,7 +77,7 @@ function DoorLODPreview({ room }: { room: RoomId }) {
 
   if (room === "office") {
     return (
-      <group position={[0, 0, -0.6]} scale={0.25}>
+      <group position={[0, 0.22, -0.45]} scale={0.25}>
         {/* Bàn giám đốc mini */}
         <mesh position={[0, 0.3, 0]}>
           <boxGeometry args={[1.6, 0.6, 0.8]} />
@@ -100,7 +100,7 @@ function DoorLODPreview({ room }: { room: RoomId }) {
 
   // Preview ra Hành lang
   return (
-    <group position={[0, 0, -0.6]} scale={0.25}>
+    <group position={[0, 0.22, -0.45]} scale={0.25}>
       <mesh position={[0, 0.05, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <planeGeometry args={[0.2, 2.5]} />
         <meshStandardMaterial
@@ -121,6 +121,14 @@ function DoorLODPreview({ room }: { room: RoomId }) {
  * - Cửa sổ kính trong suốt có LOD Preview phòng đích
  * - Hiệu ứng hover viền neon + tooltip mời vào
  */
+// Kích thước chuẩn cửa 3D (cân đối, không bị quá to hay va chạm biển hiệu tường)
+export const DOOR_WIDTH = 1.4;
+export const DOOR_HEIGHT = 2.4;
+export const DOOR_DEPTH = 0.07;
+export const FRAME_THICKNESS = 0.09;
+/** Tổng chiều cao toàn bộ cụm cửa bao gồm khung và biển hiệu LED */
+export const DOOR_TOTAL_HEIGHT = 2.8;
+
 export function Door3D({
   position,
   rotation = [0, 0, 0],
@@ -137,12 +145,6 @@ export function Door3D({
 
   const roomConfig = ROOMS[targetRoom] || ROOMS.showroom;
   const effectiveAccent = accentColor || roomConfig.accentColor;
-
-  // Kích thước chuẩn cửa 3D
-  const DOOR_WIDTH = 1.9;
-  const DOOR_HEIGHT = 2.9;
-  const DOOR_DEPTH = 0.08;
-  const FRAME_THICKNESS = 0.12;
 
   // Animation bản lề mở/đóng cửa qua useFrame (lerp mượt)
   useFrame((_, delta) => {
@@ -233,36 +235,40 @@ export function Door3D({
       </group>
 
       {/* ── 2. Biển hiệu LED trên đỉnh cửa (Room Signboard) ────────── */}
-      <group position={[0, DOOR_HEIGHT + 0.38, 0.08]}>
+      <group position={[0, DOOR_HEIGHT + 0.22, 0.08]}>
         {/* Tấm nền biển hiệu */}
         <mesh>
-          <boxGeometry args={[DOOR_WIDTH + 0.3, 0.44, 0.06]} />
+          <boxGeometry args={[DOOR_WIDTH + 0.16, 0.34, 0.05]} />
           <meshStandardMaterial
-            color="#0b0f19"
-            roughness={0.4}
-            metalness={0.5}
+            color="#090e1a"
+            roughness={0.3}
+            metalness={0.6}
           />
         </mesh>
 
         {/* Viền LED phát sáng quanh bảng tên */}
         <mesh position={[0, 0, 0.02]}>
-          <boxGeometry args={[DOOR_WIDTH + 0.34, 0.48, 0.02]} />
+          <boxGeometry args={[DOOR_WIDTH + 0.2, 0.38, 0.02]} />
           <meshStandardMaterial
             color={effectiveAccent}
             emissive={effectiveAccent}
-            emissiveIntensity={hovered ? 1.4 : 0.8}
+            emissiveIntensity={hovered ? 1.5 : 0.85}
           />
         </mesh>
 
-        {/* Text phụ (ví dụ: PHÒNG 1) */}
+        {/* Text phụ (ví dụ: PHÒNG 1 / LỐI RA) */}
         {subLabel && (
           <Text
-            position={[0, 0.1, 0.04]}
-            fontSize={0.09}
-            color="#94a3b8"
+            position={[0, 0.07, 0.035]}
+            fontSize={0.065}
+            color="#93c5fd"
             anchorX="center"
             anchorY="middle"
             letterSpacing={0.12}
+            outlineWidth={0.01}
+            outlineColor="#3d3d3d"
+            outlineOpacity={0.3}
+            outlineBlur={0}
           >
             {subLabel.toUpperCase()}
           </Text>
@@ -270,12 +276,17 @@ export function Door3D({
 
         {/* Text chính (ví dụ: SHOWROOM & BÁN HÀNG) */}
         <Text
-          position={[0, subLabel ? -0.06 : 0, 0.04]}
-          fontSize={0.15}
+          position={[0, subLabel ? -0.05 : 0, 0.035]}
+          fontSize={0.088}
           color="#ffffff"
           anchorX="center"
           anchorY="middle"
-          letterSpacing={0.06}
+          letterSpacing={0.02}
+          maxWidth={DOOR_WIDTH}
+          outlineWidth={0.01}
+          outlineColor="#3d3d3d"
+          outlineOpacity={0.3}
+          outlineBlur={0}
         >
           {label}
         </Text>
@@ -298,44 +309,98 @@ export function Door3D({
       >
         {/* Cánh cửa dịch sang phải DOOR_WIDTH / 2 so với pivot */}
         <group position={[DOOR_WIDTH / 2, DOOR_HEIGHT / 2, 0]}>
-          {/* Tấm cửa chính màu xám than sang trọng */}
-          <mesh castShadow receiveShadow>
-            <boxGeometry args={[DOOR_WIDTH - 0.04, DOOR_HEIGHT - 0.04, DOOR_DEPTH]} />
-            <meshStandardMaterial
-              color="#131b2e"
-              roughness={0.4}
-              metalness={0.3}
-            />
+          {/* ── 4 Mảng cánh cửa chính tạo ô thoáng rỗng ở giữa (không bị che kính) ── */}
+          {/* Mảng trên ô kính */}
+          <mesh castShadow receiveShadow position={[0, 0.99, 0]}>
+            <boxGeometry args={[DOOR_WIDTH - 0.04, 0.38, DOOR_DEPTH]} />
+            <meshStandardMaterial color="#131b2e" roughness={0.4} metalness={0.3} />
           </mesh>
 
-          {/* Họa tiết phay dọc trang trí trên cánh cửa */}
-          <mesh position={[0, 0, 0.042]}>
-            <planeGeometry args={[DOOR_WIDTH - 0.2, DOOR_HEIGHT - 0.2]} />
-            <meshStandardMaterial
-              color="#0d1322"
-              roughness={0.6}
-            />
+          {/* Mảng dưới ô kính */}
+          <mesh castShadow receiveShadow position={[0, -0.67, 0]}>
+            <boxGeometry args={[DOOR_WIDTH - 0.04, 1.02, DOOR_DEPTH]} />
+            <meshStandardMaterial color="#131b2e" roughness={0.4} metalness={0.3} />
           </mesh>
 
-          {/* Ô kính nhìn xuyên (Observation Window Cutout) */}
-          <mesh position={[0, 0.45, 0]}>
-            <boxGeometry args={[0.7, 1.0, DOOR_DEPTH + 0.02]} />
-            <meshStandardMaterial
-              color="#38bdf8"
-              roughness={0.05}
-              metalness={0.1}
-              transparent
-              opacity={0.38}
-            />
+          {/* Đố cửa bên trái ô kính */}
+          <mesh castShadow receiveShadow position={[-0.475, 0.32, 0]}>
+            <boxGeometry args={[0.41, 0.96, DOOR_DEPTH]} />
+            <meshStandardMaterial color="#131b2e" roughness={0.4} metalness={0.3} />
           </mesh>
 
-          {/* Khung viền ô kính */}
-          <mesh position={[0, 0.45, 0]}>
-            <boxGeometry args={[0.76, 1.06, DOOR_DEPTH + 0.03]} />
+          {/* Đố cửa bên phải ô kính */}
+          <mesh castShadow receiveShadow position={[0.475, 0.32, 0]}>
+            <boxGeometry args={[0.41, 0.96, DOOR_DEPTH]} />
+            <meshStandardMaterial color="#131b2e" roughness={0.4} metalness={0.3} />
+          </mesh>
+
+          {/* Họa tiết trang trí phay rãnh mặt trước & sau (chỉ ốp ở phần dưới, không che kính) */}
+          <mesh position={[0, -0.67, DOOR_DEPTH / 2 + 0.002]}>
+            <planeGeometry args={[DOOR_WIDTH - 0.2, 0.86]} />
+            <meshStandardMaterial color="#0d1322" roughness={0.6} />
+          </mesh>
+          <mesh position={[0, -0.67, -DOOR_DEPTH / 2 - 0.002]} rotation={[0, Math.PI, 0]}>
+            <planeGeometry args={[DOOR_WIDTH - 0.2, 0.86]} />
+            <meshStandardMaterial color="#0d1322" roughness={0.6} />
+          </mesh>
+
+          {/* ── Khung nẹp viền bao quanh ô kính (4 thanh nẹp rỗng) ── */}
+          {/* Nẹp trên */}
+          <mesh position={[0, 0.812, 0]}>
+            <boxGeometry args={[0.54 + 0.048, 0.024, DOOR_DEPTH + 0.016]} />
             <meshStandardMaterial
               color={hovered ? effectiveAccent : "#334155"}
               metalness={0.8}
               roughness={0.2}
+              emissive={hovered ? effectiveAccent : "#000000"}
+              emissiveIntensity={hovered ? 0.3 : 0}
+            />
+          </mesh>
+          {/* Nẹp dưới */}
+          <mesh position={[0, -0.172, 0]}>
+            <boxGeometry args={[0.54 + 0.048, 0.024, DOOR_DEPTH + 0.016]} />
+            <meshStandardMaterial
+              color={hovered ? effectiveAccent : "#334155"}
+              metalness={0.8}
+              roughness={0.2}
+              emissive={hovered ? effectiveAccent : "#000000"}
+              emissiveIntensity={hovered ? 0.3 : 0}
+            />
+          </mesh>
+          {/* Nẹp trái */}
+          <mesh position={[-0.282, 0.32, 0]}>
+            <boxGeometry args={[0.024, 0.96, DOOR_DEPTH + 0.016]} />
+            <meshStandardMaterial
+              color={hovered ? effectiveAccent : "#334155"}
+              metalness={0.8}
+              roughness={0.2}
+              emissive={hovered ? effectiveAccent : "#000000"}
+              emissiveIntensity={hovered ? 0.3 : 0}
+            />
+          </mesh>
+          {/* Nẹp phải */}
+          <mesh position={[0.282, 0.32, 0]}>
+            <boxGeometry args={[0.024, 0.96, DOOR_DEPTH + 0.016]} />
+            <meshStandardMaterial
+              color={hovered ? effectiveAccent : "#334155"}
+              metalness={0.8}
+              roughness={0.2}
+              emissive={hovered ? effectiveAccent : "#000000"}
+              emissiveIntensity={hovered ? 0.3 : 0}
+            />
+          </mesh>
+
+          {/* ── Tấm kính nhìn xuyên thực sự (Không bị bất cứ vật thể nào che khuất) ── */}
+          <mesh position={[0, 0.32, 0]}>
+            <boxGeometry args={[0.54, 0.96, 0.012]} />
+            <meshStandardMaterial
+              color="#baeafdf5"
+              roughness={0.05}
+              metalness={0.6}
+              transparent
+              opacity={0.85}
+              depthWrite={false}
+              side={THREE.DoubleSide}
             />
           </mesh>
 
@@ -355,7 +420,7 @@ export function Door3D({
               <meshStandardMaterial color="#64748b" metalness={0.8} />
             </mesh>
             <mesh position={[0, -0.28, -0.04]} rotation={[Math.PI / 2, 0, 0]}>
-              <cylinderGeometry args={[0.016, 0.016, 0.08, 0.08]} />
+              <cylinderGeometry args={[0.016, 0.016, 0.08, 12]} />
               <meshStandardMaterial color="#64748b" metalness={0.8} />
             </mesh>
           </group>

@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { Text } from "@react-three/drei";
-import { Door3D } from "./Door3D";
+import { Door3D, DOOR_TOTAL_HEIGHT } from "./Door3D";
 import { type RoomId, ROOMS } from "./types";
 
 interface HallwaySceneProps {
@@ -10,14 +10,19 @@ interface HallwaySceneProps {
   onEnterRoom: (room: RoomId) => void;
 }
 
-const HALLWAY_WIDTH = 32;
+const HALLWAY_WIDTH = 16;
 const HALLWAY_DEPTH = 8;
 const HALLWAY_HEIGHT = 4.8;
 const WALL_THICKNESS = 0.2;
 const CENTER_Z = -14;
 
+// Kích thước chuẩn cho mảng tường trên khung cửa
+const DOOR_OPENING_WIDTH = 1.6;
+const WALL_ABOVE_DOOR_HEIGHT = HALLWAY_HEIGHT - DOOR_TOTAL_HEIGHT;
+const WALL_ABOVE_DOOR_Y = DOOR_TOTAL_HEIGHT + WALL_ABOVE_DOOR_HEIGHT / 2;
+
 export function HallwayScene({ activeRoom, onEnterRoom }: HallwaySceneProps) {
-  const wallBaseColor = "#090d16";
+  const wallBaseColor = "#151d2f";
   const woodSlatColor = "#78350f";
 
   return (
@@ -41,7 +46,7 @@ export function HallwayScene({ activeRoom, onEnterRoom }: HallwaySceneProps) {
         rotation={[-Math.PI / 2, 0, 0]}
         position={[0, 0.003, CENTER_Z]}
       >
-        <planeGeometry args={[22, 2.4]} />
+        <planeGeometry args={[16, 2.4]} />
         <meshStandardMaterial
           color="#090d16"
           roughness={0.5}
@@ -77,9 +82,9 @@ export function HallwayScene({ activeRoom, onEnterRoom }: HallwaySceneProps) {
       {/* Vạch rẽ trái dẫn tới Cửa B (Kho Hàng - Amber) */}
       <mesh
         rotation={[-Math.PI / 2, 0, 0]}
-        position={[-4, 0.006, CENTER_Z]}
+        position={[-1.6, 0.006, CENTER_Z]}
       >
-        <planeGeometry args={[8, 0.06]} />
+        <planeGeometry args={[3.2, 0.06]} />
         <meshStandardMaterial
           color="#f59e0b"
           emissive="#f59e0b"
@@ -88,7 +93,7 @@ export function HallwayScene({ activeRoom, onEnterRoom }: HallwaySceneProps) {
       </mesh>
       <mesh
         rotation={[-Math.PI / 2, 0, 0]}
-        position={[-8, 0.006, CENTER_Z - 2]}
+        position={[-3.2, 0.006, CENTER_Z - 2]}
       >
         <planeGeometry args={[0.06, 4]} />
         <meshStandardMaterial
@@ -101,9 +106,9 @@ export function HallwayScene({ activeRoom, onEnterRoom }: HallwaySceneProps) {
       {/* Vạch rẽ phải dẫn tới Cửa C (Văn Phòng - Emerald) */}
       <mesh
         rotation={[-Math.PI / 2, 0, 0]}
-        position={[4, 0.006, CENTER_Z]}
+        position={[1.6, 0.006, CENTER_Z]}
       >
-        <planeGeometry args={[8, 0.06]} />
+        <planeGeometry args={[3.2, 0.06]} />
         <meshStandardMaterial
           color="#10b981"
           emissive="#10b981"
@@ -112,7 +117,7 @@ export function HallwayScene({ activeRoom, onEnterRoom }: HallwaySceneProps) {
       </mesh>
       <mesh
         rotation={[-Math.PI / 2, 0, 0]}
-        position={[8, 0.006, CENTER_Z - 2]}
+        position={[3.2, 0.006, CENTER_Z - 2]}
       >
         <planeGeometry args={[0.06, 4]} />
         <meshStandardMaterial
@@ -124,24 +129,34 @@ export function HallwayScene({ activeRoom, onEnterRoom }: HallwaySceneProps) {
 
       {/* ── 2. TƯỜNG SAU HÀNH LANG (Back Wall z = -18) ─────────────── */}
       <group position={[0, 0, -18]}>
+        {/* Tường trên cửa B (Kho & Sản Phẩm) */}
+        <mesh position={[-3.2, WALL_ABOVE_DOOR_Y, 0]}>
+          <boxGeometry args={[DOOR_OPENING_WIDTH, WALL_ABOVE_DOOR_HEIGHT, WALL_THICKNESS]} />
+          <meshStandardMaterial color={wallBaseColor} roughness={0.7} />
+        </mesh>
+        {/* Tường trên cửa C (Văn Phòng Quản Lý) */}
+        <mesh position={[3.2, WALL_ABOVE_DOOR_Y, 0]}>
+          <boxGeometry args={[DOOR_OPENING_WIDTH, WALL_ABOVE_DOOR_HEIGHT, WALL_THICKNESS]} />
+          <meshStandardMaterial color={wallBaseColor} roughness={0.7} />
+        </mesh>
         {/* Tường sau bên trái (bên ngoài cửa Kho) */}
-        <mesh position={[-12, HALLWAY_HEIGHT / 2, 0]}>
-          <boxGeometry args={[8, HALLWAY_HEIGHT, WALL_THICKNESS]} />
+        <mesh position={[-6.0, HALLWAY_HEIGHT / 2, 0]}>
+          <boxGeometry args={[4.0, HALLWAY_HEIGHT, WALL_THICKNESS]} />
           <meshStandardMaterial color={wallBaseColor} roughness={0.7} />
         </mesh>
         {/* Tường sau giữa hai cửa B & C (Khu trung tâm Hub) */}
         <mesh position={[0, HALLWAY_HEIGHT / 2, 0]}>
-          <boxGeometry args={[12, HALLWAY_HEIGHT, WALL_THICKNESS]} />
+          <boxGeometry args={[4.8, HALLWAY_HEIGHT, WALL_THICKNESS]} />
           <meshStandardMaterial color={wallBaseColor} roughness={0.7} />
         </mesh>
         {/* Tường sau bên phải (bên ngoài cửa Văn phòng) */}
-        <mesh position={[12, HALLWAY_HEIGHT / 2, 0]}>
-          <boxGeometry args={[8, HALLWAY_HEIGHT, WALL_THICKNESS]} />
+        <mesh position={[6.0, HALLWAY_HEIGHT / 2, 0]}>
+          <boxGeometry args={[4.0, HALLWAY_HEIGHT, WALL_THICKNESS]} />
           <meshStandardMaterial color={wallBaseColor} roughness={0.7} />
         </mesh>
 
         {/* Mảng lam gỗ trang trí khu vực trung tâm */}
-        {[-3.6, -3.0, -2.4, -1.8, 1.8, 2.4, 3.0, 3.6].map((x, i) => (
+        {[-1.8, -1.3, 1.3, 1.8].map((x, i) => (
           <mesh
             key={`hub-slat-${i}`}
             position={[x, HALLWAY_HEIGHT / 2, 0.12]}
@@ -151,45 +166,9 @@ export function HallwayScene({ activeRoom, onEnterRoom }: HallwaySceneProps) {
           </mesh>
         ))}
 
-        {/* Biển hiệu trung tâm hành lang: BIZFLOW 3D HUB */}
-        <group position={[0, HALLWAY_HEIGHT - 1.3, 0.14]}>
-          <mesh>
-            <boxGeometry args={[3.2, 1.1, 0.06]} />
-            <meshStandardMaterial color="#0b1120" roughness={0.4} metalness={0.4} />
-          </mesh>
-          <mesh position={[0, 0, 0.02]}>
-            <boxGeometry args={[3.26, 1.16, 0.02]} />
-            <meshStandardMaterial
-              color="#38bdf8"
-              emissive="#38bdf8"
-              emissiveIntensity={0.8}
-            />
-          </mesh>
-          <Text
-            position={[0, 0.18, 0.04]}
-            fontSize={0.28}
-            color="#ffffff"
-            anchorX="center"
-            anchorY="middle"
-            letterSpacing={0.08}
-          >
-            BIZFLOW 3D
-          </Text>
-          <Text
-            position={[0, -0.15, 0.04]}
-            fontSize={0.11}
-            color="#38bdf8"
-            anchorX="center"
-            anchorY="middle"
-            letterSpacing={0.1}
-          >
-            CENTRAL CONNECTIVITY HUB
-          </Text>
-        </group>
-
-        {/* ── CỬA B: KHO & SẢN PHẨM (x = -8) ───────────────────────── */}
+        {/* ── CỬA B: KHO & SẢN PHẨM (x = -3.2) ───────────────────────── */}
         <Door3D
-          position={[-8, 0, 0]}
+          position={[-3.2, 0, 0]}
           targetRoom="warehouse"
           label={ROOMS.warehouse.name}
           subLabel={ROOMS.warehouse.badge}
@@ -198,9 +177,9 @@ export function HallwayScene({ activeRoom, onEnterRoom }: HallwaySceneProps) {
           accentColor={ROOMS.warehouse.accentColor}
         />
 
-        {/* ── CỬA C: VĂN PHÒNG QUẢN LÝ (x = 8) ────────────────────── */}
+        {/* ── CỬA C: VĂN PHÒNG QUẢN LÝ (x = 3.2) ────────────────────── */}
         <Door3D
-          position={[8, 0, 0]}
+          position={[3.2, 0, 0]}
           targetRoom="office"
           label={ROOMS.office.name}
           subLabel={ROOMS.office.badge}
@@ -212,14 +191,19 @@ export function HallwayScene({ activeRoom, onEnterRoom }: HallwaySceneProps) {
 
       {/* ── 3. TƯỜNG TRƯỚC HÀNH LANG (Front Wall z = -10, giáp Showroom) ── */}
       <group position={[0, 0, -10]}>
+        {/* Tường trên cửa A (Showroom) */}
+        <mesh position={[0, WALL_ABOVE_DOOR_Y, 0]}>
+          <boxGeometry args={[DOOR_OPENING_WIDTH, WALL_ABOVE_DOOR_HEIGHT, WALL_THICKNESS]} />
+          <meshStandardMaterial color={wallBaseColor} roughness={0.7} />
+        </mesh>
         {/* Mảng tường trái */}
-        <mesh position={[-9, HALLWAY_HEIGHT / 2, 0]}>
-          <boxGeometry args={[14, HALLWAY_HEIGHT, WALL_THICKNESS]} />
+        <mesh position={[-4.4, HALLWAY_HEIGHT / 2, 0]}>
+          <boxGeometry args={[7.2, HALLWAY_HEIGHT, WALL_THICKNESS]} />
           <meshStandardMaterial color={wallBaseColor} roughness={0.7} />
         </mesh>
         {/* Mảng tường phải */}
-        <mesh position={[9, HALLWAY_HEIGHT / 2, 0]}>
-          <boxGeometry args={[14, HALLWAY_HEIGHT, WALL_THICKNESS]} />
+        <mesh position={[4.4, HALLWAY_HEIGHT / 2, 0]}>
+          <boxGeometry args={[7.2, HALLWAY_HEIGHT, WALL_THICKNESS]} />
           <meshStandardMaterial color={wallBaseColor} roughness={0.7} />
         </mesh>
 
@@ -266,7 +250,7 @@ export function HallwayScene({ activeRoom, onEnterRoom }: HallwaySceneProps) {
 
       {/* Đèn ray LED tuyến tính dài dọc trần */}
       <mesh position={[0, HALLWAY_HEIGHT - 0.08, CENTER_Z]}>
-        <boxGeometry args={[26, 0.06, 0.12]} />
+        <boxGeometry args={[16, 0.06, 0.12]} />
         <meshStandardMaterial
           color="#38bdf8"
           emissive="#38bdf8"
@@ -278,37 +262,42 @@ export function HallwayScene({ activeRoom, onEnterRoom }: HallwaySceneProps) {
       {/* Đèn trên Cửa A */}
       <pointLight
         position={[0, HALLWAY_HEIGHT - 0.4, -10.8]}
-        intensity={18}
-        distance={7}
+        intensity={22}
+        distance={9}
         color="#818cf8"
       />
       {/* Đèn trên Cửa B */}
       <pointLight
-        position={[-8, HALLWAY_HEIGHT - 0.4, -17.2]}
-        intensity={18}
-        distance={7}
+        position={[-3.2, HALLWAY_HEIGHT - 0.4, -17.2]}
+        intensity={22}
+        distance={9}
         color="#fbbf24"
       />
       {/* Đèn trên Cửa C */}
       <pointLight
-        position={[8, HALLWAY_HEIGHT - 0.4, -17.2]}
-        intensity={18}
-        distance={7}
+        position={[3.2, HALLWAY_HEIGHT - 0.4, -17.2]}
+        intensity={22}
+        distance={9}
         color="#34d399"
       />
       {/* Đèn trung tâm Hub */}
       <pointLight
         position={[0, HALLWAY_HEIGHT - 0.4, CENTER_Z]}
-        intensity={15}
-        distance={8}
+        intensity={20}
+        distance={10}
         color="#bae6fd"
       />
 
-      {/* Ánh sáng ambient dịu cho hành lang */}
-      <ambientLight intensity={0.55} color="#e2e8f0" />
+      {/* Ánh sáng ambient và directional cho chiều sâu kiến trúc hành lang */}
+      <ambientLight intensity={0.8} color="#e2e8f0" />
+      <directionalLight
+        position={[0, HALLWAY_HEIGHT - 0.5, -14]}
+        intensity={0.6}
+        color="#ffffff"
+      />
 
       {/* ── 6. Chậu cây trang trí hành lang ───────────────────────── */}
-      {[-4, 4, -13, 13].map((plantX, i) => (
+      {[-4, 4].map((plantX, i) => (
         <group key={`hall-plant-${i}`} position={[plantX, 0, CENTER_Z + 2.8]}>
           {/* Chậu đá mài hình trụ */}
           <mesh position={[0, 0.4, 0]}>

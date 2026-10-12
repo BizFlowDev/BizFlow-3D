@@ -38,11 +38,19 @@ function RackStockBlock({
 }) {
   const [hovered, setHovered] = useState(false);
   const meshRef = useRef<THREE.Mesh>(null);
-  const ratio = item.stockRatio ?? 0.5;
+  let ratio = 0.5;
+  if (typeof item.stockRatio === "number" && !isNaN(item.stockRatio) && item.stockRatio > 0) {
+    ratio = item.stockRatio;
+  } else if (item.maxStock && item.maxStock > 0) {
+    ratio = item.currentStock / item.maxStock;
+  } else {
+    // Phân cấp màu trực quan theo lượng tồn kho thực tế nếu maxStock chưa khai báo
+    ratio = item.currentStock > 20 ? 0.85 : item.currentStock > 5 ? 0.35 : 0.08;
+  }
 
   let baseColor = "#10b981"; // Xanh
   let isBlinking = false;
-  if (ratio < 0.1) {
+  if (ratio < 0.1 || (item.currentStock ?? 0) <= 0) {
     baseColor = "#ef4444"; // Đỏ cảnh báo
     isBlinking = true;
   } else if (ratio < 0.5) {
@@ -539,18 +547,29 @@ export function WarehouseScene({
       </mesh>
 
       {/* Tường trước giáp hành lang (z = -18) */}
-      <mesh position={[CENTER_X - 4.5, WAREHOUSE_HEIGHT / 2, -18.1]}>
-        <boxGeometry args={[6, WAREHOUSE_HEIGHT, WALL_THICKNESS]} />
+      <mesh position={[-9.75, WAREHOUSE_HEIGHT / 2, -18.1]}>
+        <boxGeometry args={[11.5, WAREHOUSE_HEIGHT, WALL_THICKNESS]} />
         <meshStandardMaterial color="#0b1120" roughness={0.8} />
       </mesh>
-      <mesh position={[CENTER_X + 4.5, WAREHOUSE_HEIGHT / 2, -18.1]}>
-        <boxGeometry args={[6, WAREHOUSE_HEIGHT, WALL_THICKNESS]} />
+      <mesh position={[-1.45, WAREHOUSE_HEIGHT / 2, -18.1]}>
+        <boxGeometry args={[1.9, WAREHOUSE_HEIGHT, WALL_THICKNESS]} />
+        <meshStandardMaterial color="#0b1120" roughness={0.8} />
+      </mesh>
+      {/* Mảng tường trên cửa ra hành lang */}
+      <mesh
+        position={[
+          -3.2,
+          2.8 + (WAREHOUSE_HEIGHT - 2.8) / 2,
+          -18.1,
+        ]}
+      >
+        <boxGeometry args={[1.6, WAREHOUSE_HEIGHT - 2.8, WALL_THICKNESS]} />
         <meshStandardMaterial color="#0b1120" roughness={0.8} />
       </mesh>
 
-      {/* ── CỬA THÔNG RA HÀNH LANG (x = -8, z = -18.1, quay mặt vào trong kho) ── */}
+      {/* ── CỬA THÔNG RA HÀNH LANG (x = -3.2, z = -18.1, quay mặt vào trong kho) ── */}
       <Door3D
-        position={[CENTER_X, 0, -18.1]}
+        position={[-3.2, 0, -18.1]}
         rotation={[0, 0, 0]}
         targetRoom="hallway"
         label={ROOMS.hallway.name}
@@ -622,13 +641,13 @@ export function WarehouseScene({
 
       {/* Bàn kiểm hàng & quét mã sản phẩm bên trái */}
       <InspectionDesk
-        position={[-12.2, 0, -24.5]}
+        position={[-9.8, 0, -25.2]}
         onClick={onOpenProductForm}
       />
 
       {/* Khu tiếp nhận & nhập hàng (Pallet) bên phải */}
       <PalletImportZone
-        position={[-3.8, 0, -24.5]}
+        position={[-6.2, 0, -25.2]}
         onClick={() => onOpenImportStock()}
       />
 
