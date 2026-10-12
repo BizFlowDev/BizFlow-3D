@@ -22,29 +22,43 @@ import {
   Crown,
   Layers,
   Filter,
+  Compass,
+  BarChart3,
+  Plus,
+  ArrowDownToLine,
+  User,
 } from "lucide-react";
 import { useProductList, useCategoryList, type Product } from "@/hooks/useProducts";
 import { useOrderList, type Order } from "@/hooks/useOrders";
 import { useStockLevel } from "@/hooks/useInventory";
+import { useEmployeeList } from "@/hooks/useEmployees";
 import { useQueryClient } from "@tanstack/react-query";
 import type { ShelfProduct } from "@/components/3d/ProductShelf";
-import type { CameraPreset } from "@/components/3d/CameraController";
+import type { RoomId, CameraPreset } from "@/components/3d/world/types";
+import { RoomNavigationHUD } from "@/components/3d/world/RoomNavigationHUD";
+import { OfficeSettingsModal } from "@/components/3d/world/OfficeSettingsModal";
+import { ProductFormDialog } from "../products/_components/ProductFormDialog";
+import { ImportStockDialog } from "../inventory/_components/ImportStockDialog";
+import { CategoryManageDialog } from "../products/_components/CategoryManageDialog";
+import { EmployeeFormDialog } from "../employees/_components/EmployeeFormDialog";
 import {
   ProductDetailModal3D,
   type CartItem3D,
 } from "./_components/ProductDetailModal3D";
 import { OrderSuccessModal } from "./_components/OrderSuccessModal";
-import { CameraPresetsBar } from "./_components/CameraPresetsBar";
 import { UpgradePlanModal } from "@/components/shared/UpgradePlanModal";
 import { useCurrentStore } from "@/hooks/useStore";
 import { useAuthStore } from "@/stores/auth-store";
 
 // ── Lazy load 3D components ───────────────────────────────────────────────────
 
-const StoreViewer = dynamic(() => import("@/components/3d/StoreViewer"), {
-  ssr: false,
-  loading: () => <SceneLoading />,
-});
+const BizFlowWorld = dynamic(
+  () => import("@/components/3d/world/BizFlowWorld").then((m) => m.BizFlowWorld),
+  {
+    ssr: false,
+    loading: () => <SceneLoading />,
+  },
+);
 
 const ProductShelf = dynamic(() => import("@/components/3d/ProductShelf"), {
   ssr: false,
@@ -80,14 +94,24 @@ export default function Store3DPage() {
   const queryClient = useQueryClient();
 
   // ── State ──────────────────────────────────────────────────
+  const [activeRoom, setActiveRoom] = useState<RoomId>("showroom");
   const [searchQuery, setSearchQuery] = useState("");
 
   // Camera preset & Chế độ màn hình POS 3D
-  const [cameraPreset, setCameraPreset] = useState<CameraPreset>("overview");
+  const [cameraPreset, setCameraPreset] = useState<CameraPreset>("showroomOverview");
   const [isPOSActive, setIsPOSActive] = useState(false);
   // Trạng thái thu gọn các nút điều khiển (tự động bật khi vào màn hình máy tính POS)
   const [isHUDCollapsed, setIsHUDCollapsed] = useState(false);
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
+
+  // Dialogs cho Kho (P.2) & Văn Phòng (P.3)
+  const [productFormOpen, setProductFormOpen] = useState(false);
+  const [importStockOpen, setImportStockOpen] = useState(false);
+  const [importStockProductId, setImportStockProductId] = useState<string | undefined>(undefined);
+  const [categoryManageOpen, setCategoryManageOpen] = useState(false);
+  const [officeSettingsOpen, setOfficeSettingsOpen] = useState(false);
+  const [employeeFormOpen, setEmployeeFormOpen] = useState(false);
+
   const { data: store } = useCurrentStore();
   const user = useAuthStore((state) => state.user);
 
@@ -106,6 +130,8 @@ export default function Store3DPage() {
   const { data: stockData } = useStockLevel();
   const { data: ordersData } = useOrderList({ limit: 12 });
   const { data: categoriesData = [] } = useCategoryList();
+  const { data: employeesData } = useEmployeeList({ limit: 50 });
+  const employeeCount = employeesData?.total ?? employeesData?.items?.length ?? 1;
 
   // ── State Danh Mục & Lọc ─────────────────────────────────────
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
@@ -681,6 +707,53 @@ export default function Store3DPage() {
     router.push("/");
   }, [router]);
 
+  // ── Chuyển đổi Phòng & Thao Tác Module ──────────────────────
+  const handleSelectRoom = useCallback((room: RoomId) => {
+    setActiveRoom(room);
+    if (room === "showroom") {
+      setCameraPreset("showroomOverview");
+      setIsPOSActive(false);
+      setIsHUDCollapsed(false);
+    } else if (room === "warehouse") {
+      setCameraPreset("warehouseOverview");
+      setIsPOSActive(false);
+      setIsHUDCollapsed(false);
+    } else if (room === "office") {
+      setCameraPreset("officeOverview");
+      setIsPOSActive(false);
+      setIsHUDCollapsed(false);
+    } else if (room === "hallway") {
+      setCameraPreset("hallwayOverview");
+      setIsPOSActive(false);
+      setIsHUDCollapsed(false);
+    }
+  }, []);
+
+  const handleOpenProductForm = useCallback(() => {
+    setProductFormOpen(true);
+  }, []);
+
+  const handleOpenImportStock = useCallback((productId?: string) => {
+    setImportStockProductId(productId);
+    setImportStockOpen(true);
+  }, []);
+
+  const handleOpenCategoryManage = useCallback(() => {
+    setCategoryManageOpen(true);
+  }, []);
+
+  const handleOpenSettings = useCallback(() => {
+    setOfficeSettingsOpen(true);
+  }, []);
+
+  const handleOpenEmployeeDialog = useCallback(() => {
+    setEmployeeFormOpen(true);
+  }, []);
+
+  const handleOpenReports = useCallback(() => {
+    router.push("/reports");
+  }, [router]);
+
   // ── Mở & Đóng Màn Hình Máy Tính POS ─────────────────────────
   const handleOpenPOS = useCallback(() => {
     setCameraPreset("posScreen");
@@ -689,7 +762,7 @@ export default function Store3DPage() {
   }, []);
 
   const handleExitPOS = useCallback(() => {
-    setCameraPreset("overview");
+    setCameraPreset("showroomOverview");
     setIsPOSActive(false);
     setIsHUDCollapsed(false);
   }, []);
@@ -712,14 +785,27 @@ export default function Store3DPage() {
     "shelfSideRight",
   ].includes(cameraPreset);
 
-  // Phím tắt ESC để thoát quầy POS, thoát góc nhìn xem kệ hoặc mở lại HUD
+  // Phím tắt ESC để thoát quầy POS, thoát góc nhìn xem kệ hoặc quay lại hành lang
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         if (isPOSActive) {
           handleExitPOS();
         } else if (isViewingShelf) {
-          handleSelectPreset("overview");
+          handleSelectPreset("showroomOverview");
+        } else if (activeRoom !== "hallway") {
+          const isRoomOverview =
+            (activeRoom === "showroom" && (cameraPreset === "showroomOverview" || cameraPreset === "overview")) ||
+            (activeRoom === "warehouse" && cameraPreset === "warehouseOverview") ||
+            (activeRoom === "office" && cameraPreset === "officeOverview");
+
+          if (isRoomOverview) {
+            handleSelectRoom("hallway");
+          } else {
+            if (activeRoom === "showroom") handleSelectPreset("showroomOverview");
+            else if (activeRoom === "warehouse") handleSelectPreset("warehouseOverview");
+            else if (activeRoom === "office") handleSelectPreset("officeOverview");
+          }
         } else if (isHUDCollapsed) {
           setIsHUDCollapsed(false);
         }
@@ -727,7 +813,7 @@ export default function Store3DPage() {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isPOSActive, isViewingShelf, isHUDCollapsed, handleExitPOS, handleSelectPreset]);
+  }, [isPOSActive, isViewingShelf, isHUDCollapsed, activeRoom, cameraPreset, handleExitPOS, handleSelectPreset, handleSelectRoom]);
 
   // ── Render ─────────────────────────────────────────────────
 
@@ -752,98 +838,113 @@ export default function Store3DPage() {
       `}</style>
 
       <div className="fixed inset-0 z-40 bg-[#090d16]">
-        {/* ── 3D Scene ──────────────────────────────────── */}
+        {/* ── 3D Multi-Room World Scene ────────────────── */}
         <Suspense fallback={<SceneLoading />}>
-          <StoreViewer
-            height="100vh"
+          <BizFlowWorld
+            activeRoom={activeRoom}
+            onEnterRoom={handleSelectRoom}
             currentPreset={cameraPreset}
             isPOSActive={isPOSActive}
-          >
-            {/* Kệ hàng A — bên trái tường sau */}
-            <ProductShelf
-              products={shelfAData.products}
-              onSelectProduct={handleSelectProduct}
-              position={[-3.5, 0, -4.5]}
-              title={shelfAData.title}
-              shelfCurrentPage={shelfAData.currentPage}
-              shelfTotalPages={shelfAData.totalPages}
-              isFocused={cameraPreset === "shelfLeft"}
-              onClickShelf={() => handleSelectPreset("shelfLeft")}
-              onPrevShelfPage={() => setShelfAPage((p) => Math.max(1, p - 1))}
-              onNextShelfPage={() =>
-                setShelfAPage((p) => Math.min(shelfAData.totalPages || 1, p + 1))
-              }
-            />
+            stockItems={stockData || []}
+            onOpenProductForm={handleOpenProductForm}
+            onOpenImportStock={handleOpenImportStock}
+            onOpenCategoryManage={handleOpenCategoryManage}
+            todayRevenue={todayRevenue}
+            pendingCount={pendingCount}
+            totalProductsCount={enrichedProducts.length}
+            employeeCount={employeeCount}
+            onOpenSettings={handleOpenSettings}
+            onOpenEmployeeDialog={handleOpenEmployeeDialog}
+            onOpenReports={handleOpenReports}
+            showroomChildren={
+              <>
+                {/* Kệ hàng A — bên trái tường sau */}
+                <ProductShelf
+                  products={shelfAData.products}
+                  onSelectProduct={handleSelectProduct}
+                  position={[-3.5, 0, -4.5]}
+                  title={shelfAData.title}
+                  shelfCurrentPage={shelfAData.currentPage}
+                  shelfTotalPages={shelfAData.totalPages}
+                  isFocused={cameraPreset === "shelfLeft"}
+                  onClickShelf={() => handleSelectPreset("shelfLeft")}
+                  onPrevShelfPage={() => setShelfAPage((p) => Math.max(1, p - 1))}
+                  onNextShelfPage={() =>
+                    setShelfAPage((p) => Math.min(shelfAData.totalPages || 1, p + 1))
+                  }
+                />
 
-            {/* Kệ hàng B — bên phải tường sau */}
-            <ProductShelf
-              products={shelfBData.products}
-              onSelectProduct={handleSelectProduct}
-              position={[3.5, 0, -4.5]}
-              title={shelfBData.title}
-              shelfCurrentPage={shelfBData.currentPage}
-              shelfTotalPages={shelfBData.totalPages}
-              isFocused={cameraPreset === "shelfRight"}
-              onClickShelf={() => handleSelectPreset("shelfRight")}
-              onPrevShelfPage={() => setShelfBPage((p) => Math.max(1, p - 1))}
-              onNextShelfPage={() =>
-                setShelfBPage((p) => Math.min(shelfBData.totalPages || 1, p + 1))
-              }
-            />
+                {/* Kệ hàng B — bên phải tường sau */}
+                <ProductShelf
+                  products={shelfBData.products}
+                  onSelectProduct={handleSelectProduct}
+                  position={[3.5, 0, -4.5]}
+                  title={shelfBData.title}
+                  shelfCurrentPage={shelfBData.currentPage}
+                  shelfTotalPages={shelfBData.totalPages}
+                  isFocused={cameraPreset === "shelfRight"}
+                  onClickShelf={() => handleSelectPreset("shelfRight")}
+                  onPrevShelfPage={() => setShelfBPage((p) => Math.max(1, p - 1))}
+                  onNextShelfPage={() =>
+                    setShelfBPage((p) => Math.min(shelfBData.totalPages || 1, p + 1))
+                  }
+                />
 
-            {/* Kệ hàng C — bên hông trái */}
-            <ProductShelf
-              products={shelfCData.products}
-              onSelectProduct={handleSelectProduct}
-              position={[-7.0, 0, -0.5]}
-              rotation={[0, Math.PI / 2, 0]}
-              title={shelfCData.title}
-              shelfCurrentPage={shelfCData.currentPage}
-              shelfTotalPages={shelfCData.totalPages}
-              isFocused={cameraPreset === "shelfSideLeft"}
-              onClickShelf={() => handleSelectPreset("shelfSideLeft")}
-              onPrevShelfPage={() => setShelfCPage((p) => Math.max(1, p - 1))}
-              onNextShelfPage={() =>
-                setShelfCPage((p) => Math.min(shelfCData.totalPages || 1, p + 1))
-              }
-            />
+                {/* Kệ hàng C — bên hông trái */}
+                <ProductShelf
+                  products={shelfCData.products}
+                  onSelectProduct={handleSelectProduct}
+                  position={[-7.0, 0, -0.5]}
+                  rotation={[0, Math.PI / 2, 0]}
+                  title={shelfCData.title}
+                  shelfCurrentPage={shelfCData.currentPage}
+                  shelfTotalPages={shelfCData.totalPages}
+                  isFocused={cameraPreset === "shelfSideLeft"}
+                  onClickShelf={() => handleSelectPreset("shelfSideLeft")}
+                  onPrevShelfPage={() => setShelfCPage((p) => Math.max(1, p - 1))}
+                  onNextShelfPage={() =>
+                    setShelfCPage((p) => Math.min(shelfCData.totalPages || 1, p + 1))
+                  }
+                />
 
-            {/* Kệ hàng D — bên hông phải */}
-            <ProductShelf
-              products={shelfDData.products}
-              onSelectProduct={handleSelectProduct}
-              position={[7.0, 0, -0.5]}
-              rotation={[0, -Math.PI / 2, 0]}
-              title={shelfDData.title}
-              shelfCurrentPage={shelfDData.currentPage}
-              shelfTotalPages={shelfDData.totalPages}
-              isFocused={cameraPreset === "shelfSideRight"}
-              onClickShelf={() => handleSelectPreset("shelfSideRight")}
-              onPrevShelfPage={() => setShelfDPage((p) => Math.max(1, p - 1))}
-              onNextShelfPage={() =>
-                setShelfDPage((p) => Math.min(shelfDData.totalPages || 1, p + 1))
-              }
-            />
+                {/* Kệ hàng D — bên hông phải */}
+                <ProductShelf
+                  products={shelfDData.products}
+                  onSelectProduct={handleSelectProduct}
+                  position={[7.0, 0, -0.5]}
+                  rotation={[0, -Math.PI / 2, 0]}
+                  title={shelfDData.title}
+                  shelfCurrentPage={shelfDData.currentPage}
+                  shelfTotalPages={shelfDData.totalPages}
+                  isFocused={cameraPreset === "shelfSideRight"}
+                  onClickShelf={() => handleSelectPreset("shelfSideRight")}
+                  onPrevShelfPage={() => setShelfDPage((p) => Math.max(1, p - 1))}
+                  onNextShelfPage={() =>
+                    setShelfDPage((p) => Math.min(shelfDData.totalPages || 1, p + 1))
+                  }
+                />
 
-            {/* Quầy tính tiền — phía trước. Màn hình máy tính chứa giao diện POS nhúng trực tiếp */}
-            <Counter
-              pendingCount={pendingCount}
-              recentTotal={todayRevenue}
-              onOpenPOS={handleOpenPOS}
-              onOpenOrders={handleOpenPOS}
-              queryClient={queryClient}
-              isPOSActive={isPOSActive}
-              onExitPOS={handleExitPOS}
-              orderLines={orderLines}
-              onAddProduct={handleAddToOrder}
-              onUpdateQuantity={handleUpdateQuantity}
-              onRemoveItem={handleRemoveOrderItem}
-              onClearOrder={handleClearOrder}
-              onOrderSuccess={handleOrderSuccess}
-              recentOrders={ordersData?.items ?? []}
-              position={[0, 0, 2]}
-            />
-          </StoreViewer>
+                {/* Quầy tính tiền — phía trước. Màn hình máy tính chứa giao diện POS nhúng trực tiếp */}
+                <Counter
+                  pendingCount={pendingCount}
+                  recentTotal={todayRevenue}
+                  onOpenPOS={handleOpenPOS}
+                  onOpenOrders={handleOpenPOS}
+                  queryClient={queryClient}
+                  isPOSActive={isPOSActive}
+                  onExitPOS={handleExitPOS}
+                  orderLines={orderLines}
+                  onAddProduct={handleAddToOrder}
+                  onUpdateQuantity={handleUpdateQuantity}
+                  onRemoveItem={handleRemoveOrderItem}
+                  onClearOrder={handleClearOrder}
+                  onOrderSuccess={handleOrderSuccess}
+                  recentOrders={ordersData?.items ?? []}
+                  position={[0, 0, 2]}
+                />
+              </>
+            }
+          />
         </Suspense>
 
         {/* ── Overlay UI (HUD layer chuẩn z-30) ─────────── */}
@@ -915,8 +1016,160 @@ export default function Store3DPage() {
               : "translate-y-0 opacity-100 relative"
               }`}
           >
-            {/* Hàng 1: Search + Test Button + [Chính Giữa: Điều hướng Phân Trang] + Right Controls */}
-            <div className="relative flex items-center justify-between gap-3">
+            {/* ── BANNER PHÒNG HÀNH LANG (Hub) ── */}
+            {activeRoom === "hallway" && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 rounded-2xl border border-sky-500/30 bg-slate-950/85 p-3.5 shadow-2xl backdrop-blur-xl animate-in fade-in">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-500/20 text-sky-400">
+                    <Compass className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <h2 className="text-sm font-bold text-white flex items-center gap-2">
+                      Hành Lang Trung Tâm
+                      <span className="rounded-full bg-sky-500/20 px-2 py-0.5 text-[10px] text-sky-300 font-semibold border border-sky-500/30">
+                        Connectivity Hub
+                      </span>
+                    </h2>
+                    <p className="text-xs text-slate-400">
+                      Click vào cánh cửa 3D hoặc dùng các nút chuyển phòng bên dưới để bước vào từng phòng
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={() => handleSelectRoom("showroom")}
+                    className="flex items-center gap-1.5 rounded-xl border border-indigo-500/40 bg-indigo-600/30 hover:bg-indigo-600/50 px-3 py-1.5 text-xs font-semibold text-indigo-200 transition-all hover:scale-105"
+                  >
+                    <Store className="h-4 w-4" />
+                    <span>Vào Showroom (P.1)</span>
+                  </button>
+                  <button
+                    onClick={() => handleSelectRoom("warehouse")}
+                    className="flex items-center gap-1.5 rounded-xl border border-amber-500/40 bg-amber-600/30 hover:bg-amber-600/50 px-3 py-1.5 text-xs font-semibold text-amber-200 transition-all hover:scale-105"
+                  >
+                    <Package className="h-4 w-4" />
+                    <span>Vào Kho Hàng (P.2)</span>
+                  </button>
+                  <button
+                    onClick={() => handleSelectRoom("office")}
+                    className="flex items-center gap-1.5 rounded-xl border border-emerald-500/40 bg-emerald-600/30 hover:bg-emerald-600/50 px-3 py-1.5 text-xs font-semibold text-emerald-200 transition-all hover:scale-105"
+                  >
+                    <BarChart3 className="h-4 w-4" />
+                    <span>Vào Văn Phòng (P.3)</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* ── BANNER PHÒNG 2 (Kho Hàng & Sản Phẩm) ── */}
+            {activeRoom === "warehouse" && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 rounded-2xl border border-amber-500/30 bg-slate-950/85 p-3.5 shadow-2xl backdrop-blur-xl animate-in fade-in">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/20 text-amber-400">
+                    <Package className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <h2 className="text-sm font-bold text-white flex items-center gap-2">
+                      Phòng 2: Kho Hàng & Quản Lý Sản Phẩm
+                      <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] text-amber-300 font-semibold border border-amber-500/30">
+                        Smart Warehouse 3D
+                      </span>
+                    </h2>
+                    <p className="text-xs text-slate-400">
+                      Giám sát tồn kho 3D &bull; Bàn kiểm hàng &bull; Khu nhập hàng &bull; Bảng danh mục
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={handleOpenProductForm}
+                    className="flex items-center gap-1.5 rounded-xl border border-sky-500/40 bg-sky-600/30 hover:bg-sky-600/50 px-3 py-1.5 text-xs font-semibold text-sky-200 transition-all hover:scale-105"
+                  >
+                    <Plus className="h-4 w-4" />
+                    <span>Thêm Sản Phẩm</span>
+                  </button>
+                  <button
+                    onClick={() => handleOpenImportStock()}
+                    className="flex items-center gap-1.5 rounded-xl border border-amber-500/40 bg-amber-600/30 hover:bg-amber-600/50 px-3 py-1.5 text-xs font-semibold text-amber-200 transition-all hover:scale-105"
+                  >
+                    <ArrowDownToLine className="h-4 w-4" />
+                    <span>Nhập Kho Nhanh</span>
+                  </button>
+                  <button
+                    onClick={handleOpenCategoryManage}
+                    className="flex items-center gap-1.5 rounded-xl border border-white/15 bg-white/10 hover:bg-white/20 px-3 py-1.5 text-xs font-semibold text-white transition-all hover:scale-105"
+                  >
+                    <Layers className="h-4 w-4" />
+                    <span>Quản Lý Danh Mục</span>
+                  </button>
+                  <button
+                    onClick={() => handleSelectRoom("hallway")}
+                    className="flex items-center gap-1.5 rounded-xl border border-sky-500/40 bg-sky-600/20 hover:bg-sky-600/40 px-3 py-1.5 text-xs font-semibold text-sky-200 transition-all"
+                  >
+                    <Compass className="h-4 w-4" />
+                    <span>Ra Hành Lang [ESC]</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* ── BANNER PHÒNG 3 (Văn Phòng Quản Lý & Giám Đốc) ── */}
+            {activeRoom === "office" && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 rounded-2xl border border-emerald-500/30 bg-slate-950/85 p-3.5 shadow-2xl backdrop-blur-xl animate-in fade-in">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-400">
+                    <BarChart3 className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <h2 className="text-sm font-bold text-white flex items-center gap-2">
+                      Phòng 3: Văn Phòng Quản Lý & Giám Đốc
+                      <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] text-emerald-300 font-semibold border border-emerald-500/30">
+                        Executive Office
+                      </span>
+                    </h2>
+                    <p className="text-xs text-slate-400">
+                      Báo cáo TV &bull; Bàn Giám Đốc VietQR &bull; Hồ sơ nhân sự &bull; Bảng chỉ số KPI
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={handleOpenSettings}
+                    className="flex items-center gap-1.5 rounded-xl border border-emerald-500/40 bg-emerald-600/30 hover:bg-emerald-600/50 px-3 py-1.5 text-xs font-semibold text-emerald-200 transition-all hover:scale-105"
+                  >
+                    <CreditCard className="h-4 w-4" />
+                    <span>Cài Đặt VietQR</span>
+                  </button>
+                  <button
+                    onClick={handleOpenEmployeeDialog}
+                    className="flex items-center gap-1.5 rounded-xl border border-sky-500/40 bg-sky-600/30 hover:bg-sky-600/50 px-3 py-1.5 text-xs font-semibold text-sky-200 transition-all hover:scale-105"
+                  >
+                    <User className="h-4 w-4" />
+                    <span>Hồ Sơ Nhân Viên</span>
+                  </button>
+                  <button
+                    onClick={handleOpenReports}
+                    className="flex items-center gap-1.5 rounded-xl border border-white/15 bg-white/10 hover:bg-white/20 px-3 py-1.5 text-xs font-semibold text-white transition-all hover:scale-105"
+                  >
+                    <BarChart3 className="h-4 w-4" />
+                    <span>Báo Cáo Doanh Thu</span>
+                  </button>
+                  <button
+                    onClick={() => handleSelectRoom("hallway")}
+                    className="flex items-center gap-1.5 rounded-xl border border-sky-500/40 bg-sky-600/20 hover:bg-sky-600/40 px-3 py-1.5 text-xs font-semibold text-sky-200 transition-all"
+                  >
+                    <Compass className="h-4 w-4" />
+                    <span>Ra Hành Lang [ESC]</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* ── BỘ ĐIỀU KHIỂN SHOWROOM (Phòng 1) ── */}
+            {activeRoom === "showroom" && (
+              <>
+                {/* Hàng 1: Search + Test Button + [Chính Giữa: Điều hướng Phân Trang] + Right Controls */}
+                <div className="relative flex items-center justify-between gap-3">
               {/* Cụm Bên Trái: Tìm kiếm sản phẩm & Nút bật Chế độ Test Phân Trang */}
               <div className="flex items-center gap-2 shrink-0">
                 <div className="relative w-56 sm:w-72">
@@ -1242,45 +1495,25 @@ export default function Store3DPage() {
                 </div>
               )}
             </div>
+            </>
+          )}
           </div>
 
           {/* Bottom Control Bar */}
           <div
-            className={`flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 transition-all duration-300 ease-in-out ${isHUDCollapsed
+            className={`transition-all duration-300 ease-in-out ${isHUDCollapsed
               ? "translate-y-[150%] opacity-0 pointer-events-none absolute bottom-4 left-4 right-4"
               : "translate-y-0 opacity-100 relative"
               }`}
           >
-            {/* Camera Presets Bar (Bao gồm các góc nhìn kệ và Màn Hình POS) */}
-            <CameraPresetsBar
+            <RoomNavigationHUD
+              activeRoom={activeRoom}
               currentPreset={cameraPreset}
+              onSelectRoom={handleSelectRoom}
               onSelectPreset={handleSelectPreset}
+              onToggle2D={handleToggle2D}
+              isPOSActive={isPOSActive}
             />
-
-            {/* Thông tin số lượng & Hướng dẫn điều khiển */}
-            <div className="pointer-events-auto flex items-center gap-2 rounded-2xl border border-white/15 bg-slate-900/80 px-4 py-2 text-xs text-slate-300 shadow-2xl backdrop-blur-xl">
-              <Package className="h-3.5 w-3.5 text-emerald-400" />
-              <span>
-                {productsLoading
-                  ? "Đang tải sản phẩm..."
-                  : `${totalVisibleCount} sản phẩm`}
-              </span>
-              {selectedCategory !== "all" ? (
-                <span className="hidden sm:inline font-semibold text-sky-400">
-                  ({availableCategories.find((c) => c.id === selectedCategory)?.name || "Danh mục"})
-                </span>
-              ) : (
-                <span className="hidden sm:inline font-semibold text-amber-300">
-                  (Nhóm Kệ {categoryGroupPage}/{totalCategoryGroups})
-                </span>
-              )}
-              <span className="hidden lg:inline text-slate-500">•</span>
-              <span className="hidden lg:inline text-slate-400">
-                {isPOSActive
-                  ? "Đang tương tác trên Màn Hình POS [ESC để rời quầy]"
-                  : "Click màn hình máy tính để lên đơn"}
-              </span>
-            </div>
           </div>
         </div>
 
@@ -1304,6 +1537,38 @@ export default function Store3DPage() {
         <UpgradePlanModal
           open={upgradeModalOpen}
           onOpenChange={setUpgradeModalOpen}
+        />
+
+        {/* ── Product Form Dialog (Thêm/Sửa SP từ Bàn Kiểm Hàng Kho) ─ */}
+        <ProductFormDialog
+          open={productFormOpen}
+          onOpenChange={setProductFormOpen}
+        />
+
+        {/* ── Import Stock Dialog (Nhập Hàng từ Pallet Kho) ─ */}
+        <ImportStockDialog
+          open={importStockOpen}
+          onOpenChange={setImportStockOpen}
+          preselectedProductId={importStockProductId}
+        />
+
+        {/* ── Category Manage Dialog (Từ Bảng Danh Mục Kho) ─ */}
+        <CategoryManageDialog
+          open={categoryManageOpen}
+          onOpenChange={setCategoryManageOpen}
+        />
+
+        {/* ── Employee Form Dialog (Từ Tủ Hồ Sơ Văn Phòng) ─ */}
+        <EmployeeFormDialog
+          open={employeeFormOpen}
+          onOpenChange={setEmployeeFormOpen}
+          currentEmployeeCount={employeeCount}
+        />
+
+        {/* ── Office Settings Modal (Từ Bàn Giám Đốc) ───── */}
+        <OfficeSettingsModal
+          open={officeSettingsOpen}
+          onOpenChange={setOfficeSettingsOpen}
         />
       </div>
     </>
