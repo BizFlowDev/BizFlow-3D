@@ -11,7 +11,7 @@ import { AuthenticationError } from '../../core/errors/AuthenticationError.js';
 import { ValidationError } from '../../core/errors/ValidationError.js';
 
 /** Combined interface for change-password: needs both compare and hash. */
-export interface IPasswordService extends IPasswordComparer, IPasswordHasherFull {}
+export interface IPasswordService extends IPasswordComparer, IPasswordHasherFull { }
 
 /**
  * Authentication controller.
@@ -25,7 +25,7 @@ export class AuthController {
     private readonly logoutUseCase: LogoutUseCase,
     private readonly userRepo: IUserRepository,
     private readonly passwordService: IPasswordService,
-  ) {}
+  ) { }
 
   /**
    * POST /api/v1/auth/login

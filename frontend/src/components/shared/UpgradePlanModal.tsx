@@ -7,7 +7,6 @@ import {
   Star,
   Check,
   QrCode,
-  Copy,
   ExternalLink,
   ShieldCheck,
   Sparkles,
@@ -16,7 +15,6 @@ import {
   CheckCircle2,
   Calendar,
   CreditCard,
-  Building2,
   Loader2,
   RefreshCw,
   Smartphone,
@@ -36,15 +34,12 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   useCurrentStore,
   useStoreSubscriptionPlans,
-  useUpgradeStoreSubscription,
-  useSubscriptionPaymentBank,
   useCreateStripeUpgradeSession,
   useSubscriptionOrderStatus,
   STORE_QUERY_KEY,
   type StripeUpgradeSessionData,
 } from "@/hooks/useStore";
 import { useSocket } from "@/hooks/useSocket";
-import { generateVietQRUrl, getBankByCode } from "@/lib/vietqr";
 import { useToast } from "@/components/ui/toast";
 import { QRCodeSVG } from "qrcode.react";
 
@@ -92,27 +87,15 @@ export function UpgradePlanModal({ open, onOpenChange }: UpgradePlanModalProps) 
   const queryClient = useQueryClient();
   const { data: store } = useCurrentStore();
   const { data: plansData, isLoading: isLoadingPlans } = useStoreSubscriptionPlans();
-  const { data: paymentBankConfig } = useSubscriptionPaymentBank();
-  const { mutate: upgradeSubManual, isPending: isManualPending } = useUpgradeStoreSubscription();
   const { mutate: createStripeSession, isPending: isCreatingStripeSession } = useCreateStripeUpgradeSession();
   const { socket } = useSocket();
   const { showToast } = useToast();
 
-  const paymentBank = useMemo(() => ({
-    bankCode: paymentBankConfig?.bankCode || "MB",
-    accountNumber: paymentBankConfig?.accountNumber || "099988889999",
-    accountHolder: paymentBankConfig?.accountHolder || "CONG TY CONG NGHE BIZFLOW",
-    memoPrefix: paymentBankConfig?.memoPrefix || "BF",
-  }), [paymentBankConfig]);
-
-  const bankInfo = getBankByCode(paymentBank.bankCode);
   const plans = useMemo(() => plansData ?? [], [plansData]);
 
   // Selected state
   const [selectedPlanSlug, setSelectedPlanSlug] = useState<string>("");
   const [durationMonths, setDurationMonths] = useState<number>(1);
-  const [paymentMethod, setPaymentMethod] = useState<"stripe" | "vietqr">("stripe");
-  const [copiedField, setCopiedField] = useState<string | null>(null);
 
   // Stripe Session State
   const [stripeSession, setStripeSession] = useState<StripeUpgradeSessionData | null>(null);
@@ -161,25 +144,6 @@ export function UpgradePlanModal({ open, onOpenChange }: UpgradePlanModalProps) 
   const discountAmount = Math.round((basePrice * (durationOption.discount ?? 0)) / 100);
   const finalPrice = Math.max(0, basePrice - discountAmount);
 
-  // Sinh mã VietQR thủ công
-  const paymentMemo = useMemo(() => {
-    const storeCode = store?.id ? store.id.slice(0, 8).toUpperCase() : "STORE";
-    const planCode = (selectedPlan?.slug ?? "PRO").toUpperCase().replace(/[^A-Z0-9]/g, "");
-    const prefix = paymentBank.memoPrefix || "BF";
-    return `${prefix} ${storeCode} ${planCode} ${durationMonths}M`;
-  }, [store?.id, selectedPlan?.slug, durationMonths, paymentBank.memoPrefix]);
-
-  const vietQrUrl = useMemo(() => {
-    return generateVietQRUrl({
-      bankCode: paymentBank.bankCode,
-      accountNumber: paymentBank.accountNumber,
-      accountName: paymentBank.accountHolder,
-      amount: finalPrice > 0 ? finalPrice : undefined,
-      memo: paymentMemo,
-      template: "compact2",
-    });
-  }, [paymentBank, finalPrice, paymentMemo]);
-
   // Hàm làm mới / tạo lại phiên Stripe
   const initStripeSession = useCallback(() => {
     if (!selectedPlanSlug || finalPrice <= 0 || isSuccess) return;
@@ -207,7 +171,7 @@ export function UpgradePlanModal({ open, onOpenChange }: UpgradePlanModalProps) 
   // Tự động khởi tạo phiên Stripe mới khi người dùng chọn gói khác hoặc chu kỳ khác
   // (Nếu đang xem gói hiện tại với chu kỳ mặc định, không tự động tạo đơn rác mà để người dùng bấm nút chủ động)
   useEffect(() => {
-    if (!open || isSuccess || paymentMethod !== "stripe" || !selectedPlanSlug || finalPrice <= 0) {
+    if (!open || isSuccess || !selectedPlanSlug || finalPrice <= 0) {
       return;
     }
 
@@ -250,7 +214,7 @@ export function UpgradePlanModal({ open, onOpenChange }: UpgradePlanModalProps) 
       isSubscribed = false;
       clearTimeout(timer);
     };
-  }, [open, isSuccess, paymentMethod, selectedPlanSlug, durationMonths, finalPrice, store?.subscriptionPlan]);
+  }, [open, isSuccess, selectedPlanSlug, durationMonths, finalPrice, store?.subscriptionPlan]);
 
   const isStripeSessionValid = useMemo(() => {
     return Boolean(
@@ -264,7 +228,7 @@ export function UpgradePlanModal({ open, onOpenChange }: UpgradePlanModalProps) 
   // Fallback Polling đơn hàng
   const { data: orderStatus } = useSubscriptionOrderStatus(
     stripeSession?.orderId ?? null,
-    open && !isSuccess && paymentMethod === "stripe",
+    open && !isSuccess,
   );
 
   useEffect(() => {
@@ -305,42 +269,6 @@ export function UpgradePlanModal({ open, onOpenChange }: UpgradePlanModalProps) 
       socket.off("subscription:upgraded", handleUpgraded);
     };
   }, [socket, open, store?.id, stripeSession?.orderId, selectedPlan?.name, queryClient, showToast]);
-
-  const copyToClipboard = (text: string, label: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedField(label);
-    showToast("success", `Đã sao chép ${label}`);
-    setTimeout(() => setCopiedField(null), 2500);
-  };
-
-  // Xác nhận thủ công cho VietQR
-  const handleConfirmManualUpgrade = () => {
-    if (!selectedPlanSlug) {
-      showToast("error", "Vui lòng chọn gói dịch vụ");
-      return;
-    }
-
-    upgradeSubManual(
-      {
-        plan: selectedPlanSlug,
-        durationMonths,
-        paymentMethod: "vietqr",
-      },
-      {
-        onSuccess: (updatedStore) => {
-          setIsSuccess(true);
-          setSuccessInfo({
-            planName: selectedPlan?.name,
-            expiresAt: updatedStore.subscriptionExpiresAt ? String(updatedStore.subscriptionExpiresAt) : undefined,
-          });
-          showToast("success", `Nâng cấp lên gói ${selectedPlan?.name ?? selectedPlanSlug} thành công!`);
-        },
-        onError: (err: any) => {
-          showToast("error", err?.message || "Có lỗi xảy ra khi nâng cấp gói");
-        },
-      },
-    );
-  };
 
   const isCurrentPlanSelected = store?.subscriptionPlan === selectedPlanSlug;
 
@@ -576,57 +504,27 @@ export function UpgradePlanModal({ open, onOpenChange }: UpgradePlanModalProps) 
                   </div>
                 </div>
 
-                {/* 3. Lựa chọn Phương Thức Thanh Toán */}
+                {/* 3. Phương Thức Thanh Toán */}
                 <div className="space-y-2.5">
                   <Label className="text-sm font-semibold flex items-center gap-1.5">
                     <CreditCard className="h-4 w-4 text-primary" />
                     3. Phương thức thanh toán:
                   </Label>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                    {/* Option: Stripe QR */}
-                    <div
-                      onClick={() => setPaymentMethod("stripe")}
-                      className={`relative flex items-start gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${
-                        paymentMethod === "stripe"
-                          ? "border-primary bg-primary/5 shadow-sm"
-                          : "border-border hover:bg-muted/30"
-                      }`}
-                    >
-                      <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 mt-0.5">
-                        <QrCode className="h-4 w-4" />
-                      </div>
-                      <div className="flex-1 space-y-0.5">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-xs font-bold">Quét QR Stripe</span>
-                          <Badge className="bg-emerald-600 text-[9px] px-1.5 py-0 h-4">
-                            Tự động
-                          </Badge>
-                        </div>
-                        <p className="text-[11px] text-muted-foreground">
-                          Thẻ quốc tế, Visa, MasterCard, Apple/Google Pay. Kích hoạt ngay.
-                        </p>
-                      </div>
+                  <div className="flex items-start gap-3 p-3.5 rounded-xl border-2 border-primary bg-primary/5 shadow-sm">
+                    <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 mt-0.5">
+                      <QrCode className="h-5 w-5" />
                     </div>
-
-                    {/* Option: VietQR Napas */}
-                    <div
-                      onClick={() => setPaymentMethod("vietqr")}
-                      className={`flex items-start gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${
-                        paymentMethod === "vietqr"
-                          ? "border-primary bg-primary/5 shadow-sm"
-                          : "border-border hover:bg-muted/30"
-                      }`}
-                    >
-                      <div className="p-2 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 mt-0.5">
-                        <Building2 className="h-4 w-4" />
+                    <div className="flex-1 space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-foreground">Cổng thanh toán Stripe</span>
+                        <Badge className="bg-emerald-600 text-[10px] px-2 py-0 h-4 font-medium">
+                          Tự động kích hoạt
+                        </Badge>
                       </div>
-                      <div className="flex-1 space-y-0.5">
-                        <div className="text-xs font-bold">Chuyển khoản VietQR</div>
-                        <p className="text-[11px] text-muted-foreground">
-                          Quét mã ngân hàng nội địa Napas247, xác nhận chuyển khoản.
-                        </p>
-                      </div>
+                      <p className="text-xs text-muted-foreground leading-relaxed">
+                        Hỗ trợ quét mã QR, thẻ quốc tế (Visa, MasterCard), Apple Pay, Google Pay. Hệ thống tự động kích hoạt tài khoản ngay sau khi thanh toán thành công.
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -640,268 +538,159 @@ export function UpgradePlanModal({ open, onOpenChange }: UpgradePlanModalProps) 
                 </div>
               </div>
 
-              {/* Cột phải: Khung Mã QR Thanh Toán (5 cols) */}
+              {/* Cột phải: Khung Mã QR Thanh Toán Stripe (5 cols) */}
               <div className="lg:col-span-5 flex flex-col items-center justify-between rounded-xl border bg-muted/20 p-4 text-center">
-                {paymentMethod === "stripe" ? (
-                  /* ── KHUNG STRIPE ONLINE QR ── */
-                  <div className="w-full flex flex-col items-center justify-between h-full space-y-3">
-                    <div className="w-full space-y-1">
-                      <div className="flex items-center justify-center gap-1.5 font-bold text-sm text-foreground">
-                        <QrCode className="h-4 w-4 text-indigo-500" />
-                        Quét Mã QR Stripe Thanh Toán
-                      </div>
-                      <p className="text-[11px] text-muted-foreground">
-                        Dùng camera điện thoại quét mã QR để mở trang thanh toán bảo mật Stripe
-                      </p>
+                <div className="w-full flex flex-col items-center justify-between h-full space-y-3">
+                  <div className="w-full space-y-1">
+                    <div className="flex items-center justify-center gap-1.5 font-bold text-sm text-foreground">
+                      <QrCode className="h-4 w-4 text-indigo-500" />
+                      Quét Mã QR Stripe Thanh Toán
                     </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      Dùng camera điện thoại quét mã QR để mở trang thanh toán bảo mật Stripe
+                    </p>
+                  </div>
 
-                    {/* Thẻ hiển thị số tiền thanh toán chính xác */}
-                    <div className="w-full bg-indigo-500/10 border border-indigo-500/30 rounded-xl p-2.5 flex items-center justify-between text-xs">
-                      <div className="text-left">
-                        <span className="text-muted-foreground block text-[10px]">Gói & Kỳ hạn:</span>
-                        <span className="font-bold text-foreground capitalize">
-                          {selectedPlan?.name} · {durationMonths} tháng
-                        </span>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-muted-foreground block text-[10px]">Số tiền cần thanh toán:</span>
-                        <span className="font-black text-sm text-indigo-600 dark:text-indigo-400 font-mono">
-                          {formatVND(finalPrice)}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Khung ảnh QR Code Stripe (Hiển thị mượt mà với fallback dự phòng) */}
-                    <div className="my-1 bg-white p-3 rounded-xl shadow-md border relative">
-                      {isCreatingStripeSession ? (
-                        <div className="w-48 h-48 flex flex-col items-center justify-center gap-2 text-muted-foreground p-2 text-center">
-                          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                          <span className="text-xs font-semibold text-foreground">
-                            Đang tạo mã QR {formatVND(finalPrice)}
-                          </span>
-                          <span className="text-[10px] text-muted-foreground">
-                            Đồng bộ đúng gói {selectedPlan?.name} ({durationMonths} tháng)...
-                          </span>
-                        </div>
-                      ) : stripeError ? (
-                        <div className="w-48 h-48 flex flex-col items-center justify-center gap-2 p-3 text-center">
-                          <div className="p-2 rounded-full bg-destructive/10 text-destructive">
-                            <RefreshCw className="h-5 w-5" />
-                          </div>
-                          <p className="text-xs font-medium text-destructive line-clamp-2">
-                            {stripeError}
-                          </p>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={initStripeSession}
-                            className="text-xs h-7 mt-1"
-                          >
-                            <RefreshCw className="h-3 w-3 mr-1" /> Thử lại
-                          </Button>
-                        </div>
-                      ) : isStripeSessionValid && stripeSession ? (
-                        <div className="relative group flex items-center justify-center">
-                          {stripeSession.qrCodeUrl ? (
-                            /* eslint-disable-next-line @next/next/no-img-element */
-                            <img
-                              src={stripeSession.qrCodeUrl}
-                              alt={`Mã QR Stripe Checkout - ${formatVND(finalPrice)}`}
-                              className="w-48 h-48 object-contain rounded"
-                            />
-                          ) : stripeSession.checkoutUrl ? (
-                            <div className="p-2 bg-white rounded flex items-center justify-center">
-                              <QRCodeSVG
-                                value={stripeSession.checkoutUrl}
-                                size={180}
-                                level="M"
-                              />
-                            </div>
-                          ) : null}
-                          <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px] opacity-0 group-hover:opacity-100 transition-opacity rounded flex items-center justify-center">
-                            <a
-                              href={stripeSession.checkoutUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-white text-xs font-bold flex items-center gap-1 bg-indigo-600 px-3 py-1.5 rounded-lg shadow"
-                            >
-                              <ExternalLink className="h-3.5 w-3.5" />
-                              Mở cổng Stripe
-                            </a>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="w-48 h-48 flex flex-col items-center justify-center gap-2 p-2 text-center">
-                          {isCurrentPlanSelected ? (
-                            <>
-                              <Crown className="h-7 w-7 text-amber-500 animate-pulse" />
-                              <div className="text-xs font-semibold text-foreground">Bạn đang dùng gói này</div>
-                              <p className="text-[10px] text-muted-foreground">Nhấn bên dưới nếu muốn gia hạn</p>
-                              <Button
-                                size="sm"
-                                onClick={initStripeSession}
-                                disabled={isCreatingStripeSession}
-                                className="text-xs h-8 bg-amber-500 hover:bg-amber-600 text-white font-medium shadow-sm"
-                              >
-                                {isCreatingStripeSession ? (
-                                  <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
-                                ) : (
-                                  <RefreshCw className="h-3.5 w-3.5 mr-1" />
-                                )}
-                                Tạo mã QR gia hạn
-                              </Button>
-                            </>
-                          ) : (
-                            <>
-                              <p className="text-xs text-muted-foreground">Chưa có mã QR</p>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={initStripeSession}
-                                disabled={isCreatingStripeSession}
-                              >
-                                <RefreshCw className={`h-3 w-3 mr-1 ${isCreatingStripeSession ? "animate-spin" : ""}`} /> Tạo mã QR thanh toán
-                              </Button>
-                            </>
-                          )}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Status pulsing bar */}
-                    <div className="w-full flex items-center justify-center gap-2 py-1.5 px-3 rounded-lg bg-background border text-[11px]">
-                      <span className="relative flex h-2 w-2">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                      </span>
-                      <span className="text-muted-foreground font-medium">
-                        Đang chờ bạn quét mã thanh toán đúng <strong>{formatVND(finalPrice)}</strong>...
+                  {/* Thẻ hiển thị số tiền thanh toán chính xác */}
+                  <div className="w-full bg-indigo-500/10 border border-indigo-500/30 rounded-xl p-2.5 flex items-center justify-between text-xs">
+                    <div className="text-left">
+                      <span className="text-muted-foreground block text-[10px]">Gói & Kỳ hạn:</span>
+                      <span className="font-bold text-foreground capitalize">
+                        {selectedPlan?.name} · {durationMonths} tháng
                       </span>
                     </div>
+                    <div className="text-right">
+                      <span className="text-muted-foreground block text-[10px]">Số tiền cần thanh toán:</span>
+                      <span className="font-black text-sm text-indigo-600 dark:text-indigo-400 font-mono">
+                        {formatVND(finalPrice)}
+                      </span>
+                    </div>
+                  </div>
 
-                    {/* Direct link button if user prefers desktop */}
-                    {isStripeSessionValid && stripeSession?.checkoutUrl && (
-                      <div className="w-full pt-1">
-                        <a
-                          href={stripeSession.checkoutUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="w-full inline-flex items-center justify-center gap-1.5 text-xs font-semibold py-2 px-3 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition-colors shadow"
+                  {/* Khung ảnh QR Code Stripe */}
+                  <div className="my-1 bg-white p-3 rounded-xl shadow-md border relative">
+                    {isCreatingStripeSession ? (
+                      <div className="w-48 h-48 flex flex-col items-center justify-center gap-2 text-muted-foreground p-2 text-center">
+                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                        <span className="text-xs font-semibold text-foreground">
+                          Đang tạo mã QR {formatVND(finalPrice)}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground">
+                          Đồng bộ đúng gói {selectedPlan?.name} ({durationMonths} tháng)...
+                        </span>
+                      </div>
+                    ) : stripeError ? (
+                      <div className="w-48 h-48 flex flex-col items-center justify-center gap-2 p-3 text-center">
+                        <div className="p-2 rounded-full bg-destructive/10 text-destructive">
+                          <RefreshCw className="h-5 w-5" />
+                        </div>
+                        <p className="text-xs font-medium text-destructive line-clamp-2">
+                          {stripeError}
+                        </p>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={initStripeSession}
+                          className="text-xs h-7 mt-1"
                         >
-                          <Smartphone className="h-3.5 w-3.5" />
-                          Hoặc mở trang Stripe ({formatVND(finalPrice)})
-                          <ExternalLink className="h-3 w-3 ml-1" />
-                        </a>
+                          <RefreshCw className="h-3 w-3 mr-1" /> Thử lại
+                        </Button>
+                      </div>
+                    ) : isStripeSessionValid && stripeSession ? (
+                      <div className="relative group flex items-center justify-center">
+                        {stripeSession.qrCodeUrl ? (
+                          /* eslint-disable-next-line @next/next/no-img-element */
+                          <img
+                            src={stripeSession.qrCodeUrl}
+                            alt={`Mã QR Stripe Checkout - ${formatVND(finalPrice)}`}
+                            className="w-48 h-48 object-contain rounded"
+                          />
+                        ) : stripeSession.checkoutUrl ? (
+                          <div className="p-2 bg-white rounded flex items-center justify-center">
+                            <QRCodeSVG
+                              value={stripeSession.checkoutUrl}
+                              size={180}
+                              level="M"
+                            />
+                          </div>
+                        ) : null}
+                        <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px] opacity-0 group-hover:opacity-100 transition-opacity rounded flex items-center justify-center">
+                          <a
+                            href={stripeSession.checkoutUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-white text-xs font-bold flex items-center gap-1 bg-indigo-600 px-3 py-1.5 rounded-lg shadow"
+                          >
+                            <ExternalLink className="h-3.5 w-3.5" />
+                            Mở cổng Stripe
+                          </a>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="w-48 h-48 flex flex-col items-center justify-center gap-2 p-2 text-center">
+                        {isCurrentPlanSelected ? (
+                          <>
+                            <Crown className="h-7 w-7 text-amber-500 animate-pulse" />
+                            <div className="text-xs font-semibold text-foreground">Bạn đang dùng gói này</div>
+                            <p className="text-[10px] text-muted-foreground">Nhấn bên dưới nếu muốn gia hạn</p>
+                            <Button
+                              size="sm"
+                              onClick={initStripeSession}
+                              disabled={isCreatingStripeSession}
+                              className="text-xs h-8 bg-amber-500 hover:bg-amber-600 text-white font-medium shadow-sm"
+                            >
+                              {isCreatingStripeSession ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+                              ) : (
+                                <RefreshCw className="h-3.5 w-3.5 mr-1" />
+                              )}
+                              Tạo mã QR gia hạn
+                            </Button>
+                          </>
+                        ) : (
+                          <>
+                            <p className="text-xs text-muted-foreground">Chưa có mã QR</p>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={initStripeSession}
+                              disabled={isCreatingStripeSession}
+                            >
+                              <RefreshCw className={`h-3 w-3 mr-1 ${isCreatingStripeSession ? "animate-spin" : ""}`} /> Tạo mã QR thanh toán
+                            </Button>
+                          </>
+                        )}
                       </div>
                     )}
                   </div>
-                ) : (
-                  /* ── KHUNG VIETQR NAPAS ── */
-                  <div className="w-full flex flex-col items-center justify-between h-full space-y-3">
-                    <div className="w-full space-y-1">
-                      <div className="flex items-center justify-center gap-1.5 font-bold text-sm text-foreground">
-                        <QrCode className="h-4 w-4 text-primary" />
-                        Quét Mã VietQR Chuyển Khoản
-                      </div>
-                      <p className="text-[11px] text-muted-foreground">
-                        Mở app Mobile Banking quét mã Napas247 để chuyển tiền
-                      </p>
-                    </div>
 
-                    {/* Thẻ hiển thị số tiền thanh toán chính xác */}
-                    <div className="w-full bg-blue-500/10 border border-blue-500/30 rounded-xl p-2.5 flex items-center justify-between text-xs">
-                      <div className="text-left">
-                        <span className="text-muted-foreground block text-[10px]">Gói & Kỳ hạn:</span>
-                        <span className="font-bold text-foreground capitalize">
-                          {selectedPlan?.name} · {durationMonths} tháng
-                        </span>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-muted-foreground block text-[10px]">Số tiền chuyển khoản:</span>
-                        <span className="font-black text-sm text-blue-600 dark:text-blue-400 font-mono">
-                          {formatVND(finalPrice)}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Khung ảnh QR VietQR */}
-                    <div className="my-1 bg-white p-2 rounded-lg shadow-sm border">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={vietQrUrl}
-                        alt={`Mã VietQR nâng cấp gói ${selectedPlan?.name} - ${formatVND(finalPrice)}`}
-                        className="w-48 h-48 object-contain rounded"
-                      />
-                    </div>
-
-                    {/* Thông tin tài khoản, số tiền & memo */}
-                    <div className="w-full space-y-1.5 text-left text-[11px] bg-background border rounded-lg p-2.5">
-                      <div className="flex justify-between items-center py-1 border-b border-border/50">
-                        <span className="text-muted-foreground font-semibold">Số tiền cần chuyển:</span>
-                        <div className="flex items-center gap-1 font-mono font-black text-emerald-600 dark:text-emerald-400 text-xs">
-                          <span>{formatVND(finalPrice)}</span>
-                          <button
-                            type="button"
-                            onClick={() => copyToClipboard(String(finalPrice), "Số tiền")}
-                            className="text-muted-foreground hover:text-foreground"
-                            title="Sao chép số tiền"
-                          >
-                            {copiedField === "Số tiền" ? (
-                              <Check className="h-3 w-3 text-emerald-500" />
-                            ) : (
-                              <Copy className="h-3 w-3" />
-                            )}
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="flex justify-between items-center">
-                        <span className="text-muted-foreground">Ngân hàng:</span>
-                        <span className="font-semibold text-blue-600 dark:text-blue-400">
-                          {bankInfo?.shortName || paymentBank.bankCode}
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-muted-foreground">Số tài khoản:</span>
-                        <div className="flex items-center gap-1 font-mono font-bold">
-                          <span>{paymentBank.accountNumber}</span>
-                          <button
-                            type="button"
-                            onClick={() => copyToClipboard(paymentBank.accountNumber, "Số tài khoản")}
-                            className="text-muted-foreground hover:text-foreground"
-                          >
-                            {copiedField === "Số tài khoản" ? (
-                              <Check className="h-3 w-3 text-emerald-500" />
-                            ) : (
-                              <Copy className="h-3 w-3" />
-                            )}
-                          </button>
-                        </div>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-muted-foreground">Chủ tài khoản:</span>
-                        <span className="font-semibold uppercase">{paymentBank.accountHolder}</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-muted-foreground">Nội dung:</span>
-                        <div className="flex items-center gap-1 font-mono font-bold text-primary">
-                          <span className="truncate max-w-[140px]">{paymentMemo}</span>
-                          <button
-                            type="button"
-                            onClick={() => copyToClipboard(paymentMemo, "Nội dung chuyển khoản")}
-                            className="text-muted-foreground hover:text-foreground shrink-0"
-                          >
-                            {copiedField === "Nội dung chuyển khoản" ? (
-                              <Check className="h-3 w-3 text-emerald-500" />
-                            ) : (
-                              <Copy className="h-3 w-3" />
-                            )}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
+                  {/* Status pulsing bar */}
+                  <div className="w-full flex items-center justify-center gap-2 py-1.5 px-3 rounded-lg bg-background border text-[11px]">
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                    </span>
+                    <span className="text-muted-foreground font-medium">
+                      Đang chờ bạn quét mã thanh toán đúng <strong>{formatVND(finalPrice)}</strong>...
+                    </span>
                   </div>
-                )}
+
+                  {/* Direct link button if user prefers desktop */}
+                  {isStripeSessionValid && stripeSession?.checkoutUrl && (
+                    <div className="w-full pt-1">
+                      <a
+                        href={stripeSession.checkoutUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="w-full inline-flex items-center justify-center gap-1.5 text-xs font-semibold py-2 px-3 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition-colors shadow"
+                      >
+                        <Smartphone className="h-3.5 w-3.5" />
+                        Hoặc mở trang Stripe ({formatVND(finalPrice)})
+                        <ExternalLink className="h-3 w-3 ml-1" />
+                      </a>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -926,32 +715,20 @@ export function UpgradePlanModal({ open, onOpenChange }: UpgradePlanModalProps) 
                 variant="outline"
                 size="sm"
                 onClick={() => onOpenChange(false)}
-                disabled={isManualPending || isCreatingStripeSession}
+                disabled={isCreatingStripeSession}
               >
                 Hủy
               </Button>
 
-              {paymentMethod === "stripe" ? (
-                <Button
-                  size="sm"
-                  onClick={initStripeSession}
-                  disabled={isCreatingStripeSession}
-                  className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold flex items-center gap-1.5"
-                >
-                  <RefreshCw className={`h-4 w-4 ${isCreatingStripeSession ? "animate-spin" : ""}`} />
-                  {isCreatingStripeSession ? "Đang tạo mã..." : "Tạo Lại Mã QR"}
-                </Button>
-              ) : (
-                <Button
-                  size="sm"
-                  onClick={handleConfirmManualUpgrade}
-                  disabled={isManualPending}
-                  className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold flex items-center gap-1.5"
-                >
-                  <CheckCircle2 className="h-4 w-4" />
-                  {isManualPending ? "Đang xử lý..." : "Xác Nhận Đã Chuyển Khoản"}
-                </Button>
-              )}
+              <Button
+                size="sm"
+                onClick={initStripeSession}
+                disabled={isCreatingStripeSession}
+                className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold flex items-center gap-1.5"
+              >
+                <RefreshCw className={`h-4 w-4 ${isCreatingStripeSession ? "animate-spin" : ""}`} />
+                {isCreatingStripeSession ? "Đang tạo mã..." : "Tạo Lại Mã QR"}
+              </Button>
             </div>
           </div>
         )}
