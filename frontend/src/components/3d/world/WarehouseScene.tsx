@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, useMemo } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Text, Html } from "@react-three/drei";
 import * as THREE from "three";
@@ -16,6 +16,7 @@ interface WarehouseSceneProps {
   onReturnToHallway?: () => void;
 }
 
+// ── Kích thước & tọa độ phòng kho ─────────────────────────────────────────────
 const WAREHOUSE_WIDTH = 15;
 const WAREHOUSE_DEPTH = 14;
 const WAREHOUSE_HEIGHT = 5.4;
@@ -23,89 +24,269 @@ const CENTER_X = -8;
 const CENTER_Z = -25;
 const WALL_THICKNESS = 0.2;
 
-/**
- * RackStockBlock — Khối hàng tồn kho 3D đổi màu theo tỷ lệ tồn kho
- * > 50%: Xanh lá | 10-50%: Vàng cam | < 10%: Đỏ nhấp nháy
- */
-function RackStockBlock({
+// ── 1. KIỆN HÀNG THỰC TẾ ĐA DẠNG (Realistic Cargo Box) ───────────────────────
+type CargoType = "carton" | "plastic_tote" | "wooden_crate" | "pallet_bundle";
+
+function RealisticCargoItem({
   item,
   position,
+  type = "carton",
   onSelect,
 }: {
   item: StockLevelRow;
   position: [number, number, number];
+  type?: CargoType;
   onSelect: (item: StockLevelRow) => void;
 }) {
   const [hovered, setHovered] = useState(false);
-  const meshRef = useRef<THREE.Mesh>(null);
+  const indicatorRef = useRef<THREE.Mesh>(null);
+
+  // Tính tỷ lệ tồn kho
   let ratio = 0.5;
   if (typeof item.stockRatio === "number" && !isNaN(item.stockRatio) && item.stockRatio > 0) {
-    ratio = item.stockRatio;
+    ratio = Math.min(1, Math.max(0, item.stockRatio));
   } else if (item.maxStock && item.maxStock > 0) {
-    ratio = item.currentStock / item.maxStock;
+    ratio = Math.min(1, Math.max(0, item.currentStock / item.maxStock));
   } else {
-    // Phân cấp màu trực quan theo lượng tồn kho thực tế nếu maxStock chưa khai báo
-    ratio = item.currentStock > 20 ? 0.85 : item.currentStock > 5 ? 0.35 : 0.08;
+    ratio = item.currentStock > 30 ? 0.85 : item.currentStock > 10 ? 0.45 : 0.08;
   }
 
-  let baseColor = "#10b981"; // Xanh
-  let isBlinking = false;
-  if (ratio < 0.1 || (item.currentStock ?? 0) <= 0) {
-    baseColor = "#ef4444"; // Đỏ cảnh báo
-    isBlinking = true;
-  } else if (ratio < 0.5) {
-    baseColor = "#f59e0b"; // Vàng
-  }
+  const isLowStock = ratio < 0.15 || (item.currentStock ?? 0) <= (item.minStock ?? 5);
+  const isHealthy = ratio >= 0.5;
+  const statusColor = isLowStock ? "#ef4444" : isHealthy ? "#10b981" : "#f59e0b";
 
+  // Hiệu ứng nhấp nháy cảnh báo nếu hàng sắp hết
   useFrame(({ clock }) => {
-    if (isBlinking && meshRef.current) {
-      const mat = meshRef.current.material as THREE.MeshStandardMaterial;
-      const t = Math.sin(clock.getElapsedTime() * 5);
-      mat.emissiveIntensity = t > 0 ? 0.9 : 0.1;
+    if (isLowStock && indicatorRef.current) {
+      const mat = indicatorRef.current.material as THREE.MeshStandardMaterial;
+      const t = Math.sin(clock.getElapsedTime() * 6);
+      mat.emissiveIntensity = t > 0 ? 1.5 : 0.2;
     }
   });
 
-  const blockHeight = Math.max(0.18, Math.min(0.7, ratio * 0.75));
+  const boxHeight = Math.max(0.35, Math.min(0.72, ratio * 0.8));
 
   return (
     <group position={position}>
+      {/* ── LOẠI 1: THÙNG CARTON LOGISTICS TIÊU CHUẨN ── */}
+      {type === "carton" && (
+        <group
+          position={[0, boxHeight / 2, 0]}
+          onPointerOver={(e) => {
+            e.stopPropagation();
+            setHovered(true);
+          }}
+          onPointerOut={() => setHovered(false)}
+          onClick={(e) => {
+            e.stopPropagation();
+            onSelect(item);
+          }}
+        >
+          {/* Thân thùng carton Kraft */}
+          <mesh castShadow receiveShadow>
+            <boxGeometry args={[0.7, boxHeight, 0.7]} />
+            <meshStandardMaterial
+              color={hovered ? "#fbbf24" : "#b47846"}
+              roughness={0.75}
+              metalness={0.05}
+              emissive={hovered ? "#d97706" : "#000000"}
+              emissiveIntensity={hovered ? 0.35 : 0}
+            />
+          </mesh>
+
+          {/* Dải băng keo nâu niêm phong giữa nắp thùng */}
+          <mesh position={[0, boxHeight / 2 + 0.002, 0]}>
+            <boxGeometry args={[0.16, 0.004, 0.702]} />
+            <meshStandardMaterial color="#78350f" roughness={0.4} />
+          </mesh>
+
+          {/* Tem nhãn vận chuyển mã vạch (Shipping Label) dán mặt trước */}
+          <mesh position={[0.12, 0, 0.352]}>
+            <planeGeometry args={[0.22, 0.16]} />
+            <meshStandardMaterial color="#f8fafc" roughness={0.3} />
+          </mesh>
+          {/* Vạch mã vạch đen mô phỏng */}
+          <mesh position={[0.12, -0.02, 0.353]}>
+            <planeGeometry args={[0.18, 0.05]} />
+            <meshStandardMaterial color="#0f172a" />
+          </mesh>
+        </group>
+      )}
+
+      {/* ── LOẠI 2: KHAY NHỰA CÔNG NGHIỆP (Plastic Tote) ── */}
+      {type === "plastic_tote" && (
+        <group
+          position={[0, 0.22, 0]}
+          onPointerOver={(e) => {
+            e.stopPropagation();
+            setHovered(true);
+          }}
+          onPointerOut={() => setHovered(false)}
+          onClick={(e) => {
+            e.stopPropagation();
+            onSelect(item);
+          }}
+        >
+          {/* Thân khay nhựa màu xanh công nghiệp */}
+          <mesh castShadow receiveShadow>
+            <boxGeometry args={[0.68, 0.42, 0.68]} />
+            <meshStandardMaterial
+              color={hovered ? "#60a5fa" : "#1d4ed8"}
+              roughness={0.35}
+              metalness={0.15}
+              emissive={hovered ? "#2563eb" : "#000000"}
+              emissiveIntensity={hovered ? 0.4 : 0}
+            />
+          </mesh>
+          {/* Gờ viền miệng khay */}
+          <mesh position={[0, 0.21, 0]}>
+            <boxGeometry args={[0.72, 0.04, 0.72]} />
+            <meshStandardMaterial color="#172554" roughness={0.3} metalness={0.2} />
+          </mesh>
+        </group>
+      )}
+
+      {/* ── LOẠI 3: THÙNG GỖ XUẤT KHẨU (Wooden Crate) ── */}
+      {type === "wooden_crate" && (
+        <group
+          position={[0, 0.32, 0]}
+          onPointerOver={(e) => {
+            e.stopPropagation();
+            setHovered(true);
+          }}
+          onPointerOut={() => setHovered(false)}
+          onClick={(e) => {
+            e.stopPropagation();
+            onSelect(item);
+          }}
+        >
+          {/* Khối gỗ lõi */}
+          <mesh castShadow receiveShadow>
+            <boxGeometry args={[0.68, 0.6, 0.68]} />
+            <meshStandardMaterial
+              color={hovered ? "#f59e0b" : "#92400e"}
+              roughness={0.85}
+              metalness={0.05}
+              emissive={hovered ? "#b45309" : "#000000"}
+              emissiveIntensity={hovered ? 0.3 : 0}
+            />
+          </mesh>
+          {/* Nẹp viền gỗ chữ X */}
+          <mesh position={[0, 0, 0.345]}>
+            <boxGeometry args={[0.62, 0.04, 0.02]} />
+            <meshStandardMaterial color="#78350f" roughness={0.9} />
+          </mesh>
+          <mesh position={[0, 0, 0.345]} rotation={[0, 0, Math.PI / 4]}>
+            <boxGeometry args={[0.72, 0.03, 0.015]} />
+            <meshStandardMaterial color="#78350f" roughness={0.9} />
+          </mesh>
+        </group>
+      )}
+
+      {/* ── LOẠI 4: KIỆN PALLET BỌC MÀNG CO (Shrink-wrapped cargo) ── */}
+      {type === "pallet_bundle" && (
+        <group
+          position={[0, 0.35, 0]}
+          onPointerOver={(e) => {
+            e.stopPropagation();
+            setHovered(true);
+          }}
+          onPointerOut={() => setHovered(false)}
+          onClick={(e) => {
+            e.stopPropagation();
+            onSelect(item);
+          }}
+        >
+          {/* Khối hàng xếp tầng bọc màng */}
+          <mesh castShadow receiveShadow>
+            <boxGeometry args={[0.72, 0.65, 0.72]} />
+            <meshStandardMaterial
+              color={hovered ? "#fef08a" : "#f1f5f9"}
+              roughness={0.2}
+              metalness={0.1}
+              transparent
+              opacity={0.88}
+              emissive={hovered ? "#eab308" : "#000000"}
+              emissiveIntensity={hovered ? 0.3 : 0}
+            />
+          </mesh>
+        </group>
+      )}
+
+      {/* Đèn LED chỉ báo trạng thái tồn kho ở góc dầm */}
       <mesh
-        ref={meshRef}
-        position={[0, blockHeight / 2, 0]}
-        onPointerOver={(e) => {
-          e.stopPropagation();
-          setHovered(true);
-        }}
-        onPointerOut={() => setHovered(false)}
-        onClick={(e) => {
-          e.stopPropagation();
-          onSelect(item);
-        }}
+        ref={indicatorRef}
+        position={[0.34, 0.06, 0.34]}
         castShadow
-        receiveShadow
       >
-        <boxGeometry args={[0.62, blockHeight, 0.62]} />
+        <sphereGeometry args={[0.035, 12, 12]} />
         <meshStandardMaterial
-          color={baseColor}
-          roughness={0.4}
-          metalness={0.2}
-          emissive={baseColor}
-          emissiveIntensity={hovered ? 0.6 : isBlinking ? 0.3 : 0}
+          color={statusColor}
+          emissive={statusColor}
+          emissiveIntensity={isLowStock ? 1.0 : 0.6}
         />
       </mesh>
 
+      {/* ── TOOLTIP THÔNG TIN CHI TIẾT KHI HOVER ── */}
       {hovered && (
         <Html
-          position={[0, blockHeight + 0.3, 0]}
+          position={[0, boxHeight + 0.45, 0]}
           center
-          distanceFactor={8}
+          distanceFactor={7.5}
           style={{ pointerEvents: "none" }}
         >
-          <div className="rounded-lg border border-white/20 bg-slate-950/95 px-2.5 py-1.5 shadow-xl backdrop-blur-md whitespace-nowrap text-xs text-white">
-            <p className="font-bold text-amber-300">{item.productName}</p>
-            <p className="text-[11px] text-slate-300">
-              Tồn: <span className="font-semibold text-white">{item.currentStock}</span> | Mã: {item.code}
-            </p>
+          <div className="w-56 rounded-xl border border-white/20 bg-slate-950/95 p-3 shadow-2xl backdrop-blur-xl text-white animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-start justify-between gap-1.5 border-b border-white/10 pb-1.5 mb-1.5">
+              <div>
+                <p className="text-xs font-bold text-amber-400 line-clamp-1">{item.productName}</p>
+                <p className="text-[10px] text-slate-400">Mã: {item.code || "WH-SKU"}</p>
+              </div>
+              <span
+                className={`rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase ${
+                  isLowStock
+                    ? "bg-red-500/20 text-red-400 border border-red-500/40"
+                    : isHealthy
+                    ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40"
+                    : "bg-amber-500/20 text-amber-400 border border-amber-500/40"
+                }`}
+              >
+                {isLowStock ? "Sắp hết" : isHealthy ? "Đủ hàng" : "Mức vừa"}
+              </span>
+            </div>
+
+            <div className="space-y-1 text-[11px] text-slate-300">
+              <div className="flex justify-between">
+                <span className="text-slate-400">Tồn thực tế:</span>
+                <span className="font-bold text-white">
+                  {item.currentStock} {item.unitName || "Đơn vị"}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Định mức tối đa:</span>
+                <span className="text-slate-200">{item.maxStock || 100}</span>
+              </div>
+
+              {/* Thanh tiến trình tồn kho */}
+              <div className="mt-1.5">
+                <div className="flex justify-between text-[10px] text-slate-400 mb-0.5">
+                  <span>Tỷ lệ lấp đầy:</span>
+                  <span className="font-semibold text-amber-300">{Math.round(ratio * 100)}%</span>
+                </div>
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
+                  <div
+                    className="h-full rounded-full transition-all duration-300"
+                    style={{
+                      width: `${Math.round(ratio * 100)}%`,
+                      backgroundColor: statusColor,
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div className="pt-2 text-center text-[10px] text-sky-400 font-medium border-t border-white/5">
+                💡 Click để nhập thêm hàng vào kho
+              </div>
+            </div>
           </div>
         </Html>
       )}
@@ -113,98 +294,548 @@ function RackStockBlock({
   );
 }
 
-/**
- * IndustrialStorageRack — Hệ thống kệ để hàng công nghiệp chịu tải cao
- */
-function IndustrialStorageRack({
+// ── 2. HỆ THỐNG KỆ CÔNG NGHIỆP TẢI TRỌNG LỚN (Heavy Duty Warehouse Rack) ──────
+function HeavyDutyWarehouseRack({
   position,
+  rotation = [0, 0, 0],
+  aisleName = "DÃY A",
+  aisleSub = "HÀNG TIÊU DÙNG & ĐIỆN TỬ",
+  accentColor = "#38bdf8",
   items,
   onSelectItem,
+  rackWidth = 6.4,
 }: {
   position: [number, number, number];
+  rotation?: [number, number, number];
+  aisleName?: string;
+  aisleSub?: string;
+  accentColor?: string;
   items: StockLevelRow[];
   onSelectItem: (item: StockLevelRow) => void;
+  rackWidth?: number;
 }) {
-  const RACK_W = 6.4;
-  const RACK_D = 1.0;
-  const RACK_H = 3.6;
-  const LEVELS = [0.4, 1.4, 2.4]; // 3 tầng kệ
+  const RACK_W = rackWidth;
+  const RACK_D = 1.05;
+  const RACK_H = 3.8;
+  const LEVELS = [0.45, 1.55, 2.65]; // 3 tầng dầm
+  const cols = 5;
 
   return (
-    <group position={position}>
-      {/* 4 Chân trụ đứng màu xanh lam đậm công nghiệp */}
-      {[-RACK_W / 2 + 0.05, RACK_W / 2 - 0.05].map((x, xi) =>
+    <group position={position} rotation={rotation}>
+      {/* ── CHÂN TRỤ ĐỨNG THÉP XANH LAM ĐẬM (Heavy Duty Uprights) ── */}
+      {[-RACK_W / 2 + 0.05, 0, RACK_W / 2 - 0.05].map((x, xi) =>
         [-RACK_D / 2 + 0.05, RACK_D / 2 - 0.05].map((z, zi) => (
-          <mesh
-            key={`upright-${xi}-${zi}`}
-            position={[x, RACK_H / 2, z]}
-            castShadow
-          >
-            <boxGeometry args={[0.08, RACK_H, 0.08]} />
-            <meshStandardMaterial color="#1e3a8a" roughness={0.3} metalness={0.8} />
-          </mesh>
+          <group key={`upright-${xi}-${zi}`} position={[x, RACK_H / 2, z]}>
+            <mesh castShadow>
+              <boxGeometry args={[0.09, RACK_H, 0.09]} />
+              <meshStandardMaterial color="#1e3a8a" roughness={0.3} metalness={0.7} />
+            </mesh>
+            {/* Chân đế bắt bulong cố định xuống sàn (Base plate) */}
+            <mesh position={[0, -RACK_H / 2 + 0.015, 0]}>
+              <boxGeometry args={[0.18, 0.03, 0.18]} />
+              <meshStandardMaterial color="#0f172a" metalness={0.9} />
+            </mesh>
+          </group>
         )),
       )}
 
-      {/* Dầm ngang đỡ sàn màu cam đặc trưng kho hàng */}
+      {/* ── GIẰNG CHÉO CHỊU LỰC CHỮ X SAU LƯNG KỆ (Cross Bracing) ── */}
+      <group position={[0, RACK_H / 2, -RACK_D / 2 + 0.04]}>
+        <mesh rotation={[0, 0, 0.48]}>
+          <boxGeometry args={[RACK_W * 0.55, 0.03, 0.02]} />
+          <meshStandardMaterial color="#334155" metalness={0.8} />
+        </mesh>
+        <mesh rotation={[0, 0, -0.48]}>
+          <boxGeometry args={[RACK_W * 0.55, 0.03, 0.02]} />
+          <meshStandardMaterial color="#334155" metalness={0.8} />
+        </mesh>
+      </group>
+
+      {/* ── DẦM NGANG CAM CHỊU TẢI & SÀN LƯỚI THÉP ── */}
       {LEVELS.map((y, li) => (
         <group key={`level-${li}`}>
-          {/* Dầm trước & sau */}
-          <mesh position={[0, y, -RACK_D / 2 + 0.04]}>
-            <boxGeometry args={[RACK_W, 0.1, 0.06]} />
-            <meshStandardMaterial color="#ea580c" roughness={0.4} metalness={0.7} />
+          {/* Dầm trước & sau màu cam công nghiệp */}
+          <mesh position={[0, y, -RACK_D / 2 + 0.045]}>
+            <boxGeometry args={[RACK_W, 0.11, 0.06]} />
+            <meshStandardMaterial color="#ea580c" roughness={0.35} metalness={0.6} />
           </mesh>
-          <mesh position={[0, y, RACK_D / 2 - 0.04]}>
-            <boxGeometry args={[RACK_W, 0.1, 0.06]} />
-            <meshStandardMaterial color="#ea580c" roughness={0.4} metalness={0.7} />
+          <mesh position={[0, y, RACK_D / 2 - 0.045]}>
+            <boxGeometry args={[RACK_W, 0.11, 0.06]} />
+            <meshStandardMaterial color="#ea580c" roughness={0.35} metalness={0.6} />
           </mesh>
-          {/* Mặt sàn pallet lưới thép */}
-          <mesh position={[0, y + 0.04, 0]}>
-            <boxGeometry args={[RACK_W - 0.1, 0.03, RACK_D - 0.1]} />
-            <meshStandardMaterial color="#475569" roughness={0.5} metalness={0.6} />
+
+          {/* Sàn lưới pallet thép mạ kẽm */}
+          <mesh position={[0, y + 0.05, 0]} receiveShadow>
+            <boxGeometry args={[RACK_W - 0.1, 0.03, RACK_D - 0.08]} />
+            <meshStandardMaterial color="#475569" roughness={0.4} metalness={0.7} />
           </mesh>
+
+          {/* Tem nhãn mã vị trí ô kệ dán trên dầm trước */}
+          {Array.from({ length: cols }).map((_, ci) => {
+            const labelX = -RACK_W / 2 + 0.6 + ci * ((RACK_W - 1.2) / (cols - 1));
+            return (
+              <mesh key={`bin-tag-${li}-${ci}`} position={[labelX, y, RACK_D / 2 - 0.01]}>
+                <planeGeometry args={[0.16, 0.04]} />
+                <meshStandardMaterial color="#fef08a" roughness={0.3} />
+              </mesh>
+            );
+          })}
         </group>
       ))}
 
-      {/* Phân bố các khối hàng lên 3 tầng x 6 vị trí = 18 slot */}
-      {items.slice(0, 18).map((it, idx) => {
-        const levelIdx = Math.floor(idx / 6);
-        const colIdx = idx % 6;
-        const posX = -RACK_W / 2 + 0.6 + colIdx * 1.05;
-        const posY = LEVELS[levelIdx] + 0.06;
+      {/* ── CÁC KIỆN HÀNG TRÊN KỆ (3 tầng x cols vị trí) ── */}
+      {items.slice(0, cols * 3).map((it, idx) => {
+        const levelIdx = Math.floor(idx / cols);
+        const colIdx = idx % cols;
+        const posX = -RACK_W / 2 + 0.6 + colIdx * ((RACK_W - 1.2) / (cols - 1));
+        const posY = LEVELS[levelIdx] + 0.07;
+
+        // Xoay vòng các loại kiện hàng để tạo sự đa dạng chân thực
+        const cargoTypes: CargoType[] = ["carton", "plastic_tote", "wooden_crate", "pallet_bundle"];
+        const chosenType = cargoTypes[idx % cargoTypes.length];
+
         return (
-          <RackStockBlock
-            key={it.productId || `block-${idx}`}
+          <RealisticCargoItem
+            key={it.productId || `cargo-${idx}`}
             item={it}
             position={[posX, posY, 0]}
+            type={chosenType}
             onSelect={onSelectItem}
           />
         );
       })}
 
-      {/* Bảng tên dãy kệ LED */}
-      <group position={[0, RACK_H + 0.25, 0]}>
+      {/* ── BIỂN HIỆU ĐẦU HỒI DÃY KỆ (Aisle LED Header) ── */}
+      <group position={[0, RACK_H + 0.32, 0]}>
         <mesh>
-          <boxGeometry args={[2.2, 0.35, 0.06]} />
-          <meshStandardMaterial color="#0f172a" />
+          <boxGeometry args={[2.8, 0.45, 0.08]} />
+          <meshStandardMaterial color="#090d16" roughness={0.2} metalness={0.8} />
+        </mesh>
+        {/* Khung viền LED màu chỉ định */}
+        <mesh position={[0, 0, 0.03]}>
+          <boxGeometry args={[2.84, 0.49, 0.02]} />
+          <meshStandardMaterial color={accentColor} emissive={accentColor} emissiveIntensity={0.8} />
         </mesh>
         <Text
-          position={[0, 0, 0.04]}
-          fontSize={0.16}
-          color="#fbbf24"
+          position={[0, 0.08, 0.05]}
+          fontSize={0.17}
+          color="#ffffff"
           anchorX="center"
           anchorY="middle"
         >
-          DÃY KỆ THÔNG MINH
+          {aisleName}
+        </Text>
+        <Text
+          position={[0, -0.1, 0.05]}
+          fontSize={0.08}
+          color={accentColor}
+          anchorX="center"
+          anchorY="middle"
+        >
+          {aisleSub}
         </Text>
       </group>
     </group>
   );
 }
 
-/**
- * InspectionDesk — Bàn kiểm hàng & sửa thông tin sản phẩm (click -> ProductFormDialog)
- */
+// ── 3. MÀN HÌNH LED DASHBOARD GIÁM SÁT KHO (Smart Warehouse WMS LED Board) ────
+function WarehouseWMSDashboard({
+  position,
+  items,
+}: {
+  position: [number, number, number];
+  items: StockLevelRow[];
+}) {
+  const totalSku = items.length;
+  const totalStock = items.reduce((acc, it) => acc + (it.currentStock || 0), 0);
+  const lowStockCount = items.filter(
+    (it) => (it.currentStock || 0) <= (it.minStock || 5) || (it.stockRatio || 0) < 0.15,
+  ).length;
+
+  const occupancyRatio = Math.min(100, Math.round((totalStock / (totalSku * 60 || 1)) * 100));
+
+  const pulseRef = useRef<THREE.Mesh>(null);
+  useFrame(({ clock }) => {
+    if (pulseRef.current) {
+      const mat = pulseRef.current.material as THREE.MeshStandardMaterial;
+      mat.emissiveIntensity = 0.5 + Math.sin(clock.getElapsedTime() * 4) * 0.5;
+    }
+  });
+
+  return (
+    <group position={position}>
+      {/* Khung màn hình LED siêu lớn */}
+      <mesh>
+        <boxGeometry args={[4.4, 2.3, 0.1]} />
+        <meshStandardMaterial color="#030712" roughness={0.2} metalness={0.9} />
+      </mesh>
+
+      {/* Viền LED phát sáng màu Sky */}
+      <mesh position={[0, 0, 0.045]}>
+        <boxGeometry args={[4.44, 2.34, 0.02]} />
+        <meshStandardMaterial
+          color="#0284c7"
+          emissive="#0284c7"
+          emissiveIntensity={0.9}
+        />
+      </mesh>
+
+      {/* Màn hình hiển thị nội dung */}
+      <mesh position={[0, 0, 0.055]}>
+        <planeGeometry args={[4.3, 2.2]} />
+        <meshStandardMaterial color="#090d16" roughness={0.3} />
+      </mesh>
+
+      {/* Header WMS */}
+      <group position={[0, 0.85, 0.07]}>
+        <Text fontSize={0.16} color="#38bdf8" anchorX="center" anchorY="middle">
+          BIZFLOW WMS 3D • KHO HÀNG THÔNG MINH #02
+        </Text>
+        <Text position={[0, -0.16, 0]} fontSize={0.08} color="#94a3b8" anchorX="center" anchorY="middle">
+          HE THONG GIAM SAT TON KHO REALTIME
+        </Text>
+        {/* Đèn xanh trạng thái */}
+        <mesh ref={pulseRef} position={[1.8, 0, 0]}>
+          <sphereGeometry args={[0.04, 12, 12]} />
+          <meshStandardMaterial color="#10b981" emissive="#10b981" emissiveIntensity={1.2} />
+        </mesh>
+      </group>
+
+      {/* Thẻ 1: Tổng SKU */}
+      <group position={[-1.35, 0.32, 0.07]}>
+        <mesh>
+          <planeGeometry args={[1.2, 0.55]} />
+          <meshStandardMaterial color="#0f172a" />
+        </mesh>
+        <Text position={[0, 0.14, 0.01]} fontSize={0.08} color="#94a3b8" anchorX="center" anchorY="middle">
+          TONG MAT HANG (SKU)
+        </Text>
+        <Text position={[0, -0.06, 0.01]} fontSize={0.24} color="#f8fafc" anchorX="center" anchorY="middle">
+          {totalSku}
+        </Text>
+      </group>
+
+      {/* Thẻ 2: Tổng Lượng Tồn Kho */}
+      <group position={[0, 0.32, 0.07]}>
+        <mesh>
+          <planeGeometry args={[1.2, 0.55]} />
+          <meshStandardMaterial color="#0f172a" />
+        </mesh>
+        <Text position={[0, 0.14, 0.01]} fontSize={0.08} color="#94a3b8" anchorX="center" anchorY="middle">
+          TONG SO LUONG TON
+        </Text>
+        <Text position={[0, -0.06, 0.01]} fontSize={0.24} color="#38bdf8" anchorX="center" anchorY="middle">
+          {totalStock.toLocaleString()}
+        </Text>
+      </group>
+
+      {/* Thẻ 3: Cảnh Báo Tồn Thấp */}
+      <group position={[1.35, 0.32, 0.07]}>
+        <mesh>
+          <planeGeometry args={[1.2, 0.55]} />
+          <meshStandardMaterial color={lowStockCount > 0 ? "#450a0a" : "#0f172a"} />
+        </mesh>
+        <Text position={[0, 0.14, 0.01]} fontSize={0.08} color="#f87171" anchorX="center" anchorY="middle">
+          CANH BAO HET HANG
+        </Text>
+        <Text
+          position={[0, -0.06, 0.01]}
+          fontSize={0.24}
+          color={lowStockCount > 0 ? "#ef4444" : "#10b981"}
+          anchorX="center"
+          anchorY="middle"
+        >
+          {lowStockCount}
+        </Text>
+      </group>
+
+      {/* Thanh đo Sức chứa kho (Warehouse Occupancy) */}
+      <group position={[0, -0.32, 0.07]}>
+        <mesh>
+          <planeGeometry args={[3.9, 0.5]} />
+          <meshStandardMaterial color="#0f172a" />
+        </mesh>
+        <Text position={[-1.7, 0.12, 0.01]} fontSize={0.09} color="#cbd5e1" anchorX="left" anchorY="middle">
+          SUC CHUA KHO (CAPACITY)
+        </Text>
+        <Text position={[1.7, 0.12, 0.01]} fontSize={0.11} color="#fbbf24" anchorX="right" anchorY="middle">
+          {occupancyRatio}%
+        </Text>
+
+        {/* Khung thanh tiến trình */}
+        <mesh position={[0, -0.08, 0.01]}>
+          <planeGeometry args={[3.5, 0.1]} />
+          <meshStandardMaterial color="#1e293b" />
+        </mesh>
+        <mesh position={[-1.75 + (3.5 * (occupancyRatio / 100)) / 2, -0.08, 0.015]}>
+          <planeGeometry args={[Math.max(0.01, 3.5 * (occupancyRatio / 100)), 0.1]} />
+          <meshStandardMaterial color="#38bdf8" emissive="#0284c7" emissiveIntensity={0.6} />
+        </mesh>
+      </group>
+
+      {/* Dòng ticker trạng thái đáy màn hình */}
+      <group position={[0, -0.78, 0.07]}>
+        <Text fontSize={0.08} color="#64748b" anchorX="center" anchorY="middle">
+          NHIET DO: 23.8 C  |  DO AM: 54%  |  DOCK 01: READY  |  PCCC: OK
+        </Text>
+      </group>
+    </group>
+  );
+}
+
+// ── 4. XE NÂNG HÀNG ĐIỆN CÔNG NGHIỆP 3D (Detailed Forklift 3D) ───────────────
+function WarehouseForklift3D({
+  position,
+  rotation = [0, 0, 0],
+}: {
+  position: [number, number, number];
+  rotation?: [number, number, number];
+}) {
+  const beaconRef = useRef<THREE.Mesh>(null);
+
+  // Hiệu ứng đèn chớp vàng xoay nhấp nháy trên nóc xe nâng
+  useFrame(({ clock }) => {
+    if (beaconRef.current) {
+      const mat = beaconRef.current.material as THREE.MeshStandardMaterial;
+      const t = Math.sin(clock.getElapsedTime() * 8);
+      mat.emissiveIntensity = t > 0.2 ? 2.5 : 0.3;
+    }
+  });
+
+  return (
+    <group position={position} rotation={rotation}>
+      {/* ── THÂN XE NÂNG VÀNG CÔNG NGHIỆP ── */}
+      <mesh position={[0, 0.5, 0]} castShadow>
+        <boxGeometry args={[1.2, 0.65, 1.8]} />
+        <meshStandardMaterial color="#f59e0b" roughness={0.3} metalness={0.4} />
+      </mesh>
+
+      {/* Khối đối trọng kim loại đen đúc phía sau (Counterweight) */}
+      <mesh position={[0, 0.55, 0.82]} castShadow>
+        <boxGeometry args={[1.16, 0.7, 0.35]} />
+        <meshStandardMaterial color="#0f172a" roughness={0.5} metalness={0.8} />
+      </mesh>
+
+      {/* ── BUỒNG LÁI & KHUNG BẢO VỆ CHỐNG LẬT (Roll Cage) ── */}
+      {/* 4 Cột chống lật */}
+      {[-0.52, 0.52].map((x, xi) =>
+        [-0.45, 0.55].map((z, zi) => (
+          <mesh key={`cage-post-${xi}-${zi}`} position={[x, 1.35, z]} castShadow>
+            <cylinderGeometry args={[0.025, 0.025, 1.1, 8]} />
+            <meshStandardMaterial color="#1e293b" metalness={0.8} />
+          </mesh>
+        )),
+      )}
+      {/* Nóc lồng bảo vệ */}
+      <mesh position={[0, 1.9, 0.05]} castShadow>
+        <boxGeometry args={[1.15, 0.04, 1.1]} />
+        <meshStandardMaterial color="#0f172a" metalness={0.7} />
+      </mesh>
+
+      {/* Đèn chớp vàng Amber Beacon trên nóc */}
+      <mesh ref={beaconRef} position={[0, 1.98, 0.05]}>
+        <cylinderGeometry args={[0.06, 0.06, 0.1, 12]} />
+        <meshStandardMaterial
+          color="#f59e0b"
+          emissive="#f59e0b"
+          emissiveIntensity={1.5}
+        />
+      </mesh>
+
+      {/* Ghế ngồi lái đệm đen */}
+      <mesh position={[0, 0.95, 0.1]} castShadow>
+        <boxGeometry args={[0.5, 0.15, 0.45]} />
+        <meshStandardMaterial color="#020617" roughness={0.7} />
+      </mesh>
+      {/* Tựa lưng ghế */}
+      <mesh position={[0, 1.25, 0.3]}>
+        <boxGeometry args={[0.48, 0.45, 0.08]} />
+        <meshStandardMaterial color="#020617" roughness={0.7} />
+      </mesh>
+
+      {/* Vô lăng tròn */}
+      <mesh position={[0, 1.18, -0.22]} rotation={[0.6, 0, 0]}>
+        <torusGeometry args={[0.12, 0.02, 8, 20]} />
+        <meshStandardMaterial color="#1e293b" metalness={0.8} />
+      </mesh>
+
+      {/* ── CỘT NÂNG (MAST) & CÀNG NÂNG (FORKS) ── */}
+      {/* 2 Cột ray thép trượt đứng */}
+      {[-0.32, 0.32].map((x, i) => (
+        <mesh key={`mast-rail-${i}`} position={[x, 1.1, -1.0]} castShadow>
+          <boxGeometry args={[0.08, 1.9, 0.08]} />
+          <meshStandardMaterial color="#1e293b" metalness={0.9} />
+        </mesh>
+      ))}
+
+      {/* Thanh xà ngang giá đỡ càng nâng */}
+      <mesh position={[0, 0.45, -1.05]}>
+        <boxGeometry args={[0.85, 0.18, 0.04]} />
+        <meshStandardMaterial color="#0f172a" metalness={0.8} />
+      </mesh>
+
+      {/* 2 Lưỡi càng nâng hàng (Forks) vươn ra phía trước */}
+      {[-0.26, 0.26].map((x, i) => (
+        <group key={`fork-${i}`} position={[x, 0.08, -1.45]}>
+          <mesh castShadow>
+            <boxGeometry args={[0.1, 0.04, 0.85]} />
+            <meshStandardMaterial color="#0f172a" metalness={0.9} roughness={0.3} />
+          </mesh>
+          <mesh position={[0, 0.2, 0.4]}>
+            <boxGeometry args={[0.1, 0.4, 0.04]} />
+            <meshStandardMaterial color="#0f172a" metalness={0.9} />
+          </mesh>
+        </group>
+      ))}
+
+      {/* Kiện pallet mẫu đặt trên càng nâng */}
+      <group position={[0, 0.14, -1.45]}>
+        <mesh position={[0, 0.05, 0]} castShadow>
+          <boxGeometry args={[0.85, 0.08, 0.85]} />
+          <meshStandardMaterial color="#b45309" roughness={0.8} />
+        </mesh>
+        <mesh position={[0, 0.35, 0]} castShadow>
+          <boxGeometry args={[0.7, 0.5, 0.7]} />
+          <meshStandardMaterial color="#d97706" roughness={0.7} />
+        </mesh>
+      </group>
+
+      {/* ── 4 BÁNH XE CAO SU CÔNG NGHIỆP ── */}
+      {/* Bánh trước lớn */}
+      {[-0.6, 0.6].map((x, i) => (
+        <mesh key={`front-wheel-${i}`} position={[x, 0.28, -0.55]} rotation={[0, 0, Math.PI / 2]}>
+          <cylinderGeometry args={[0.28, 0.28, 0.18, 16]} />
+          <meshStandardMaterial color="#090d16" roughness={0.8} />
+        </mesh>
+      ))}
+      {/* Bánh sau nhỏ đánh lái */}
+      {[-0.56, 0.56].map((x, i) => (
+        <mesh key={`rear-wheel-${i}`} position={[x, 0.22, 0.65]} rotation={[0, 0, Math.PI / 2]}>
+          <cylinderGeometry args={[0.22, 0.22, 0.15, 16]} />
+          <meshStandardMaterial color="#090d16" roughness={0.8} />
+        </mesh>
+      ))}
+
+      {/* ── ĐÈN PHA CHIẾU RỌI PHÍA TRƯỚC ── */}
+      {[-0.4, 0.4].map((x, i) => (
+        <group key={`headlight-${i}`} position={[x, 0.85, -0.92]}>
+          <mesh>
+            <boxGeometry args={[0.1, 0.08, 0.06]} />
+            <meshStandardMaterial color="#f8fafc" emissive="#ffffff" emissiveIntensity={1.5} />
+          </mesh>
+          <spotLight
+            position={[0, 0, 0]}
+            target-position={[x, 0, -3.5]}
+            angle={0.4}
+            penumbra={0.4}
+            intensity={4}
+            distance={5}
+            color="#fef08a"
+          />
+        </group>
+      ))}
+    </group>
+  );
+}
+
+// ── 5. CỬA CUỐN CÔNG NGHIỆP DOCK 01 (Industrial Roll-up Shutter Door) ─────────
+function RollUpShutterDoor({
+  position,
+  rotation = [0, 0, 0],
+}: {
+  position: [number, number, number];
+  rotation?: [number, number, number];
+}) {
+  return (
+    <group position={position} rotation={rotation}>
+      {/* Khung bao cửa công nghiệp */}
+      <mesh position={[0, 1.8, 0]}>
+        <boxGeometry args={[3.2, 3.7, 0.1]} />
+        <meshStandardMaterial color="#0f172a" roughness={0.5} metalness={0.7} />
+      </mesh>
+
+      {/* Hộp cuộn cuốn phía trên */}
+      <mesh position={[0, 3.65, 0.15]} rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[0.28, 0.28, 3.1, 16]} />
+        <meshStandardMaterial color="#1e293b" metalness={0.8} />
+      </mesh>
+
+      {/* Các nan rãnh cửa cuốn kim loại */}
+      {Array.from({ length: 14 }).map((_, i) => (
+        <mesh key={`slat-${i}`} position={[0, 0.2 + i * 0.24, 0.04]}>
+          <boxGeometry args={[2.85, 0.21, 0.03]} />
+          <meshStandardMaterial color="#475569" roughness={0.4} metalness={0.6} />
+        </mesh>
+      ))}
+
+      {/* Biển hiệu tên Dock */}
+      <group position={[0, 3.25, 0.1]}>
+        <mesh>
+          <boxGeometry args={[1.8, 0.38, 0.04]} />
+          <meshStandardMaterial color="#0284c7" />
+        </mesh>
+        <Text position={[0, 0, 0.03]} fontSize={0.15} color="#ffffff" anchorX="center" anchorY="middle">
+          DOCK 01 • INBOUND
+        </Text>
+      </group>
+
+      {/* Đèn tín hiệu tiếp nhận xanh / đỏ (Traffic Dock Light) */}
+      <group position={[1.65, 2.2, 0.1]}>
+        <mesh>
+          <boxGeometry args={[0.16, 0.35, 0.08]} />
+          <meshStandardMaterial color="#0f172a" />
+        </mesh>
+        {/* Đèn xanh Ready */}
+        <mesh position={[0, 0.08, 0.05]}>
+          <circleGeometry args={[0.05, 12]} />
+          <meshStandardMaterial color="#10b981" emissive="#10b981" emissiveIntensity={1.8} />
+        </mesh>
+        {/* Đèn đỏ Standby */}
+        <mesh position={[0, -0.08, 0.05]}>
+          <circleGeometry args={[0.05, 12]} />
+          <meshStandardMaterial color="#7f1d1d" emissive="#7f1d1d" emissiveIntensity={0.2} />
+        </mesh>
+      </group>
+    </group>
+  );
+}
+
+// ── 6. CÂN SÀN ĐIỆN TỬ CÔNG NGHIỆP (Floor Platform Scale) ─────────────────────
+function FloorWeighingScale({ position }: { position: [number, number, number] }) {
+  return (
+    <group position={position}>
+      {/* Mặt bệ cân thép tấm gân chống trượt */}
+      <mesh position={[0, 0.04, 0]} receiveShadow>
+        <boxGeometry args={[1.3, 0.08, 1.3]} />
+        <meshStandardMaterial color="#334155" roughness={0.3} metalness={0.7} />
+      </mesh>
+      {/* Viền vàng cảnh báo quanh bệ cân */}
+      <mesh position={[0, 0.045, 0]}>
+        <boxGeometry args={[1.34, 0.07, 1.34]} />
+        <meshStandardMaterial color="#ca8a04" emissive="#ca8a04" emissiveIntensity={0.4} />
+      </mesh>
+
+      {/* Cột hiển thị đồng hồ LED */}
+      <group position={[0.65, 0, 0.55]}>
+        <mesh position={[0, 0.55, 0]}>
+          <cylinderGeometry args={[0.025, 0.025, 1.1, 10]} />
+          <meshStandardMaterial color="#1e293b" metalness={0.9} />
+        </mesh>
+        {/* Hộp màn hình LED đỏ */}
+        <mesh position={[0, 1.15, 0]}>
+          <boxGeometry args={[0.26, 0.18, 0.08]} />
+          <meshStandardMaterial color="#020617" />
+        </mesh>
+        <Text position={[0, 1.15, 0.045]} fontSize={0.065} color="#ef4444" anchorX="center" anchorY="middle">
+          1,420 KG
+        </Text>
+      </group>
+    </group>
+  );
+}
+
+// ── 7. BÀN KIỂM HÀNG & SỬA SẢN PHẨM (Inspection Station) ──────────────────────
 function InspectionDesk({
   position,
   onClick,
@@ -213,6 +844,16 @@ function InspectionDesk({
   onClick: () => void;
 }) {
   const [hovered, setHovered] = useState(false);
+  const laserRef = useRef<THREE.Mesh>(null);
+
+  // Tia laser đỏ máy quét mã vạch chớp nháy
+  useFrame(({ clock }) => {
+    if (laserRef.current) {
+      const mat = laserRef.current.material as THREE.MeshStandardMaterial;
+      const t = Math.sin(clock.getElapsedTime() * 10);
+      mat.emissiveIntensity = t > 0 ? 2.5 : 0.4;
+    }
+  });
 
   return (
     <group
@@ -229,18 +870,18 @@ function InspectionDesk({
     >
       {/* Mặt bàn gỗ công nghiệp ép cao cấp */}
       <mesh position={[0, 0.95, 0]} castShadow>
-        <boxGeometry args={[2.2, 0.08, 1.2]} />
+        <boxGeometry args={[2.3, 0.08, 1.2]} />
         <meshStandardMaterial
           color={hovered ? "#38bdf8" : "#854d0e"}
           roughness={0.4}
           emissive={hovered ? "#0284c7" : "#000000"}
-          emissiveIntensity={hovered ? 0.3 : 0}
+          emissiveIntensity={hovered ? 0.35 : 0}
         />
       </mesh>
 
-      {/* 4 Chân bàn kim loại hộp đen */}
-      {[-0.95, 0.95].map((x, xi) =>
-        [-0.45, 0.45].map((z, zi) => (
+      {/* 4 Chân bàn kim loại hộp sơn tĩnh điện */}
+      {[-1.0, 1.0].map((x, xi) =>
+        [-0.48, 0.48].map((z, zi) => (
           <mesh key={`desk-leg-${xi}-${zi}`} position={[x, 0.45, z]} castShadow>
             <boxGeometry args={[0.08, 0.9, 0.08]} />
             <meshStandardMaterial color="#1e293b" metalness={0.8} />
@@ -248,44 +889,60 @@ function InspectionDesk({
         )),
       )}
 
-      {/* Laptop kiểm kho */}
-      <group position={[-0.4, 1.0, 0]}>
-        {/* Thân máy */}
-        <mesh position={[0, 0.015, 0]}>
-          <boxGeometry args={[0.42, 0.02, 0.3]} />
+      {/* Ghế xoay công nghiệp */}
+      <group position={[0, 0, 0.85]}>
+        <mesh position={[0, 0.5, 0]} castShadow>
+          <cylinderGeometry args={[0.25, 0.25, 0.08, 16]} />
+          <meshStandardMaterial color="#0f172a" roughness={0.6} />
+        </mesh>
+        <mesh position={[0, 0.25, 0]}>
+          <cylinderGeometry args={[0.03, 0.03, 0.5, 8]} />
           <meshStandardMaterial color="#334155" metalness={0.8} />
         </mesh>
-        {/* Màn hình laptop mở góc 110 độ */}
-        <mesh position={[0, 0.16, -0.15]} rotation={[0.3, 0, 0]}>
-          <boxGeometry args={[0.42, 0.28, 0.02]} />
-          <meshStandardMaterial
-            color="#38bdf8"
-            emissive="#38bdf8"
-            emissiveIntensity={0.8}
-          />
+      </group>
+
+      {/* Laptop trạm kiểm kho WMS */}
+      <group position={[-0.45, 1.0, 0]}>
+        <mesh position={[0, 0.015, 0]}>
+          <boxGeometry args={[0.44, 0.02, 0.32]} />
+          <meshStandardMaterial color="#334155" metalness={0.8} />
+        </mesh>
+        <mesh position={[0, 0.17, -0.16]} rotation={[0.3, 0, 0]}>
+          <boxGeometry args={[0.44, 0.3, 0.02]} />
+          <meshStandardMaterial color="#38bdf8" emissive="#38bdf8" emissiveIntensity={0.85} />
         </mesh>
       </group>
 
-      {/* Máy quét mã vạch cầm tay Barcode Scanner */}
-      <group position={[0.45, 1.02, 0.1]}>
+      {/* Máy quét mã vạch cầm tay Barcode Scanner có tia laser đỏ */}
+      <group position={[0.42, 1.02, 0.08]}>
         <mesh rotation={[0.4, 0.2, 0]}>
           <boxGeometry args={[0.1, 0.14, 0.18]} />
-          <meshStandardMaterial color="#0f172a" />
+          <meshStandardMaterial color="#0f172a" metalness={0.7} />
         </mesh>
         {/* Tia laser đỏ phát sáng */}
-        <mesh position={[0, 0.02, 0.12]}>
-          <boxGeometry args={[0.08, 0.02, 0.02]} />
-          <meshStandardMaterial color="#ef4444" emissive="#ef4444" emissiveIntensity={2} />
+        <mesh ref={laserRef} position={[0, 0.02, 0.12]}>
+          <boxGeometry args={[0.12, 0.015, 0.015]} />
+          <meshStandardMaterial color="#ef4444" emissive="#ef4444" emissiveIntensity={2.5} />
         </mesh>
       </group>
 
-      {/* Biển hiệu tương tác nổi */}
-      <group position={[0, 1.5, 0]}>
+      {/* Chồng tài liệu kiểm kho & cốc cà phê */}
+      <mesh position={[0.15, 1.02, -0.25]}>
+        <boxGeometry args={[0.26, 0.05, 0.32]} />
+        <meshStandardMaterial color="#f8fafc" />
+      </mesh>
+      <mesh position={[-0.9, 1.05, 0.2]}>
+        <cylinderGeometry args={[0.04, 0.035, 0.1, 10]} />
+        <meshStandardMaterial color="#0284c7" />
+      </mesh>
+
+      {/* Nút hành động nổi tương tác */}
+      <group position={[0, 1.55, 0]}>
         <Html center distanceFactor={8}>
           <button
             type="button"
             onClick={onClick}
-            className={`pointer-events-auto flex items-center gap-2 rounded-xl border px-3 py-1.5 shadow-2xl backdrop-blur-md transition-all ${
+            className={`pointer-events-auto flex items-center gap-2 rounded-xl border px-3.5 py-1.5 shadow-2xl backdrop-blur-md transition-all ${
               hovered
                 ? "border-sky-400 bg-sky-600/90 text-white scale-110 shadow-sky-500/40"
                 : "border-white/20 bg-slate-900/85 text-slate-200"
@@ -302,9 +959,7 @@ function InspectionDesk({
   );
 }
 
-/**
- * PalletImportZone — Khu nhập hàng: Pallet gỗ + thùng carton (click -> ImportStockDialog)
- */
+// ── 8. KHU TIẾP NHẬN & NHẬP HÀNG (Pallet Inbound Zone) ────────────────────────
 function PalletImportZone({
   position,
   onClick,
@@ -327,14 +982,13 @@ function PalletImportZone({
         onClick();
       }}
     >
-      {/* Pallet gỗ tiêu chuẩn (1.4m x 1.2m) */}
+      {/* Pallet gỗ tự nhiên tiêu chuẩn */}
       <mesh position={[0, 0.07, 0]} castShadow>
         <boxGeometry args={[1.6, 0.14, 1.4]} />
         <meshStandardMaterial color="#b45309" roughness={0.8} />
       </mesh>
 
-      {/* Các thùng hàng carton xếp chồng trên pallet */}
-      {/* Tầng 1: 4 thùng */}
+      {/* Các thùng hàng xếp tầng */}
       <mesh position={[-0.38, 0.44, -0.32]} castShadow>
         <boxGeometry args={[0.65, 0.6, 0.58]} />
         <meshStandardMaterial color="#d97706" roughness={0.7} />
@@ -351,37 +1005,42 @@ function PalletImportZone({
         <boxGeometry args={[0.65, 0.6, 0.58]} />
         <meshStandardMaterial color="#d97706" roughness={0.7} />
       </mesh>
-
-      {/* Tầng 2: 2 thùng lớn hơn */}
+      {/* Tầng 2 */}
       <mesh position={[0, 0.98, 0]} castShadow>
         <boxGeometry args={[0.9, 0.5, 0.9]} />
         <meshStandardMaterial
           color={hovered ? "#f59e0b" : "#b45309"}
           roughness={0.7}
           emissive={hovered ? "#f59e0b" : "#000000"}
-          emissiveIntensity={hovered ? 0.3 : 0}
+          emissiveIntensity={hovered ? 0.35 : 0}
         />
       </mesh>
 
-      {/* Xe nâng tay mô phỏng (Hand Pallet Jack) */}
-      <group position={[1.4, 0, 0]} rotation={[0, -Math.PI / 4, 0]}>
-        <mesh position={[0, 0.05, 0]}>
-          <boxGeometry args={[0.6, 0.08, 1.2]} />
+      {/* Xe nâng tay mô phỏng chi tiết (Hand Pallet Jack) */}
+      <group position={[1.4, 0, 0.2]} rotation={[0, -Math.PI / 4, 0]}>
+        {/* Càng nâng đỏ */}
+        <mesh position={[0, 0.06, 0]}>
+          <boxGeometry args={[0.55, 0.08, 1.1]} />
           <meshStandardMaterial color="#dc2626" metalness={0.7} roughness={0.3} />
         </mesh>
-        <mesh position={[0, 0.5, 0.5]}>
-          <cylinderGeometry args={[0.03, 0.03, 0.9, 12]} />
+        {/* Tay bơm thủy lực */}
+        <mesh position={[0, 0.52, 0.5]}>
+          <cylinderGeometry args={[0.03, 0.03, 0.95, 10]} />
           <meshStandardMaterial color="#1e293b" metalness={0.8} />
+        </mesh>
+        <mesh position={[0, 0.98, 0.5]} rotation={[0, 0, Math.PI / 2]}>
+          <cylinderGeometry args={[0.025, 0.025, 0.3, 10]} />
+          <meshStandardMaterial color="#1e293b" />
         </mesh>
       </group>
 
-      {/* Nút hành động nổi */}
-      <group position={[0, 1.5, 0]}>
+      {/* Nút hành động nổi tương tác */}
+      <group position={[0, 1.55, 0]}>
         <Html center distanceFactor={8}>
           <button
             type="button"
             onClick={onClick}
-            className={`pointer-events-auto flex items-center gap-2 rounded-xl border px-3 py-1.5 shadow-2xl backdrop-blur-md transition-all ${
+            className={`pointer-events-auto flex items-center gap-2 rounded-xl border px-3.5 py-1.5 shadow-2xl backdrop-blur-md transition-all ${
               hovered
                 ? "border-amber-400 bg-amber-600/90 text-white scale-110 shadow-amber-500/40"
                 : "border-white/20 bg-slate-900/85 text-slate-200"
@@ -398,9 +1057,7 @@ function PalletImportZone({
   );
 }
 
-/**
- * CategoryBoard — Bảng quản lý danh mục gắn trên tường kho
- */
+// ── 9. BẢNG QUẢN LÝ DANH MỤC GẮN TƯỜNG (Category Wall Board) ─────────────────
 function CategoryBoard({
   position,
   rotation,
@@ -428,11 +1085,7 @@ function CategoryBoard({
     >
       <mesh>
         <boxGeometry args={[2.6, 1.6, 0.06]} />
-        <meshStandardMaterial
-          color="#0f172a"
-          roughness={0.3}
-          metalness={0.6}
-        />
+        <meshStandardMaterial color="#0f172a" roughness={0.3} metalness={0.6} />
       </mesh>
       {/* Viền LED */}
       <mesh position={[0, 0, 0.02]}>
@@ -444,23 +1097,11 @@ function CategoryBoard({
         />
       </mesh>
 
-      <Text
-        position={[0, 0.45, 0.04]}
-        fontSize={0.16}
-        color="#38bdf8"
-        anchorX="center"
-        anchorY="middle"
-      >
+      <Text position={[0, 0.45, 0.04]} fontSize={0.16} color="#38bdf8" anchorX="center" anchorY="middle">
         QUẢN LÝ DANH MỤC
       </Text>
-      <Text
-        position={[0, 0.1, 0.04]}
-        fontSize={0.11}
-        color="#ffffff"
-        anchorX="center"
-        anchorY="middle"
-      >
-        Click để xem & phân loại
+      <Text position={[0, 0.1, 0.04]} fontSize={0.11} color="#ffffff" anchorX="center" anchorY="middle">
+        Click de xem & phan loai
       </Text>
 
       <group position={[0, -0.4, 0.1]}>
@@ -468,7 +1109,7 @@ function CategoryBoard({
           <button
             type="button"
             onClick={onClick}
-            className={`pointer-events-auto rounded-lg border border-sky-400/40 bg-sky-600/80 px-2.5 py-1 text-[11px] font-bold text-white shadow-lg backdrop-blur-md transition-all ${
+            className={`pointer-events-auto rounded-lg border border-sky-400/40 bg-sky-600/80 px-3 py-1.5 text-xs font-bold text-white shadow-lg backdrop-blur-md transition-all ${
               hovered ? "scale-105 bg-sky-500" : ""
             }`}
           >
@@ -480,9 +1121,194 @@ function CategoryBoard({
   );
 }
 
-/**
- * WarehouseScene — Toàn bộ không gian Phòng 2: Kho & Quản lý Sản phẩm
- */
+// ── 10. THIẾT BỊ AN TOÀN PCCC & CƠ SỞ HẠ TẦNG (Safety & Facility) ──────────────
+function WarehouseSafetyEquipment() {
+  const cameraLedRef = useRef<THREE.Mesh>(null);
+  useFrame(({ clock }) => {
+    if (cameraLedRef.current) {
+      const mat = cameraLedRef.current.material as THREE.MeshStandardMaterial;
+      const t = Math.sin(clock.getElapsedTime() * 4);
+      mat.emissiveIntensity = t > 0 ? 1.8 : 0.2;
+    }
+  });
+
+  return (
+    <group>
+      {/* ── 2 BÌNH CHỮA CHÁY PCCC GẮN TƯỜNG (Fire Extinguishers) ── */}
+      {[-15.35, -0.65].map((x, i) => (
+        <group key={`fire-ext-${i}`} position={[x, 1.2, -20.5]}>
+          {/* Thân bình đỏ */}
+          <mesh castShadow>
+            <cylinderGeometry args={[0.1, 0.1, 0.55, 14]} />
+            <meshStandardMaterial color="#dc2626" metalness={0.6} roughness={0.3} />
+          </mesh>
+          {/* Cụm van & vòi xịt */}
+          <mesh position={[0, 0.32, 0]}>
+            <cylinderGeometry args={[0.03, 0.04, 0.1, 8]} />
+            <meshStandardMaterial color="#0f172a" metalness={0.9} />
+          </mesh>
+          {/* Bảng báo PCCC phía trên */}
+          <mesh position={[0, 0.55, 0.01]}>
+            <planeGeometry args={[0.3, 0.25]} />
+            <meshStandardMaterial color="#ef4444" />
+          </mesh>
+        </group>
+      ))}
+
+      {/* ── HỘP SƠ CỨU Y TẾ (First Aid Box) TRÊN TƯỜNG ── */}
+      <group position={[-15.35, 1.9, -21.8]}>
+        <mesh>
+          <boxGeometry args={[0.08, 0.45, 0.35]} />
+          <meshStandardMaterial color="#f8fafc" roughness={0.3} />
+        </mesh>
+        {/* Chữ thập đỏ */}
+        <mesh position={[0.045, 0, 0]}>
+          <planeGeometry args={[0.04, 0.18]} />
+          <meshStandardMaterial color="#dc2626" />
+        </mesh>
+        <mesh position={[0.045, 0, 0]}>
+          <planeGeometry args={[0.18, 0.04]} />
+          <meshStandardMaterial color="#dc2626" />
+        </mesh>
+      </group>
+
+      {/* ── CAMERA AN NINH DOME CCTV CHỚP ĐÈN ── */}
+      <group position={[-14.5, WAREHOUSE_HEIGHT - 0.2, -18.8]}>
+        <mesh>
+          <sphereGeometry args={[0.16, 16, 16, 0, Math.PI * 2, 0, Math.PI / 2]} />
+          <meshStandardMaterial color="#0f172a" roughness={0.2} metalness={0.8} />
+        </mesh>
+        <mesh ref={cameraLedRef} position={[0.08, -0.06, 0.08]}>
+          <sphereGeometry args={[0.02, 8, 8]} />
+          <meshStandardMaterial color="#ef4444" emissive="#ef4444" emissiveIntensity={1.5} />
+        </mesh>
+      </group>
+
+      {/* ── THANG DI ĐỘNG CÔNG NGHIỆP CÓ BÁNH XE (Rolling Ladder) ── */}
+      <group position={[-14.2, 0, -28.2]} rotation={[0, Math.PI / 6, 0]}>
+        {/* 2 Khung thang kim loại */}
+        <mesh position={[0, 1.4, 0]}>
+          <boxGeometry args={[0.7, 2.8, 0.05]} />
+          <meshStandardMaterial color="#ca8a04" metalness={0.7} roughness={0.4} />
+        </mesh>
+        {/* Tay vịn an toàn đỉnh thang */}
+        <mesh position={[0, 2.8, 0.2]}>
+          <boxGeometry args={[0.7, 0.4, 0.4]} />
+          <meshStandardMaterial color="#ca8a04" metalness={0.8} />
+        </mesh>
+      </group>
+    </group>
+  );
+}
+
+// ── 11. HỆ THỐNG KẾT CẤU TRẦN THÉP ZAMIL & KỸ THUẬT XƯỞNG (Roof Structure) ────
+function IndustrialRoofStructure() {
+  return (
+    <group>
+      {/* ── 4 DẦM THÉP CHỮ I NGANG TRẦN NHÀ XƯỞNG (I-Beams) ── */}
+      {[-30, -26.5, -23, -19.5].map((z, i) => (
+        <group key={`i-beam-${i}`} position={[CENTER_X, WAREHOUSE_HEIGHT - 0.2, z]}>
+          <mesh castShadow>
+            <boxGeometry args={[WAREHOUSE_WIDTH, 0.25, 0.12]} />
+            <meshStandardMaterial color="#334155" metalness={0.8} roughness={0.4} />
+          </mesh>
+        </group>
+      ))}
+
+      {/* ── ĐƯỜNG ỐNG THÔNG GIÓ HVAC MẠ BẠC (HVAC Ducts) ── */}
+      <group position={[CENTER_X + 2.5, WAREHOUSE_HEIGHT - 0.45, CENTER_Z]}>
+        <mesh rotation={[Math.PI / 2, 0, 0]}>
+          <cylinderGeometry args={[0.32, 0.32, WAREHOUSE_DEPTH - 1, 16]} />
+          <meshStandardMaterial color="#94a3b8" metalness={0.85} roughness={0.25} />
+        </mesh>
+      </group>
+
+      {/* ── ĐƯỜNG ỐNG PCCC ĐỎ VÀ ĐẦU PHUN SPRINKLER ── */}
+      <group position={[CENTER_X - 2.5, WAREHOUSE_HEIGHT - 0.55, CENTER_Z]}>
+        <mesh rotation={[Math.PI / 2, 0, 0]}>
+          <cylinderGeometry args={[0.07, 0.07, WAREHOUSE_DEPTH - 1, 12]} />
+          <meshStandardMaterial color="#dc2626" metalness={0.6} roughness={0.3} />
+        </mesh>
+        {/* Vòi phun Sprinkler tự động thả xuống */}
+        {[-4, 0, 4].map((offsetZ, zi) => (
+          <group key={`sprinkler-${zi}`} position={[0, -0.15, offsetZ]}>
+            <mesh>
+              <cylinderGeometry args={[0.015, 0.015, 0.2, 8]} />
+              <meshStandardMaterial color="#dc2626" />
+            </mesh>
+            <mesh position={[0, -0.12, 0]}>
+              <coneGeometry args={[0.05, 0.06, 8]} />
+              <meshStandardMaterial color="#ca8a04" metalness={0.9} />
+            </mesh>
+          </group>
+        ))}
+      </group>
+
+      {/* ── DÀN ĐÈN HIGH-BAY CÔNG NGHIỆP TREO TRẦN ── */}
+      {[-12, -8, -4].map((x, i) =>
+        [-28, -22].map((z, j) => (
+          <group key={`high-bay-${i}-${j}`} position={[x, WAREHOUSE_HEIGHT - 0.45, z]}>
+            <mesh>
+              <coneGeometry args={[0.42, 0.4, 16]} />
+              <meshStandardMaterial color="#475569" metalness={0.8} />
+            </mesh>
+            {/* Điểm sáng ấm nón rọi xuống sàn */}
+            <pointLight
+              position={[0, -0.25, 0]}
+              intensity={28}
+              distance={9.5}
+              color="#fef3c7"
+            />
+          </group>
+        )),
+      )}
+    </group>
+  );
+}
+
+// ── 12. VẠCH KẺ SÀN AN TOÀN & LỐI XE NÂNG (Floor Markings) ────────────────────
+function FloorSafetyMarkings() {
+  return (
+    <group>
+      {/* Vạch kẻ sọc vàng đen phân làn xe nâng (Forklift Lane Hazard Stripes) */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[-7.8, 0.004, -25]}>
+        <planeGeometry args={[2.4, 11.5]} />
+        <meshStandardMaterial
+          color="#0f172a"
+          roughness={0.4}
+        />
+      </mesh>
+
+      {/* 2 Dải kẻ vạch vàng biên an toàn dọc lối đi */}
+      {[-9.0, -6.6].map((x, i) => (
+        <mesh key={`lane-line-${i}`} rotation={[-Math.PI / 2, 0, 0]} position={[x, 0.005, -25]}>
+          <planeGeometry args={[0.12, 11.5]} />
+          <meshStandardMaterial color="#facc15" emissive="#ca8a04" emissiveIntensity={0.6} />
+        </mesh>
+      ))}
+
+      {/* Chữ sơn sàn công nghiệp điều hướng xe nâng */}
+      <group position={[-7.8, 0.006, -20.5]} rotation={[-Math.PI / 2, 0, 0]}>
+        <Text fontSize={0.22} color="#facc15" anchorX="center" anchorY="middle">
+          FORKLIFT ONLY
+        </Text>
+      </group>
+      <group position={[-7.8, 0.006, -26.5]} rotation={[-Math.PI / 2, 0, 0]}>
+        <Text fontSize={0.16} color="#facc15" anchorX="center" anchorY="middle">
+          MAX SPEED 5 KM/H
+        </Text>
+      </group>
+
+      {/* Ô tập kết Pallet Bay 01 viền vàng đứt nét */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[-4.5, 0.004, -22.5]}>
+        <planeGeometry args={[2.5, 2.5]} />
+        <meshStandardMaterial color="#172554" roughness={0.5} opacity={0.4} transparent />
+      </mesh>
+    </group>
+  );
+}
+
+// ── MAIN: WAREHOUSE SCENE NÂNG CẤP TRỌN GÓI ──────────────────────────────────
 export function WarehouseScene({
   stockItems = [],
   onOpenProductForm = () => {},
@@ -490,29 +1316,40 @@ export function WarehouseScene({
   onOpenCategoryManage = () => {},
   onReturnToHallway = () => {},
 }: WarehouseSceneProps) {
-  // Tạo dữ liệu mẫu fallback cho kho nếu stockItems chưa tải kịp
-  const displayItems: StockLevelRow[] =
-    stockItems.length > 0
-      ? stockItems
-      : Array.from({ length: 18 }).map((_, idx) => ({
-          productId: `fallback-${idx}`,
-          productName: `Vật Phẩm Kho #${idx + 1}`,
-          code: `WH-${100 + idx}`,
-          categoryId: null,
-          categoryName: "Kho Tổng",
-          productUnitId: `unit-${idx}`,
-          unitName: "Thùng",
-          currentStock: Math.floor(Math.random() * 80) + 5,
-          maxStock: 100,
-          minStock: 10,
-          lastUpdated: new Date().toISOString(),
-          status: "in_stock",
-          stockRatio: (Math.floor(Math.random() * 80) + 5) / 100,
-        }));
+  // Tạo dữ liệu mẫu phong phú nếu chưa có dữ liệu thật từ backend
+  const displayItems: StockLevelRow[] = useMemo(() => {
+    if (stockItems && stockItems.length > 0) return stockItems;
+    return Array.from({ length: 30 }).map((_, idx) => {
+      const current = idx % 5 === 0 ? 3 : Math.floor(Math.random() * 85) + 8;
+      const max = 100;
+      return {
+        productId: `fallback-${idx}`,
+        productName: `Vật Phẩm Kho #${idx + 1}`,
+        code: `WH-${100 + idx}`,
+        categoryId: null,
+        categoryName: idx % 2 === 0 ? "Gia Dụng & Điện Tử" : "Hàng Tiêu Dùng",
+        productUnitId: `unit-${idx}`,
+        unitName: idx % 3 === 0 ? "Thùng" : idx % 3 === 1 ? "Kiện" : "Hộp",
+        currentStock: current,
+        maxStock: max,
+        minStock: 10,
+        lastUpdated: new Date().toISOString(),
+        status: current <= 5 ? "out_of_stock" : current <= 15 ? "low_stock" : "in_stock",
+        stockRatio: current / max,
+      };
+    });
+  }, [stockItems]);
+
+  // Chia danh sách sản phẩm thành 2 nửa cho Dãy Kệ A và Dãy Kệ B
+  const itemsAisleA = useMemo(() => displayItems.slice(0, 15), [displayItems]);
+  const itemsAisleB = useMemo(
+    () => (displayItems.length > 15 ? displayItems.slice(15, 30) : displayItems.slice(0, 15)),
+    [displayItems],
+  );
 
   return (
     <group position={[0, 0, 0]}>
-      {/* ── 1. SÀN KHO CÔNG NGHIỆP ──────────────────────────────────── */}
+      {/* ── 1. MẶT SÀN EPOXY CÔNG NGHIỆP PHẢN CHIẾU ───────────────────── */}
       <mesh
         rotation={[-Math.PI / 2, 0, 0]}
         position={[CENTER_X, 0, CENTER_Z]}
@@ -521,32 +1358,22 @@ export function WarehouseScene({
         <planeGeometry args={[WAREHOUSE_WIDTH, WAREHOUSE_DEPTH]} />
         <meshStandardMaterial
           color="#1e293b"
-          roughness={0.35}
-          metalness={0.3}
+          roughness={0.28}
+          metalness={0.35}
         />
       </mesh>
 
-      {/* Vạch kẻ an toàn màu vàng/đen (Safety Hazard Line) quanh lối đi */}
-      <mesh
-        rotation={[-Math.PI / 2, 0, 0]}
-        position={[CENTER_X, 0.003, CENTER_Z]}
-      >
-        <planeGeometry args={[11, 0.1]} />
-        <meshStandardMaterial
-          color="#facc15"
-          emissive="#ca8a04"
-          emissiveIntensity={0.6}
-        />
-      </mesh>
+      {/* Vạch kẻ an toàn sàn & làn xe nâng */}
+      <FloorSafetyMarkings />
 
-      {/* ── 2. TƯỜNG KHO ────────────────────────────────────────────── */}
+      {/* ── 2. CÁC MẢNG TƯỜNG NHÀ KHO CÔNG NGHIỆP ──────────────────────── */}
       {/* Tường sau (z = -32) */}
-      <mesh position={[CENTER_X, WAREHOUSE_HEIGHT / 2, -32]}>
+      <mesh position={[CENTER_X, WAREHOUSE_HEIGHT / 2, -32]} receiveShadow>
         <boxGeometry args={[WAREHOUSE_WIDTH, WAREHOUSE_HEIGHT, WALL_THICKNESS]} />
         <meshStandardMaterial color="#0b1120" roughness={0.8} />
       </mesh>
 
-      {/* Tường trước giáp hành lang (z = -18) */}
+      {/* Tường trước giáp hành lang (z = -18.1) */}
       <mesh position={[-9.75, WAREHOUSE_HEIGHT / 2, -18.1]}>
         <boxGeometry args={[11.5, WAREHOUSE_HEIGHT, WALL_THICKNESS]} />
         <meshStandardMaterial color="#0b1120" roughness={0.8} />
@@ -555,7 +1382,7 @@ export function WarehouseScene({
         <boxGeometry args={[1.9, WAREHOUSE_HEIGHT, WALL_THICKNESS]} />
         <meshStandardMaterial color="#0b1120" roughness={0.8} />
       </mesh>
-      {/* Mảng tường trên cửa ra hành lang */}
+      {/* Mảng tường phía trên cửa ra hành lang */}
       <mesh
         position={[
           -3.2,
@@ -567,7 +1394,7 @@ export function WarehouseScene({
         <meshStandardMaterial color="#0b1120" roughness={0.8} />
       </mesh>
 
-      {/* ── CỬA THÔNG RA HÀNH LANG (x = -3.2, z = -18.1, quay mặt vào trong kho) ── */}
+      {/* ── CỬA THÔNG RA HÀNH LANG (x = -3.2, z = -18.1) ─────────────── */}
       <Door3D
         position={[-3.2, 0, -18.1]}
         rotation={[0, 0, 0]}
@@ -596,7 +1423,7 @@ export function WarehouseScene({
         <meshStandardMaterial color="#0b1120" roughness={0.8} />
       </mesh>
 
-      {/* ── 3. TRẦN NHÀ & ĐÈN NHÀ XƯỞNG HIGH-BAY ────────────────────── */}
+      {/* Trần xưởng tối màu */}
       <mesh
         rotation={[Math.PI / 2, 0, 0]}
         position={[CENTER_X, WAREHOUSE_HEIGHT, CENTER_Z]}
@@ -605,58 +1432,85 @@ export function WarehouseScene({
         <meshStandardMaterial color="#050811" roughness={0.9} side={2} />
       </mesh>
 
-      {/* Dàn đèn High-bay treo trần */}
-      {[-11, -8, -5].map((x, i) =>
-        [-28, -22].map((z, j) => (
-          <group key={`bay-light-${i}-${j}`} position={[x, WAREHOUSE_HEIGHT - 0.5, z]}>
-            <mesh>
-              <coneGeometry args={[0.35, 0.4, 16]} />
-              <meshStandardMaterial color="#475569" metalness={0.7} />
-            </mesh>
-            <pointLight
-              position={[0, -0.2, 0]}
-              intensity={22}
-              distance={8}
-              color="#fef3c7"
-            />
-          </group>
-        )),
-      )}
+      {/* ── 3. HỆ THỐNG KẾT CẤU TRẦN THÉP & ÁNH SÁNG ─────────────────── */}
+      <IndustrialRoofStructure />
 
-      {/* Ánh sáng tổng thể kho */}
-      <ambientLight intensity={0.5} color="#e2e8f0" />
+      {/* Ánh sáng tổng thể phòng kho */}
+      <ambientLight intensity={0.55} color="#e2e8f0" />
       <directionalLight
-        position={[-6, WAREHOUSE_HEIGHT - 0.5, -20]}
-        intensity={1.0}
+        position={[-8, WAREHOUSE_HEIGHT - 0.5, -22]}
+        intensity={1.2}
         color="#ffffff"
+        castShadow
+        shadow-mapSize={[1024, 1024]}
       />
 
-      {/* ── 4. NỘI THẤT & TRANG THIẾT BỊ KHO ───────────────────────── */}
-      {/* Dãy Kệ Kho 3D thông minh ở tường sau */}
-      <IndustrialStorageRack
-        position={[CENTER_X, 0, -28.5]}
+      {/* ── 4. TRANG THIẾT BỊ & NỘI THẤT KHO THÔNG MINH ────────────────── */}
+
+      {/* Màn hình LED Dashboard Giám sát Kho WMS trên tường sau */}
+      <WarehouseWMSDashboard
+        position={[-7.8, 3.2, -31.85]}
         items={displayItems}
-        onSelectItem={(item) => onOpenImportStock(item.productId)}
       />
 
-      {/* Bàn kiểm hàng & quét mã sản phẩm bên trái */}
+      {/* DÃY KỆ THÔNG MINH A (Bên trái tường sau) */}
+      <HeavyDutyWarehouseRack
+        position={[-11.2, 0, -28.2]}
+        aisleName="DÃY KỆ A"
+        aisleSub="HÀNG GIA DỤNG & ĐIỆN TỬ"
+        accentColor="#38bdf8"
+        items={itemsAisleA}
+        onSelectItem={(item) => onOpenImportStock(item.productId)}
+        rackWidth={5.6}
+      />
+
+      {/* DÃY KỆ THÔNG MINH B (Bên phải tường sau) */}
+      <HeavyDutyWarehouseRack
+        position={[-4.5, 0, -28.2]}
+        aisleName="DÃY KỆ B"
+        aisleSub="HÀNG TIÊU DÙNG & THỰC PHẨM"
+        accentColor="#f59e0b"
+        items={itemsAisleB}
+        onSelectItem={(item) => onOpenImportStock(item.productId)}
+        rackWidth={5.6}
+      />
+
+      {/* Xe nâng hàng Forklift 3D chi tiết ở làn giữa */}
+      <WarehouseForklift3D
+        position={[-7.8, 0, -23.8]}
+        rotation={[0, 0.15, 0]}
+      />
+
+      {/* Cửa cuốn công nghiệp tiếp nhận hàng Dock 01 (Tường trái) */}
+      <RollUpShutterDoor
+        position={[-15.35, 0, -26.0]}
+        rotation={[0, Math.PI / 2, 0]}
+      />
+
+      {/* Cân sàn điện tử công nghiệp */}
+      <FloorWeighingScale position={[-2.4, 0, -21.8]} />
+
+      {/* Bàn kiểm hàng & quét mã sản phẩm */}
       <InspectionDesk
-        position={[-9.8, 0, -25.2]}
+        position={[-10.8, 0, -22.0]}
         onClick={onOpenProductForm}
       />
 
-      {/* Khu tiếp nhận & nhập hàng (Pallet) bên phải */}
+      {/* Khu tiếp nhận & Nhập kho nhanh */}
       <PalletImportZone
-        position={[-6.2, 0, -25.2]}
+        position={[-4.6, 0, -22.0]}
         onClick={() => onOpenImportStock()}
       />
 
       {/* Bảng phân loại danh mục treo trên tường trái */}
       <CategoryBoard
-        position={[-15.35, 2.4, -25]}
+        position={[-15.35, 2.4, -22.2]}
         rotation={[0, Math.PI / 2, 0]}
         onClick={onOpenCategoryManage}
       />
+
+      {/* Trang bị an toàn PCCC, Hộp cứu thương & Camera giám sát */}
+      <WarehouseSafetyEquipment />
     </group>
   );
 }

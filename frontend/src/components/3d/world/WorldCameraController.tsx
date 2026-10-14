@@ -6,10 +6,17 @@ import * as THREE from "three";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import { type CameraPreset, CAMERA_PRESETS } from "./types";
 
+export type CameraFocusPoint =
+  | [number, number, number]
+  | {
+      target: [number, number, number];
+      position: [number, number, number];
+    };
+
 interface WorldCameraControllerProps {
   currentPreset: CameraPreset;
   controlsRef: React.RefObject<OrbitControlsImpl | null>;
-  targetFocusPoint?: [number, number, number] | null;
+  targetFocusPoint?: CameraFocusPoint | null;
   /** Tốc độ chuyển đổi lerp (mặc định 4.5) */
   lerpSpeed?: number;
 }
@@ -28,17 +35,31 @@ export function WorldCameraController({
 
   useEffect(() => {
     if (targetFocusPoint) {
-      // Focus vào một điểm / sản phẩm / bàn làm việc cụ thể
-      desiredTargetRef.current.set(
-        targetFocusPoint[0],
-        targetFocusPoint[1],
-        targetFocusPoint[2],
-      );
-      desiredPosRef.current.set(
-        targetFocusPoint[0],
-        targetFocusPoint[1] + 0.8,
-        targetFocusPoint[2] + 2.4,
-      );
+      if (Array.isArray(targetFocusPoint)) {
+        // Fallback định dạng tuple [x, y, z] với khoảng cách an toàn 3.8m
+        desiredTargetRef.current.set(
+          targetFocusPoint[0],
+          targetFocusPoint[1],
+          targetFocusPoint[2],
+        );
+        desiredPosRef.current.set(
+          targetFocusPoint[0],
+          targetFocusPoint[1] + 0.8,
+          targetFocusPoint[2] + 3.8,
+        );
+      } else {
+        // Định dạng cấu hình chính xác { target, position }
+        desiredTargetRef.current.set(
+          targetFocusPoint.target[0],
+          targetFocusPoint.target[1],
+          targetFocusPoint.target[2],
+        );
+        desiredPosRef.current.set(
+          targetFocusPoint.position[0],
+          targetFocusPoint.position[1],
+          targetFocusPoint.position[2],
+        );
+      }
       isTransitioningRef.current = true;
       return;
     }

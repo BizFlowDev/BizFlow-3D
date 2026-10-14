@@ -7,15 +7,15 @@ import {
   Package,
   Plus,
   Minus,
-  ShoppingCart,
-  Zap,
   CheckCircle2,
   AlertCircle,
-  Sparkles,
   CreditCard,
+  Sparkles,
+  ShoppingBag,
 } from "lucide-react";
 import type { Product, ProductUnit } from "@/hooks/useProducts";
 import { LOW_STOCK_THRESHOLD } from "@/lib/dashboard-keys";
+import { Modal3DCard } from "./Modal3DCard";
 
 export interface CartItem3D {
   productId: string;
@@ -125,228 +125,259 @@ export function ProductDetailModal3D({
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="relative w-full max-w-xl overflow-hidden rounded-3xl border border-white/20 bg-slate-900/95 shadow-2xl backdrop-blur-2xl">
-        {/* Header viền gradient */}
-        <div className="relative flex items-center justify-between border-b border-white/10 bg-slate-800/60 px-6 py-4">
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-600/30 text-indigo-400 border border-indigo-500/30">
-              <Package className="h-5 w-5" />
+    // ── CONTAINER HOÀN TOÀN TRONG SUỐT (KHÔNG LÀM TỐI & KHÔNG BLUR PHÒNG 3D PHÍA SAU) ──
+    <div className="pointer-events-none fixed inset-0 z-[100] flex items-center justify-center sm:justify-end sm:pr-12 md:pr-16 p-4 overflow-hidden animate-in fade-in duration-300">
+      {/* Vùng click ra ngoài để đóng modal (trong suốt hoàn toàn) */}
+      <div
+        className="pointer-events-auto fixed inset-0 -z-10 bg-transparent"
+        onClick={onClose}
+        aria-hidden="true"
+      />
+
+      {/* ── BẢNG HOLOGRAM LƠ LỬNG TRONG KHÔNG GIAN (SPATIAL FLOATING CARD) ── */}
+      <div className="pointer-events-auto w-full max-w-lg">
+        <Modal3DCard
+          className="w-full my-auto"
+          accentGlowColor="rgba(56, 189, 248, 0.45)"
+          isFloating={true}
+          showTechCorners={true}
+        >
+          {/* ── THANH CHỈ BÁO SPATIAL HUD PHÍA TRÊN ── */}
+          <div
+            className="flex items-center justify-between border-b border-white/10 bg-slate-900/60 px-5 py-2.5 text-[11px]"
+            style={{ transform: "translateZ(30px)" }}
+          >
+            <div className="flex items-center gap-2">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-sky-400" />
+              </span>
+              <span className="font-bold tracking-wider uppercase text-sky-400">
+                BIZFLOW SPATIAL HUD
+              </span>
+              <span className="text-slate-500">&bull;</span>
+              <span className="text-slate-300 font-medium">
+                {product.categoryName || "Sản Phẩm"}
+              </span>
             </div>
-            <div>
-              <div className="text-[11px] font-semibold uppercase tracking-wider text-indigo-300">
-                {product.categoryName || "Sản phẩm Showroom"}
-              </div>
-              <h3 className="font-bold text-base text-white line-clamp-1">
-                {product.name}
-              </h3>
-            </div>
+
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-full p-1 text-slate-400 hover:bg-white/10 hover:text-white transition-all active:scale-90"
+              title="Đóng bảng thông tin"
+            >
+              <X className="h-4 w-4" />
+            </button>
           </div>
 
-          <button
-            onClick={onClose}
-            className="rounded-full p-2 text-slate-400 hover:bg-white/10 hover:text-white transition-colors"
+          {/* ── NỘI DUNG CHÍNH CỦA THẺ HOLOGRAM ── */}
+          <div
+            className="p-5 sm:p-6 space-y-4 max-h-[75vh] overflow-y-auto"
+            style={{ transform: "translateZ(20px)" }}
           >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-
-        {/* Nội dung chi tiết */}
-        <div className="max-h-[75vh] overflow-y-auto p-6 space-y-5">
-          {/* Card hình ảnh và thông tin cơ bản */}
-          <div className="flex flex-col sm:flex-row gap-5 items-center sm:items-start bg-slate-800/40 rounded-2xl p-4 border border-white/5">
-            {/* Ảnh sản phẩm */}
-            <div className="relative h-32 w-32 shrink-0 overflow-hidden rounded-xl border border-white/10 bg-slate-800 flex items-center justify-center shadow-inner">
-              {product.imageUrl ? (
-                <Image
-                  src={product.imageUrl}
-                  alt={product.name}
-                  fill
-                  unoptimized
-                  className="object-cover"
-                />
-              ) : (
-                <div className="flex flex-col items-center justify-center text-slate-500 gap-1">
-                  <Package className="h-10 w-10 text-indigo-400/60" />
-                  <span className="text-[10px]">BizFlow 3D</span>
-                </div>
-              )}
-            </div>
-
-            {/* Thông tin nhanh */}
-            <div className="flex-1 w-full text-left">
-              <div className="flex items-center gap-2">
-                <span className="rounded-md bg-white/10 px-2 py-0.5 font-mono text-xs text-slate-300">
-                  {product.code}
-                </span>
-                <span
-                  className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                    isOutOfStock
-                      ? "bg-red-500/20 text-red-400 border border-red-500/30"
-                      : isLowStock
-                        ? "bg-amber-500/20 text-amber-400 border border-amber-500/30"
-                        : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-                  }`}
-                >
-                  {isOutOfStock ? (
-                    <>
-                      <AlertCircle className="h-3 w-3" /> Hết hàng
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle2 className="h-3 w-3" /> Tồn kho: {currentStock}
-                    </>
-                  )}
-                </span>
+            {/* Hàng 1: Hình ảnh sản phẩm & Thông tin nhanh */}
+            <div className="flex items-start gap-4 rounded-2xl border border-white/10 bg-slate-900/60 p-3.5 shadow-inner">
+              {/* Ảnh sản phẩm (hoặc icon nếu chưa có ảnh) */}
+              <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-xl border border-white/10 bg-slate-950/80 flex items-center justify-center shadow-lg">
+                {product.imageUrl ? (
+                  <Image
+                    src={product.imageUrl}
+                    alt={product.name}
+                    fill
+                    unoptimized
+                    className="object-cover"
+                  />
+                ) : (
+                  <div className="flex flex-col items-center justify-center text-slate-500 gap-1">
+                    <Package className="h-8 w-8 text-sky-400/70" />
+                    <span className="text-[9px] font-mono text-slate-400">BizFlow</span>
+                  </div>
+                )}
               </div>
 
-              <div className="mt-3">
-                <div className="text-xs text-slate-400">Đơn giá bán</div>
-                <div className="text-2xl font-black text-emerald-400 tabular-nums">
-                  {formatVND(unitPrice)}
-                  <span className="text-xs font-normal text-slate-400 ml-1">
+              {/* Tên & Giá tiền & Trạng thái kho */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="rounded bg-sky-500/20 border border-sky-500/30 px-1.5 py-0.5 text-[10px] font-mono text-sky-300 font-semibold">
+                    {product.code}
+                  </span>
+                  <span
+                    className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                      isOutOfStock
+                        ? "bg-red-500/20 text-red-400 border border-red-500/30"
+                        : isLowStock
+                        ? "bg-amber-500/20 text-amber-400 border border-amber-500/30"
+                        : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                    }`}
+                  >
+                    {isOutOfStock ? (
+                      <>
+                        <AlertCircle className="h-3 w-3" /> Hết hàng
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="h-3 w-3" /> Tồn kho: {currentStock}
+                      </>
+                    )}
+                  </span>
+                </div>
+
+                <h3 className="font-bold text-base text-white mt-1.5 line-clamp-2 leading-snug">
+                  {product.name}
+                </h3>
+
+                <div className="mt-2 flex items-baseline gap-1.5">
+                  <span className="text-2xl font-black text-emerald-400 tabular-nums">
+                    {formatVND(unitPrice)}
+                  </span>
+                  <span className="text-xs text-slate-400">
                     / {activeUnit?.unitName ?? "Đơn vị"}
                   </span>
                 </div>
               </div>
-
-              {product.description && (
-                <p className="mt-2 text-xs text-slate-300 line-clamp-2">
-                  {product.description}
-                </p>
-              )}
-            </div>
-          </div>
-
-          {/* Chọn Đơn Vị Tính (nếu có nhiều đơn vị) */}
-          {product.units && product.units.length > 1 && (
-            <div>
-              <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">
-                Đơn vị tính quy đổi
-              </label>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-                {product.units.map((unit) => {
-                  const isSelected = unit.id === selectedUnitId;
-                  return (
-                    <button
-                      key={unit.id}
-                      type="button"
-                      onClick={() => setSelectedUnitId(unit.id)}
-                      className={`flex flex-col items-start p-3 rounded-xl border text-left transition-all ${
-                        isSelected
-                          ? "border-indigo-500 bg-indigo-600/20 shadow-lg shadow-indigo-500/20 text-white"
-                          : "border-white/10 bg-slate-800/40 text-slate-300 hover:border-white/20"
-                      }`}
-                    >
-                      <div className="font-bold text-xs">{unit.unitName}</div>
-                      <div className="text-[11px] font-semibold text-emerald-400 mt-1">
-                        {formatVND(unit.price)}
-                      </div>
-                      {unit.conversionFactor > 1 && (
-                        <div className="text-[10px] text-slate-400 mt-0.5">
-                          (Quy đổi: x{unit.conversionFactor})
-                        </div>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Chọn Số Lượng */}
-          <div className="flex items-center justify-between bg-slate-800/40 rounded-2xl p-4 border border-white/5">
-            <div>
-              <div className="text-xs font-bold text-slate-300 uppercase tracking-wider">
-                Số lượng mua
-              </div>
-              <div className="text-[11px] text-slate-400">
-                Tối đa: {maxAllowedQty} {activeUnit?.unitName ?? "đơn vị"}
-              </div>
             </div>
 
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                disabled={quantity <= 1 || isOutOfStock}
-                className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-700 text-white hover:bg-slate-600 disabled:opacity-40 transition-colors"
-              >
-                <Minus className="h-4 w-4" />
-              </button>
-
-              <input
-                type="number"
-                min={1}
-                max={maxAllowedQty}
-                value={quantity}
-                onChange={(e) => {
-                  const val = parseInt(e.target.value, 10);
-                  if (!isNaN(val)) {
-                    setQuantity(Math.min(maxAllowedQty, Math.max(1, val)));
-                  }
-                }}
-                disabled={isOutOfStock}
-                className="w-14 rounded-xl border border-white/10 bg-slate-900 py-1.5 text-center font-bold text-sm text-white focus:outline-none focus:border-indigo-500"
-              />
-
-              <button
-                type="button"
-                onClick={() => setQuantity((q) => Math.min(maxAllowedQty, q + 1))}
-                disabled={quantity >= maxAllowedQty || isOutOfStock}
-                className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-700 text-white hover:bg-slate-600 disabled:opacity-40 transition-colors"
-              >
-                <Plus className="h-4 w-4" />
-              </button>
-            </div>
-          </div>
-
-          {/* Tóm tắt thanh toán tạm tính */}
-          <div className="flex items-center justify-between border-t border-white/10 pt-4">
-            <span className="text-sm font-medium text-slate-300">
-              Tổng thành tiền:
-            </span>
-            <span className="text-2xl font-black text-emerald-400 tabular-nums">
-              {formatVND(subtotal)}
-            </span>
-          </div>
-        </div>
-
-        {/* Action Footer */}
-        <div className="border-t border-white/10 bg-slate-800/80 p-5 flex flex-col sm:flex-row items-center gap-3">
-          <button
-            type="button"
-            onClick={handleAdd}
-            disabled={isOutOfStock}
-            className={`flex-1 w-full flex items-center justify-center gap-2 rounded-xl py-3 px-4 font-bold text-sm text-white transition-all shadow-lg ${
-              addedAnimation
-                ? "bg-emerald-600 shadow-emerald-500/30"
-                : "bg-slate-700 hover:bg-slate-600"
-            } disabled:opacity-40 disabled:cursor-not-allowed`}
-          >
-            {addedAnimation ? (
-              <>
-                <CheckCircle2 className="h-4 w-4 text-white animate-bounce" />
-                Đã thêm vào đơn!
-              </>
-            ) : (
-              <>
-                <Plus className="h-4 w-4 text-indigo-400" />
-                Thêm vào đơn hàng
-              </>
+            {/* Mô tả sản phẩm (nếu có) */}
+            {product.description && (
+              <p className="text-xs text-slate-300 line-clamp-2 px-1">
+                {product.description}
+              </p>
             )}
-          </button>
 
-          <button
-            type="button"
-            onClick={handleBuyNow}
-            disabled={isOutOfStock}
-            className="flex-1 w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 py-3 px-4 font-bold text-sm text-white shadow-lg shadow-emerald-500/25 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+            {/* Chọn Đơn Vị Tính Quy Đổi (nếu có nhiều đơn vị) */}
+            {product.units && product.units.length > 1 && (
+              <div>
+                <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider mb-1.5">
+                  Đơn vị tính quy đổi
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {product.units.map((unit) => {
+                    const isSelected = unit.id === selectedUnitId;
+                    return (
+                      <button
+                        key={unit.id}
+                        type="button"
+                        onClick={() => setSelectedUnitId(unit.id)}
+                        className={`flex flex-col items-start p-2.5 rounded-xl border text-left transition-all ${
+                          isSelected
+                            ? "border-sky-400 bg-sky-500/20 shadow-lg shadow-sky-500/25 text-white"
+                            : "border-white/10 bg-slate-900/50 text-slate-300 hover:border-white/20"
+                        }`}
+                      >
+                        <div className="font-bold text-xs">{unit.unitName}</div>
+                        <div className="text-[11px] font-semibold text-emerald-400 mt-0.5">
+                          {formatVND(unit.price)}
+                        </div>
+                        {unit.conversionFactor > 1 && (
+                          <div className="text-[10px] text-slate-400">
+                            (Quy đổi: x{unit.conversionFactor})
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Bộ chọn số lượng */}
+            <div className="flex items-center justify-between rounded-xl border border-white/10 bg-slate-900/60 p-3">
+              <div>
+                <div className="text-xs font-bold text-slate-200 uppercase tracking-wider">
+                  Số lượng mua
+                </div>
+                <div className="text-[10px] text-slate-400">
+                  Tối đa: {maxAllowedQty} {activeUnit?.unitName ?? "đơn vị"}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                  disabled={quantity <= 1 || isOutOfStock}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-800 text-white hover:bg-slate-700 disabled:opacity-40 transition-all active:scale-95 border border-white/10"
+                >
+                  <Minus className="h-3.5 w-3.5" />
+                </button>
+
+                <input
+                  type="number"
+                  min={1}
+                  max={maxAllowedQty}
+                  value={quantity}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value, 10);
+                    if (!isNaN(val)) {
+                      setQuantity(Math.min(maxAllowedQty, Math.max(1, val)));
+                    }
+                  }}
+                  disabled={isOutOfStock}
+                  className="w-12 rounded-lg border border-white/10 bg-slate-950 py-1 text-center font-bold text-xs text-white focus:outline-none focus:border-sky-500"
+                />
+
+                <button
+                  type="button"
+                  onClick={() => setQuantity((q) => Math.min(maxAllowedQty, q + 1))}
+                  disabled={quantity >= maxAllowedQty || isOutOfStock}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-800 text-white hover:bg-slate-700 disabled:opacity-40 transition-all active:scale-95 border border-white/10"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Tóm tắt tổng tiền */}
+            <div className="flex items-center justify-between border-t border-white/10 pt-2.5">
+              <span className="text-xs font-semibold text-slate-400">
+                Tổng cộng tạm tính:
+              </span>
+              <span className="text-xl font-black text-emerald-400 tabular-nums">
+                {formatVND(subtotal)}
+              </span>
+            </div>
+          </div>
+
+          {/* ── ACTION FOOTER DẬP NỔI 3D ── */}
+          <div
+            className="border-t border-white/10 bg-slate-900/80 p-4 flex items-center gap-2.5"
+            style={{ transform: "translateZ(30px)" }}
           >
-            <CreditCard className="h-4 w-4" />
-            Tạo đơn &amp; Thanh toán ngay
-          </button>
-        </div>
+            <button
+              type="button"
+              onClick={handleAdd}
+              disabled={isOutOfStock}
+              className={`flex-1 flex items-center justify-center gap-2 rounded-xl py-2.5 px-3 font-bold text-xs text-white transition-all shadow-lg active:scale-95 ${
+                addedAnimation
+                  ? "bg-emerald-600 shadow-emerald-500/30"
+                  : "bg-slate-800 hover:bg-slate-700 border border-white/10"
+              } disabled:opacity-40 disabled:cursor-not-allowed`}
+            >
+              {addedAnimation ? (
+                <>
+                  <CheckCircle2 className="h-4 w-4 text-white animate-bounce" />
+                  Đã thêm vào đơn!
+                </>
+              ) : (
+                <>
+                  <Plus className="h-4 w-4 text-sky-400" />
+                  Thêm vào đơn
+                </>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={handleBuyNow}
+              disabled={isOutOfStock}
+              className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-sky-500 via-indigo-600 to-teal-500 hover:from-sky-600 hover:to-teal-600 py-2.5 px-3 font-bold text-xs text-white shadow-lg shadow-sky-500/25 transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <CreditCard className="h-4 w-4" />
+              Tạo đơn ngay
+            </button>
+          </div>
+        </Modal3DCard>
       </div>
     </div>
   );

@@ -35,6 +35,7 @@ import { useEmployeeList } from "@/hooks/useEmployees";
 import { useQueryClient } from "@tanstack/react-query";
 import type { ShelfProduct } from "@/components/3d/ProductShelf";
 import type { RoomId, CameraPreset } from "@/components/3d/world/types";
+import type { CameraFocusPoint } from "@/components/3d/world/WorldCameraController";
 import { RoomNavigationHUD } from "@/components/3d/world/RoomNavigationHUD";
 import { OfficeSettingsModal } from "@/components/3d/world/OfficeSettingsModal";
 import { ProductFormDialog } from "../products/_components/ProductFormDialog";
@@ -99,6 +100,7 @@ export default function Store3DPage() {
 
   // Camera preset & Chế độ màn hình POS 3D
   const [cameraPreset, setCameraPreset] = useState<CameraPreset>("showroomOverview");
+  const [targetFocusPoint, setTargetFocusPoint] = useState<CameraFocusPoint | null>(null);
   const [isPOSActive, setIsPOSActive] = useState(false);
   // Trạng thái thu gọn các nút điều khiển (tự động bật khi vào màn hình máy tính POS)
   const [isHUDCollapsed, setIsHUDCollapsed] = useState(false);
@@ -602,6 +604,80 @@ export default function Store3DPage() {
 
   const handleSelectProduct = useCallback(
     (productId: string) => {
+      // ── Tính toán tọa độ 3D CHÍNH XÁC của chiếc hộp sản phẩm đó trên kệ ──
+      const ROWS = 4;
+      const COLS = 5;
+      const SHELF_WIDTH = 5.6;
+      const SHELF_HEIGHT = 3.8;
+      const ROW_GAP = SHELF_HEIGHT / (ROWS + 1); // 0.76
+      const COL_GAP = SHELF_WIDTH / (COLS + 1);  // 0.9333
+      const PRODUCT_HEIGHT = 0.48;
+
+      const getSlot = (idx: number) => {
+        const row = Math.floor(idx / COLS);
+        const col = idx % COLS;
+        const x = -SHELF_WIDTH / 2 + (col + 1) * COL_GAP;
+        const y = (row + 1) * ROW_GAP + PRODUCT_HEIGHT / 2 + 0.04;
+        return { x, y };
+      };
+
+      let focusConfig: CameraFocusPoint;
+
+      const idxA = shelfAData.products.findIndex((p) => p.id === productId);
+      const idxB = shelfBData.products.findIndex((p) => p.id === productId);
+      const idxC = shelfCData.products.findIndex((p) => p.id === productId);
+      const idxD = shelfDData.products.findIndex((p) => p.id === productId);
+
+      if (idxA >= 0) {
+        // Hộp sản phẩm trên Kệ A (phía sau bên trái) — Zoom chuẩn vào hàng đó
+        const slot = getSlot(idxA);
+        const worldX = -3.5 + slot.x;
+        const worldY = slot.y;
+        const worldZ = -4.5;
+        focusConfig = {
+          target: [worldX + 0.42, worldY + 0.06, worldZ],
+          position: [worldX + 0.42, worldY + 0.48, worldZ + 2.65],
+        };
+      } else if (idxB >= 0) {
+        // Hộp sản phẩm trên Kệ B (phía sau bên phải) — Zoom chuẩn vào hàng đó
+        const slot = getSlot(idxB);
+        const worldX = 3.5 + slot.x;
+        const worldY = slot.y;
+        const worldZ = -4.5;
+        focusConfig = {
+          target: [worldX + 0.42, worldY + 0.06, worldZ],
+          position: [worldX + 0.42, worldY + 0.48, worldZ + 2.65],
+        };
+      } else if (idxC >= 0) {
+        // Hộp sản phẩm trên Kệ C (hông trái, quay +90 deg quanh trục Y)
+        const slot = getSlot(idxC);
+        const worldX = -7.0;
+        const worldY = slot.y;
+        const worldZ = -0.5 - slot.x;
+        focusConfig = {
+          target: [worldX, worldY + 0.06, worldZ - 0.42],
+          position: [worldX + 2.65, worldY + 0.48, worldZ - 0.42],
+        };
+      } else if (idxD >= 0) {
+        // Hộp sản phẩm trên Kệ D (hông phải, quay -90 deg quanh trục Y)
+        const slot = getSlot(idxD);
+        const worldX = 7.0;
+        const worldY = slot.y;
+        const worldZ = -0.5 + slot.x;
+        focusConfig = {
+          target: [worldX, worldY + 0.06, worldZ + 0.42],
+          position: [worldX - 2.65, worldY + 0.48, worldZ + 0.42],
+        };
+      } else {
+        // Fallback mặc định
+        focusConfig = {
+          target: [-3.2, 1.4, -4.5],
+          position: [-2.2, 1.8, -1.8],
+        };
+      }
+
+      setTargetFocusPoint(focusConfig);
+
       const fullProduct = enrichedProducts.find((p) => p.id === productId);
       if (fullProduct) {
         setSelectedProductForDetail(fullProduct);
@@ -637,8 +713,13 @@ export default function Store3DPage() {
         }
       }
     },
-    [enrichedProducts, isDemoMode, shelfProducts],
+    [enrichedProducts, isDemoMode, shelfProducts, shelfBData, shelfCData, shelfDData],
   );
+
+  const handleCloseProductDetail = useCallback(() => {
+    setSelectedProductForDetail(null);
+    setTargetFocusPoint(null);
+  }, []);
 
   const handleAddToOrder = useCallback((item: CartItem3D) => {
     setOrderLines((prev) => {
@@ -709,6 +790,7 @@ export default function Store3DPage() {
 
   // ── Chuyển đổi Phòng & Thao Tác Module ──────────────────────
   const handleSelectRoom = useCallback((room: RoomId) => {
+    setTargetFocusPoint(null);
     setActiveRoom(room);
     if (room === "showroom") {
       setCameraPreset("showroomOverview");
@@ -730,15 +812,57 @@ export default function Store3DPage() {
   }, []);
 
   const handleOpenProductForm = useCallback(() => {
+    setTargetFocusPoint({
+      target: [-10.8, 1.0, -22.0],
+      position: [-10.8, 2.0, -18.8],
+    });
     setProductFormOpen(true);
   }, []);
 
   const handleOpenImportStock = useCallback((productId?: string) => {
+    if (productId && activeRoom === "warehouse") {
+      // Zoom trực tiếp vào kiện hàng đó trên kệ kho
+      const RACK_W = 5.6;
+      const LEVELS = [0.45, 1.55, 2.65];
+      const cols = 5;
+      const stockIdx = stockData ? stockData.findIndex((s) => s.productId === productId) : -1;
+      if (stockIdx >= 15) {
+        const itemIdx = stockIdx - 15;
+        const levelIdx = Math.floor(itemIdx / cols);
+        const colIdx = itemIdx % cols;
+        const posX = -RACK_W / 2 + 0.6 + colIdx * ((RACK_W - 1.2) / (cols - 1));
+        const posY = LEVELS[levelIdx] + 0.35;
+        setTargetFocusPoint({
+          target: [-4.5 + posX + 0.25, posY, -28.2],
+          position: [-4.5 + posX + 0.25, posY + 0.15, -28.2 + 1.5],
+        });
+      } else {
+        const itemIdx = stockIdx >= 0 ? stockIdx : 0;
+        const levelIdx = Math.floor(itemIdx / cols);
+        const colIdx = itemIdx % cols;
+        const posX = -RACK_W / 2 + 0.6 + colIdx * ((RACK_W - 1.2) / (cols - 1));
+        const posY = LEVELS[levelIdx] + 0.35;
+        setTargetFocusPoint({
+          target: [-11.2 + posX + 0.25, posY, -28.2],
+          position: [-11.2 + posX + 0.25, posY + 0.15, -28.2 + 1.5],
+        });
+      }
+    } else {
+      // Khu tiếp nhận & nhập hàng (Pallet Zone)
+      setTargetFocusPoint({
+        target: [-4.6, 0.8, -22.0],
+        position: [-4.6, 2.0, -18.8],
+      });
+    }
     setImportStockProductId(productId);
     setImportStockOpen(true);
-  }, []);
+  }, [activeRoom, stockData]);
 
   const handleOpenCategoryManage = useCallback(() => {
+    setTargetFocusPoint({
+      target: [-15.35, 2.4, -22.2],
+      position: [-12.0, 2.4, -22.2],
+    });
     setCategoryManageOpen(true);
   }, []);
 
@@ -845,6 +969,7 @@ export default function Store3DPage() {
             onEnterRoom={handleSelectRoom}
             currentPreset={cameraPreset}
             isPOSActive={isPOSActive}
+            targetFocusPoint={targetFocusPoint}
             stockItems={stockData || []}
             onOpenProductForm={handleOpenProductForm}
             onOpenImportStock={handleOpenImportStock}
@@ -862,6 +987,7 @@ export default function Store3DPage() {
                 <ProductShelf
                   products={shelfAData.products}
                   onSelectProduct={handleSelectProduct}
+                  selectedProductId={selectedProductForDetail?.id}
                   position={[-3.5, 0, -4.5]}
                   title={shelfAData.title}
                   shelfCurrentPage={shelfAData.currentPage}
@@ -878,6 +1004,7 @@ export default function Store3DPage() {
                 <ProductShelf
                   products={shelfBData.products}
                   onSelectProduct={handleSelectProduct}
+                  selectedProductId={selectedProductForDetail?.id}
                   position={[3.5, 0, -4.5]}
                   title={shelfBData.title}
                   shelfCurrentPage={shelfBData.currentPage}
@@ -894,6 +1021,7 @@ export default function Store3DPage() {
                 <ProductShelf
                   products={shelfCData.products}
                   onSelectProduct={handleSelectProduct}
+                  selectedProductId={selectedProductForDetail?.id}
                   position={[-7.0, 0, -0.5]}
                   rotation={[0, Math.PI / 2, 0]}
                   title={shelfCData.title}
@@ -911,6 +1039,7 @@ export default function Store3DPage() {
                 <ProductShelf
                   products={shelfDData.products}
                   onSelectProduct={handleSelectProduct}
+                  selectedProductId={selectedProductForDetail?.id}
                   position={[7.0, 0, -0.5]}
                   rotation={[0, -Math.PI / 2, 0]}
                   title={shelfDData.title}
@@ -1521,7 +1650,7 @@ export default function Store3DPage() {
         <ProductDetailModal3D
           product={selectedProductForDetail}
           isOpen={!!selectedProductForDetail}
-          onClose={() => setSelectedProductForDetail(null)}
+          onClose={handleCloseProductDetail}
           onAddToCart={handleAddToOrder}
           onBuyNow={handleBuyNow}
         />
@@ -1542,20 +1671,29 @@ export default function Store3DPage() {
         {/* ── Product Form Dialog (Thêm/Sửa SP từ Bàn Kiểm Hàng Kho) ─ */}
         <ProductFormDialog
           open={productFormOpen}
-          onOpenChange={setProductFormOpen}
+          onOpenChange={(open) => {
+            setProductFormOpen(open);
+            if (!open) setTargetFocusPoint(null);
+          }}
         />
 
         {/* ── Import Stock Dialog (Nhập Hàng từ Pallet Kho) ─ */}
         <ImportStockDialog
           open={importStockOpen}
-          onOpenChange={setImportStockOpen}
+          onOpenChange={(open) => {
+            setImportStockOpen(open);
+            if (!open) setTargetFocusPoint(null);
+          }}
           preselectedProductId={importStockProductId}
         />
 
         {/* ── Category Manage Dialog (Từ Bảng Danh Mục Kho) ─ */}
         <CategoryManageDialog
           open={categoryManageOpen}
-          onOpenChange={setCategoryManageOpen}
+          onOpenChange={(open) => {
+            setCategoryManageOpen(open);
+            if (!open) setTargetFocusPoint(null);
+          }}
         />
 
         {/* ── Employee Form Dialog (Từ Tủ Hồ Sơ Văn Phòng) ─ */}

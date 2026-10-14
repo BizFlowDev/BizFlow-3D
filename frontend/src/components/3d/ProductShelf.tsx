@@ -32,6 +32,8 @@ interface ProductShelfProps {
   products: ShelfProduct[];
   /** Callback khi click sản phẩm */
   onSelectProduct?: (productId: string) => void;
+  /** ID sản phẩm đang được chọn mở modal */
+  selectedProductId?: string | null;
   /** Vị trí kệ trong scene */
   position?: [number, number, number];
   /** Xoay kệ (radian) */
@@ -112,10 +114,12 @@ function ProductBoxItem({
   product,
   position,
   onSelect,
+  isSelected = false,
 }: {
   product: ShelfProduct;
   position: [number, number, number];
   onSelect?: (id: string) => void;
+  isSelected?: boolean;
 }) {
   const [hovered, setHovered] = useState(false);
   const palette = useMemo(() => getPalette(product.id), [product.id]);
@@ -123,11 +127,11 @@ function ProductBoxItem({
   const isOutOfStock = product.stock <= 0;
   const isLowStock = !isOutOfStock && product.stock <= LOW_STOCK_THRESHOLD;
 
-  // Spring animation khi hover: nhấc bổng nhẹ lên và tăng tỉ lệ
+  // Spring animation khi hover hoặc được chọn: nhấc bổng nhẹ lên và phát sáng
   const { posY, scale, glowIntensity } = useSpring({
-    posY: hovered ? position[1] + 0.08 : position[1],
-    scale: hovered ? 1.06 : 1.0,
-    glowIntensity: hovered ? 0.6 : isLowStock ? 0.35 : 0.0,
+    posY: isSelected ? position[1] + 0.12 : hovered ? position[1] + 0.08 : position[1],
+    scale: isSelected ? 1.12 : hovered ? 1.06 : 1.0,
+    glowIntensity: isSelected ? 1.0 : hovered ? 0.6 : isLowStock ? 0.35 : 0.0,
     config: { tension: 350, friction: 20 },
   });
 
@@ -175,13 +179,15 @@ function ProductBoxItem({
             transparent={isOutOfStock}
             opacity={isOutOfStock ? 0.45 : 1}
             emissive={
-              isLowStock
+              isSelected
+                ? "#38bdf8"
+                : isLowStock
                 ? "#ef4444"
                 : hovered
-                  ? palette.accent
-                  : "#000000"
+                ? palette.accent
+                : "#000000"
             }
-            emissiveIntensity={isLowStock ? lowStockGlow : glowIntensity}
+            emissiveIntensity={isSelected ? 1.2 : isLowStock ? lowStockGlow : glowIntensity}
           />
         </mesh>
 
@@ -208,14 +214,14 @@ function ProductBoxItem({
           </mesh>
         )}
 
-        {/* Vòng hào quang dưới đáy khi hover */}
-        {hovered && (
+        {/* Vòng hào quang dưới đáy khi hover hoặc được chọn */}
+        {(hovered || isSelected) && (
           <mesh position={[0, -PRODUCT_SIZE[1] / 2 - 0.03, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-            <ringGeometry args={[0.2, 0.45, 32]} />
+            <ringGeometry args={[0.2, 0.48, 32]} />
             <meshBasicMaterial
-              color="#38bdf8"
+              color={isSelected ? "#38bdf8" : "#93c5fd"}
               transparent
-              opacity={0.7}
+              opacity={isSelected ? 0.9 : 0.7}
               side={THREE.DoubleSide}
             />
           </mesh>
@@ -430,6 +436,7 @@ function ShelfFrame({
 export default function ProductShelf({
   products,
   onSelectProduct,
+  selectedProductId,
   position = [0, 0, 0],
   rotation = [0, 0, 0],
   title = "KỆ HÀNG TRƯNG BÀY",
@@ -556,6 +563,7 @@ export default function ProductShelf({
             product={product}
             position={pos}
             onSelect={onSelectProduct}
+            isSelected={selectedProductId === product.id}
           />
         );
       })}

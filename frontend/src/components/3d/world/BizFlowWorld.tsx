@@ -5,7 +5,7 @@ import { Canvas } from "@react-three/fiber";
 import { OrbitControls, Environment } from "@react-three/drei";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import { type RoomId, type CameraPreset } from "./types";
-import { WorldCameraController } from "./WorldCameraController";
+import { WorldCameraController, type CameraFocusPoint } from "./WorldCameraController";
 import { HallwayScene } from "./HallwayScene";
 import { ShowroomScene } from "./ShowroomScene";
 import { WarehouseScene } from "./WarehouseScene";
@@ -17,7 +17,7 @@ interface BizFlowWorldProps {
   onEnterRoom: (room: RoomId) => void;
   currentPreset: CameraPreset;
   isPOSActive?: boolean;
-  targetFocusPoint?: [number, number, number] | null;
+  targetFocusPoint?: CameraFocusPoint | null;
   /** Con bên trong Showroom: Kệ A, B, C, D & Quầy Counter POS */
   showroomChildren: React.ReactNode;
   /** Dữ liệu tồn kho cho Phòng Kho */
