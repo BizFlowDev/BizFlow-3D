@@ -176,64 +176,76 @@ export function ProductDetailModal3D({
             className="p-5 sm:p-6 space-y-4 max-h-[75vh] overflow-y-auto"
             style={{ transform: "translateZ(20px)" }}
           >
-            {/* Hàng 1: Hình ảnh sản phẩm & Thông tin nhanh */}
-            <div className="flex items-start gap-4 rounded-2xl border border-white/10 bg-slate-900/60 p-3.5 shadow-inner">
-              {/* Ảnh sản phẩm (hoặc icon nếu chưa có ảnh) */}
-              <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-xl border border-white/10 bg-slate-950/80 flex items-center justify-center shadow-lg">
-                {product.imageUrl ? (
-                  <Image
-                    src={product.imageUrl}
-                    alt={product.name}
-                    fill
-                    unoptimized
-                    className="object-cover"
-                  />
-                ) : (
-                  <div className="flex flex-col items-center justify-center text-slate-500 gap-1">
-                    <Package className="h-8 w-8 text-sky-400/70" />
-                    <span className="text-[9px] font-mono text-slate-400">BizFlow</span>
-                  </div>
-                )}
-              </div>
+            {/* ── KHUNG TRƯNG BÀY HÌNH ẢNH SẢN PHẨM NỔI BẬT (Hero Showcase Gallery) ── */}
+            <div className="relative overflow-hidden rounded-2xl border border-sky-400/30 bg-gradient-to-b from-slate-900/90 to-slate-950 p-4 shadow-xl">
+              <div className="flex flex-col sm:flex-row items-center gap-4">
+                {/* Khung ảnh sản phẩm thực tế lớn, sắc nét */}
+                <div className="relative h-36 w-36 sm:h-40 sm:w-40 shrink-0 overflow-hidden rounded-xl border border-white/15 bg-slate-950 flex items-center justify-center shadow-2xl group">
+                  {product.imageUrl ? (
+                    <Image
+                      src={product.imageUrl}
+                      alt={product.name}
+                      fill
+                      unoptimized
+                      className="object-contain p-2 transition-transform duration-500 group-hover:scale-105"
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center text-slate-500 gap-1.5 p-3 text-center">
+                      <div className="h-12 w-12 rounded-xl bg-sky-500/10 border border-sky-500/20 flex items-center justify-center">
+                        <Package className="h-6 w-6 text-sky-400" />
+                      </div>
+                      <span className="text-[10px] font-mono text-slate-400">BizFlow Official</span>
+                    </div>
+                  )}
 
-              {/* Tên & Giá tiền & Trạng thái kho */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="rounded bg-sky-500/20 border border-sky-500/30 px-1.5 py-0.5 text-[10px] font-mono text-sky-300 font-semibold">
-                    {product.code}
-                  </span>
-                  <span
-                    className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                      isOutOfStock
-                        ? "bg-red-500/20 text-red-400 border border-red-500/30"
-                        : isLowStock
-                        ? "bg-amber-500/20 text-amber-400 border border-amber-500/30"
-                        : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-                    }`}
-                  >
-                    {isOutOfStock ? (
-                      <>
-                        <AlertCircle className="h-3 w-3" /> Hết hàng
-                      </>
-                    ) : (
-                      <>
-                        <CheckCircle2 className="h-3 w-3" /> Tồn kho: {currentStock}
-                      </>
-                    )}
+                  {/* Vệt sáng bóng kính trên ảnh */}
+                  <div className="pointer-events-none absolute inset-0 bg-gradient-to-tr from-transparent via-white/5 to-white/10 opacity-70" />
+
+                  {/* Badge tem ảnh chính hãng */}
+                  <span className="absolute bottom-1.5 right-1.5 rounded-md bg-black/75 px-1.5 py-0.5 text-[9px] font-bold text-sky-300 backdrop-blur-sm border border-white/10">
+                    Ảnh 3D
                   </span>
                 </div>
 
-                <h3 className="font-bold text-base text-white mt-1.5 line-clamp-2 leading-snug">
-                  {product.name}
-                </h3>
+                {/* Thông tin tên & giá tiền */}
+                <div className="flex-1 min-w-0 w-full">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="rounded bg-sky-500/20 border border-sky-500/30 px-2 py-0.5 text-[10px] font-mono text-sky-300 font-bold">
+                      {product.code}
+                    </span>
+                    <span
+                      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
+                        isOutOfStock
+                          ? "bg-red-500/20 text-red-400 border border-red-500/30"
+                          : isLowStock
+                          ? "bg-amber-500/20 text-amber-400 border border-amber-500/30"
+                          : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                      }`}
+                    >
+                      {isOutOfStock ? (
+                        <>
+                          <AlertCircle className="h-3 w-3" /> Hết hàng
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle2 className="h-3 w-3" /> Tồn kho: {currentStock}
+                        </>
+                      )}
+                    </span>
+                  </div>
 
-                <div className="mt-2 flex items-baseline gap-1.5">
-                  <span className="text-2xl font-black text-emerald-400 tabular-nums">
-                    {formatVND(unitPrice)}
-                  </span>
-                  <span className="text-xs text-slate-400">
-                    / {activeUnit?.unitName ?? "Đơn vị"}
-                  </span>
+                  <h3 className="font-extrabold text-base sm:text-lg text-white mt-2 line-clamp-2 leading-snug">
+                    {product.name}
+                  </h3>
+
+                  <div className="mt-2.5 flex items-baseline gap-1.5">
+                    <span className="text-2xl sm:text-3xl font-black text-emerald-400 tabular-nums">
+                      {formatVND(unitPrice)}
+                    </span>
+                    <span className="text-xs text-slate-400 font-medium">
+                      / {activeUnit?.unitName ?? "Đơn vị"}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>

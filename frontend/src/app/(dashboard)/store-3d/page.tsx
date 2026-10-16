@@ -46,6 +46,7 @@ import {
   ProductDetailModal3D,
   type CartItem3D,
 } from "./_components/ProductDetailModal3D";
+import { WarehouseModal3D } from "./_components/WarehouseModal3D";
 import { OrderSuccessModal } from "./_components/OrderSuccessModal";
 import { UpgradePlanModal } from "@/components/shared/UpgradePlanModal";
 import { useCurrentStore } from "@/hooks/useStore";
@@ -110,6 +111,8 @@ export default function Store3DPage() {
   const [productFormOpen, setProductFormOpen] = useState(false);
   const [importStockOpen, setImportStockOpen] = useState(false);
   const [importStockProductId, setImportStockProductId] = useState<string | undefined>(undefined);
+  const [warehouse3DModalOpen, setWarehouse3DModalOpen] = useState(false);
+  const [warehouseModalTab, setWarehouseModalTab] = useState<"import" | "inspection" | "category">("import");
   const [categoryManageOpen, setCategoryManageOpen] = useState(false);
   const [officeSettingsOpen, setOfficeSettingsOpen] = useState(false);
   const [employeeFormOpen, setEmployeeFormOpen] = useState(false);
@@ -816,7 +819,8 @@ export default function Store3DPage() {
       target: [-10.8, 1.0, -22.0],
       position: [-10.8, 2.0, -18.8],
     });
-    setProductFormOpen(true);
+    setWarehouseModalTab("inspection");
+    setWarehouse3DModalOpen(true);
   }, []);
 
   const handleOpenImportStock = useCallback((productId?: string) => {
@@ -855,7 +859,8 @@ export default function Store3DPage() {
       });
     }
     setImportStockProductId(productId);
-    setImportStockOpen(true);
+    setWarehouseModalTab("import");
+    setWarehouse3DModalOpen(true);
   }, [activeRoom, stockData]);
 
   const handleOpenCategoryManage = useCallback(() => {
@@ -863,7 +868,8 @@ export default function Store3DPage() {
       target: [-15.35, 2.4, -22.2],
       position: [-12.0, 2.4, -22.2],
     });
-    setCategoryManageOpen(true);
+    setWarehouseModalTab("category");
+    setWarehouse3DModalOpen(true);
   }, []);
 
   const handleOpenSettings = useCallback(() => {
@@ -1668,7 +1674,20 @@ export default function Store3DPage() {
           onOpenChange={setUpgradeModalOpen}
         />
 
-        {/* ── Product Form Dialog (Thêm/Sửa SP từ Bàn Kiểm Hàng Kho) ─ */}
+        {/* ── Warehouse 3D Spatial HUD Modal (Kho Hàng 3D Chuẩn Showroom) ─ */}
+        <WarehouseModal3D
+          isOpen={warehouse3DModalOpen}
+          onClose={() => {
+            setWarehouse3DModalOpen(false);
+            setTargetFocusPoint(null);
+          }}
+          preselectedProductId={importStockProductId}
+          defaultTab={warehouseModalTab}
+          onOpenProductFormAdvanced={() => setProductFormOpen(true)}
+          onOpenCategoryManageAdvanced={() => setCategoryManageOpen(true)}
+        />
+
+        {/* ── Product Form Dialog (Thêm/Sửa SP nâng cao từ Bàn Kiểm Hàng Kho) ─ */}
         <ProductFormDialog
           open={productFormOpen}
           onOpenChange={(open) => {
@@ -1677,7 +1696,7 @@ export default function Store3DPage() {
           }}
         />
 
-        {/* ── Import Stock Dialog (Nhập Hàng từ Pallet Kho) ─ */}
+        {/* ── Import Stock Dialog (Dự phòng nhập hàng 2D) ─ */}
         <ImportStockDialog
           open={importStockOpen}
           onOpenChange={(open) => {

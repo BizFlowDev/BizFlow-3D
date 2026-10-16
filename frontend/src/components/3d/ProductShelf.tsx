@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { Html, Text } from "@react-three/drei";
 import { useSpring, animated } from "@react-spring/three";
+import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { LOW_STOCK_THRESHOLD } from "@/lib/dashboard-keys";
 import {
@@ -71,12 +72,12 @@ const PRODUCT_SIZE: [number, number, number] = [0.58, 0.48, 0.48];
 
 // Bảng màu bao bì bán lẻ sang trọng (Retail Packaging Palettes)
 const PACKAGING_PALETTES = [
-  { main: "#3b82f6", accent: "#93c5fd", label: "Blue" },
-  { main: "#10b981", accent: "#a7f3d0", label: "Green" },
-  { main: "#8b5cf6", accent: "#c4b5fd", label: "Purple" },
-  { main: "#f59e0b", accent: "#fde68a", label: "Amber" },
-  { main: "#ec4899", accent: "#fbcfe8", label: "Rose" },
-  { main: "#06b6d4", accent: "#a5f3fc", label: "Cyan" },
+  { main: "#2563eb", accent: "#93c5fd", label: "Blue" },
+  { main: "#059669", accent: "#a7f3d0", label: "Green" },
+  { main: "#7c3aed", accent: "#c4b5fd", label: "Purple" },
+  { main: "#d97706", accent: "#fde68a", label: "Amber" },
+  { main: "#db2777", accent: "#fbcfe8", label: "Rose" },
+  { main: "#0891b2", accent: "#a5f3fc", label: "Cyan" },
 ];
 
 function getPalette(seed: string) {
@@ -87,6 +88,52 @@ function getPalette(seed: string) {
   }
   const idx = Math.abs(hash) % PACKAGING_PALETTES.length;
   return PACKAGING_PALETTES[idx];
+}
+
+// ── Helper: load texture ảnh sản phẩm thực tế an toàn ─────────────────────────
+
+const textureCache = new Map<string, THREE.Texture>();
+
+function useProductTexture(imageUrl?: string | null) {
+  const [texture, setTexture] = useState<THREE.Texture | null>(() => {
+    if (imageUrl && textureCache.has(imageUrl)) {
+      return textureCache.get(imageUrl)!;
+    }
+    return null;
+  });
+
+  useEffect(() => {
+    if (!imageUrl) {
+      setTexture(null);
+      return;
+    }
+    if (textureCache.has(imageUrl)) {
+      setTexture(textureCache.get(imageUrl)!);
+      return;
+    }
+
+    let isMounted = true;
+    const loader = new THREE.TextureLoader();
+    loader.setCrossOrigin("anonymous");
+    loader.load(
+      imageUrl,
+      (tex) => {
+        tex.colorSpace = THREE.SRGBColorSpace;
+        tex.needsUpdate = true;
+        textureCache.set(imageUrl, tex);
+        if (isMounted) setTexture(tex);
+      },
+      undefined,
+      () => {
+        if (isMounted) setTexture(null);
+      },
+    );
+    return () => {
+      isMounted = false;
+    };
+  }, [imageUrl]);
+
+  return texture;
 }
 
 // ── Helper: tọa độ từng slot ──────────────────────────────────────────────────
@@ -108,7 +155,7 @@ function formatVND(amount: number): string {
   }).format(amount);
 }
 
-// ── Single Product Box on Shelf (Sản phẩm bán lẻ 3D đơn lẻ) ─────────────────
+// ── Single Product Box on Shelf (Hộp sản phẩm bán lẻ cao cấp) ─────────────────
 
 function ProductBoxItem({
   product,
@@ -123,16 +170,18 @@ function ProductBoxItem({
 }) {
   const [hovered, setHovered] = useState(false);
   const palette = useMemo(() => getPalette(product.id), [product.id]);
+  const productTexture = useProductTexture(product.imageUrl);
 
   const isOutOfStock = product.stock <= 0;
   const isLowStock = !isOutOfStock && product.stock <= LOW_STOCK_THRESHOLD;
 
-  // Spring animation khi hover hoặc được chọn: nhấc bổng nhẹ lên và phát sáng
-  const { posY, scale, glowIntensity } = useSpring({
-    posY: isSelected ? position[1] + 0.12 : hovered ? position[1] + 0.08 : position[1],
-    scale: isSelected ? 1.12 : hovered ? 1.06 : 1.0,
-    glowIntensity: isSelected ? 1.0 : hovered ? 0.6 : isLowStock ? 0.35 : 0.0,
-    config: { tension: 350, friction: 20 },
+  // Hiệu ứng Spring nảy phóng to 1.09x và nhấc bổng nhẹ nhàng 0.08m (đảm bảo không bao giờ đâm xuyên kệ trên)
+  // Đồng thời nhích nhẹ ra trước (Z + 0.06m) tạo cảm giác 3D nổi bật
+  const { springScale, liftY, shiftZ } = useSpring({
+    springScale: isSelected ? 1.09 : hovered ? 1.04 : 1.0,
+    liftY: isSelected ? position[1] + 0.08 : hovered ? position[1] + 0.03 : position[1],
+    shiftZ: isSelected ? 0.06 : hovered ? 0.02 : 0,
+    config: { tension: 260, friction: 16 }, // Độ nảy nấc tự nhiên
   });
 
   // Low stock pulsing loop
@@ -143,12 +192,72 @@ function ProductBoxItem({
     config: { duration: 700 },
   });
 
+  // Ref cho hiệu ứng lơ lửng bồng bềnh êm ái khi đang được chọn (Levitation Float Bobbing nhẹ nhàng)
+  const floatGroupRef = useRef<THREE.Group>(null);
+  useFrame(({ clock }) => {
+    if (!floatGroupRef.current) return;
+    if (isSelected) {
+      // Biên độ lơ lửng êm ái ±0.015m, tuyệt đối an toàn với khoảng hở kệ trên
+      const t = clock.getElapsedTime() * 2.8;
+      floatGroupRef.current.position.y = Math.sin(t) * 0.015;
+      floatGroupRef.current.rotation.y = Math.sin(t * 0.5) * 0.02;
+    } else {
+      floatGroupRef.current.position.y = 0;
+      floatGroupRef.current.rotation.y = 0;
+    }
+  });
+
   return (
     <group position={[position[0], 0, position[2]]}>
-      {/* Khối sản phẩm chính */}
+      {/* ── ĐỐM SÁNG TRẮNG NHẸ NHÀNG CỐ ĐỊNH TRÊN MẶT KỆ (KHÔNG LƠ LỬNG THEO HÀNG) ── */}
+      {(isSelected || hovered) && (
+        <group
+          position={[0, position[1] - PRODUCT_SIZE[1] / 2 + 0.002, 0]}
+          rotation={[-Math.PI / 2, 0, 0]}
+        >
+          {/* Vầng sáng trắng tròn dịu êm tỏa đều trên mặt sàn gỗ kệ */}
+          <mesh>
+            <circleGeometry args={[0.34, 32]} />
+            <meshBasicMaterial
+              color="#ffffff"
+              transparent
+              opacity={isSelected ? 0.35 : 0.16}
+              side={THREE.DoubleSide}
+              depthWrite={false}
+            />
+          </mesh>
+
+          {/* Vòng ánh sáng viền trắng tỏa mềm mại */}
+          <mesh position={[0, 0, 0.001]}>
+            <ringGeometry args={[0.2, 0.44, 32]} />
+            <meshBasicMaterial
+              color="#ffffff"
+              transparent
+              opacity={isSelected ? 0.18 : 0.08}
+              side={THREE.DoubleSide}
+              depthWrite={false}
+            />
+          </mesh>
+
+          {/* Tâm điểm sáng trắng nhẹ ở giữa */}
+          <mesh position={[0, 0, 0.002]}>
+            <circleGeometry args={[0.14, 32]} />
+            <meshBasicMaterial
+              color="#ffffff"
+              transparent
+              opacity={isSelected ? 0.45 : 0.22}
+              side={THREE.DoubleSide}
+              depthWrite={false}
+            />
+          </mesh>
+        </group>
+      )}
+
+      {/* Khối sản phẩm chính với spring nảy và nhấc bổng */}
       <animated.group
-        position-y={posY}
-        scale={scale}
+        position-y={liftY}
+        position-z={shiftZ}
+        scale={springScale}
         onClick={(e) => {
           e.stopPropagation();
           onSelect?.(product.id);
@@ -163,69 +272,113 @@ function ProductBoxItem({
           document.body.style.cursor = "default";
         }}
       >
-        {/* Vỏ hộp sản phẩm */}
-        <mesh castShadow receiveShadow>
-          <boxGeometry args={PRODUCT_SIZE} />
-          <animated.meshStandardMaterial
-            color={
-              isOutOfStock
-                ? "#64748b"
-                : isLowStock
-                  ? "#ea580c"
+        {/* Khối lơ lửng nhịp nhàng khi được chọn */}
+        <group ref={floatGroupRef}>
+          {/* Thân hộp bán lẻ sang trọng (Khắc phục lỗi cháy trắng: emissive tinh tế) */}
+          <mesh castShadow receiveShadow>
+            <boxGeometry args={PRODUCT_SIZE} />
+            <animated.meshStandardMaterial
+              color={
+                isOutOfStock
+                  ? "#475569"
+                  : isLowStock
+                  ? "#c2410c"
                   : palette.main
-            }
-            roughness={0.35}
-            metalness={0.15}
-            transparent={isOutOfStock}
-            opacity={isOutOfStock ? 0.45 : 1}
-            emissive={
-              isSelected
-                ? "#38bdf8"
-                : isLowStock
-                ? "#ef4444"
-                : hovered
-                ? palette.accent
-                : "#000000"
-            }
-            emissiveIntensity={isSelected ? 1.2 : isLowStock ? lowStockGlow : glowIntensity}
-          />
-        </mesh>
-
-        {/* Dải nẹp trang trí bao bì (Branding Stripe) */}
-        {!isOutOfStock && (
-          <mesh position={[0, 0, PRODUCT_SIZE[2] / 2 + 0.005]}>
-            <planeGeometry args={[PRODUCT_SIZE[0] * 0.9, PRODUCT_SIZE[1] * 0.38]} />
-            <meshStandardMaterial
-              color="#ffffff"
-              roughness={0.2}
-              metalness={0.1}
+              }
+              roughness={0.25}
+              metalness={0.2}
+              transparent={isOutOfStock}
+              opacity={isOutOfStock ? 0.45 : 1}
+              emissive={
+                isLowStock
+                  ? "#ef4444"
+                  : isSelected
+                  ? palette.main
+                  : hovered
+                  ? palette.accent
+                  : "#000000"
+              }
+              emissiveIntensity={isSelected ? 0.25 : isLowStock ? lowStockGlow : hovered ? 0.15 : 0}
             />
           </mesh>
-        )}
 
-        {/* Nắp đỉnh hộp sản phẩm */}
-        {!isOutOfStock && (
-          <mesh position={[0, PRODUCT_SIZE[1] / 2 + 0.002, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-            <planeGeometry args={[PRODUCT_SIZE[0] * 0.85, PRODUCT_SIZE[2] * 0.85]} />
-            <meshStandardMaterial
-              color={palette.accent}
-              roughness={0.3}
-            />
-          </mesh>
-        )}
+          {/* Nẹp viền kim loại mạ chrome/vàng bóng bẩy quanh thân hộp */}
+          {!isOutOfStock && (
+            <mesh position={[0, 0, 0]}>
+              <boxGeometry args={[PRODUCT_SIZE[0] + 0.005, 0.035, PRODUCT_SIZE[2] + 0.005]} />
+              <meshStandardMaterial
+                color={isSelected ? "#38bdf8" : hovered ? "#fde047" : "#e2e8f0"}
+                roughness={0.15}
+                metalness={0.9}
+              />
+            </mesh>
+          )}
 
-        {/* Vòng hào quang dưới đáy khi hover hoặc được chọn */}
-        {(hovered || isSelected) && (
-          <mesh position={[0, -PRODUCT_SIZE[1] / 2 - 0.03, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-            <ringGeometry args={[0.2, 0.48, 32]} />
-            <meshBasicMaterial
-              color={isSelected ? "#38bdf8" : "#93c5fd"}
-              transparent
-              opacity={isSelected ? 0.9 : 0.7}
-              side={THREE.DoubleSide}
-            />
-          </mesh>
-        )}
+          {/* Nắp đỉnh hộp với nẹp viền bóng loáng */}
+          {!isOutOfStock && (
+            <mesh position={[0, PRODUCT_SIZE[1] / 2 + 0.002, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+              <planeGeometry args={[PRODUCT_SIZE[0] * 0.9, PRODUCT_SIZE[2] * 0.9]} />
+              <meshStandardMaterial
+                color={palette.accent}
+                roughness={0.2}
+                metalness={0.3}
+              />
+            </mesh>
+          )}
+
+          {/* ── MẶT TRƯỚC: IN TRỰC TIẾP ẢNH SẢN PHẨM THỰC TẾ (imageUrl) ── */}
+          {!isOutOfStock && (
+            <group position={[0, 0, PRODUCT_SIZE[2] / 2 + 0.005]}>
+              {/* Nẹp viền kim loại bóng loáng ôm trọn khung ảnh */}
+              <mesh position={[0, 0, 0]}>
+                <planeGeometry args={[PRODUCT_SIZE[0] * 0.9, PRODUCT_SIZE[1] * 0.9]} />
+                <meshStandardMaterial
+                  color={isSelected ? "#38bdf8" : hovered ? "#fef08a" : "#e2e8f0"}
+                  roughness={0.15}
+                  metalness={0.85}
+                />
+              </mesh>
+
+              {/* Nền trong khung ảnh (màu trắng để hình ảnh nổi bật rõ ràng) */}
+              <mesh position={[0, 0, 0.001]}>
+                <planeGeometry args={[PRODUCT_SIZE[0] * 0.84, PRODUCT_SIZE[1] * 0.84]} />
+                <meshStandardMaterial color="#ffffff" roughness={0.2} />
+              </mesh>
+
+              {/* Ảnh sản phẩm thực tế */}
+              {productTexture ? (
+                <mesh position={[0, 0, 0.002]}>
+                  <planeGeometry args={[PRODUCT_SIZE[0] * 0.82, PRODUCT_SIZE[1] * 0.82]} />
+                  <meshBasicMaterial map={productTexture} transparent={false} />
+                </mesh>
+              ) : (
+                // Nếu chưa có ảnh: tên sản phẩm và logo BizFlow trên nền trắng
+                <group position={[0, 0, 0.002]}>
+                  <Text
+                    position={[0, 0.05, 0]}
+                    fontSize={0.062}
+                    color="#0f172a"
+                    anchorX="center"
+                    anchorY="middle"
+                    maxWidth={PRODUCT_SIZE[0] * 0.76}
+                    textAlign="center"
+                  >
+                    {product.name}
+                  </Text>
+                  <Text
+                    position={[0, -0.06, 0]}
+                    fontSize={0.042}
+                    color={palette.main}
+                    anchorX="center"
+                    anchorY="middle"
+                  >
+                    BIZFLOW
+                  </Text>
+                </group>
+              )}
+            </group>
+          )}
+        </group>
       </animated.group>
 
       {/* Thẻ giá gắn ở gờ kệ (Shelf Price Tag) */}
