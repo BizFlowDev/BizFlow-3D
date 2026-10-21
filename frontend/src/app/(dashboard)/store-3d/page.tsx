@@ -30,7 +30,7 @@ import {
 } from "lucide-react";
 import { useProductList, useCategoryList, type Product } from "@/hooks/useProducts";
 import { useOrderList, type Order } from "@/hooks/useOrders";
-import { useStockLevel } from "@/hooks/useInventory";
+import { useStockLevel, type StockLevelRow } from "@/hooks/useInventory";
 import { useEmployeeList } from "@/hooks/useEmployees";
 import { useQueryClient } from "@tanstack/react-query";
 import type { ShelfProduct } from "@/components/3d/ProductShelf";
@@ -38,15 +38,19 @@ import type { RoomId, CameraPreset } from "@/components/3d/world/types";
 import type { CameraFocusPoint } from "@/components/3d/world/WorldCameraController";
 import { RoomNavigationHUD } from "@/components/3d/world/RoomNavigationHUD";
 import { OfficeSettingsModal } from "@/components/3d/world/OfficeSettingsModal";
-import { ProductFormDialog } from "../products/_components/ProductFormDialog";
-import { ImportStockDialog } from "../inventory/_components/ImportStockDialog";
-import { CategoryManageDialog } from "../products/_components/CategoryManageDialog";
 import { EmployeeFormDialog } from "../employees/_components/EmployeeFormDialog";
 import {
   ProductDetailModal3D,
   type CartItem3D,
 } from "./_components/ProductDetailModal3D";
-import { WarehouseModal3D } from "./_components/WarehouseModal3D";
+import { WarehouseImportModal3D } from "./_components/WarehouseImportModal3D";
+import { ProductFormModal3D } from "./_components/ProductFormModal3D";
+import { CategoryManageModal3D } from "./_components/CategoryManageModal3D";
+import { WarehouseInspectionModal3D } from "./_components/WarehouseInspectionModal3D";
+import {
+  WarehouseCargoDetailModal3D,
+  type CargoLocationInfo,
+} from "./_components/WarehouseCargoDetailModal3D";
 import { OrderSuccessModal } from "./_components/OrderSuccessModal";
 import { UpgradePlanModal } from "@/components/shared/UpgradePlanModal";
 import { useCurrentStore } from "@/hooks/useStore";
@@ -108,12 +112,19 @@ export default function Store3DPage() {
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
 
   // Dialogs cho Kho (P.2) & Văn Phòng (P.3)
-  const [productFormOpen, setProductFormOpen] = useState(false);
-  const [importStockOpen, setImportStockOpen] = useState(false);
   const [importStockProductId, setImportStockProductId] = useState<string | undefined>(undefined);
-  const [warehouse3DModalOpen, setWarehouse3DModalOpen] = useState(false);
-  const [warehouseModalTab, setWarehouseModalTab] = useState<"import" | "inspection" | "category">("import");
-  const [categoryManageOpen, setCategoryManageOpen] = useState(false);
+
+  // Modals 3D chuyên biệt cho từng trạm phòng Kho Hàng
+  const [warehouseImportModalOpen, setWarehouseImportModalOpen] = useState(false);
+  const [warehouseInspectionModalOpen, setWarehouseInspectionModalOpen] = useState(false);
+  const [productFormModal3DOpen, setProductFormModal3DOpen] = useState(false);
+  const [editingProductFor3D, setEditingProductFor3D] = useState<Product | null>(null);
+  const [categoryManageModal3DOpen, setCategoryManageModal3DOpen] = useState(false);
+  const [cargoDetailModalOpen, setCargoDetailModalOpen] = useState(false);
+  const [selectedCargoItem, setSelectedCargoItem] = useState<StockLevelRow | null>(null);
+  const [selectedCargoLocation, setSelectedCargoLocation] = useState<CargoLocationInfo | null>(null);
+  const [highlightCategoryId, setHighlightCategoryId] = useState<string | null>(null);
+
   const [officeSettingsOpen, setOfficeSettingsOpen] = useState(false);
   const [employeeFormOpen, setEmployeeFormOpen] = useState(false);
 
@@ -814,63 +825,71 @@ export default function Store3DPage() {
     }
   }, []);
 
-  const handleOpenProductForm = useCallback(() => {
+  // ── Mở Bàn Kiểm Hàng QC & Soát Barcode 3D ───────────────────
+  const handleOpenInspectionDesk = useCallback((productId?: string) => {
     setTargetFocusPoint({
-      target: [-10.8, 1.0, -22.0],
-      position: [-10.8, 2.0, -18.8],
+      target: [-11.0, 1.0, -22.8],
+      position: [-11.0, 2.3, -19.5],
     });
-    setWarehouseModalTab("inspection");
-    setWarehouse3DModalOpen(true);
+    setImportStockProductId(productId);
+    setWarehouseInspectionModalOpen(true);
   }, []);
 
-  const handleOpenImportStock = useCallback((productId?: string) => {
-    if (productId && activeRoom === "warehouse") {
-      // Zoom trực tiếp vào kiện hàng đó trên kệ kho
-      const RACK_W = 5.6;
-      const LEVELS = [0.45, 1.55, 2.65];
-      const cols = 5;
-      const stockIdx = stockData ? stockData.findIndex((s) => s.productId === productId) : -1;
-      if (stockIdx >= 15) {
-        const itemIdx = stockIdx - 15;
-        const levelIdx = Math.floor(itemIdx / cols);
-        const colIdx = itemIdx % cols;
-        const posX = -RACK_W / 2 + 0.6 + colIdx * ((RACK_W - 1.2) / (cols - 1));
-        const posY = LEVELS[levelIdx] + 0.35;
-        setTargetFocusPoint({
-          target: [-4.5 + posX + 0.25, posY, -28.2],
-          position: [-4.5 + posX + 0.25, posY + 0.15, -28.2 + 1.5],
-        });
-      } else {
-        const itemIdx = stockIdx >= 0 ? stockIdx : 0;
-        const levelIdx = Math.floor(itemIdx / cols);
-        const colIdx = itemIdx % cols;
-        const posX = -RACK_W / 2 + 0.6 + colIdx * ((RACK_W - 1.2) / (cols - 1));
-        const posY = LEVELS[levelIdx] + 0.35;
-        setTargetFocusPoint({
-          target: [-11.2 + posX + 0.25, posY, -28.2],
-          position: [-11.2 + posX + 0.25, posY + 0.15, -28.2 + 1.5],
-        });
-      }
-    } else {
-      // Khu tiếp nhận & nhập hàng (Pallet Zone)
+  // ── Mở Form Thêm / Sửa Sản Phẩm 3D Trên Bàn Kiểm Hàng ──────
+  const handleOpenProductForm3D = useCallback(
+    (productOrId?: Product | string | null) => {
       setTargetFocusPoint({
-        target: [-4.6, 0.8, -22.0],
-        position: [-4.6, 2.0, -18.8],
+        target: [-11.0, 1.0, -22.8],
+        position: [-11.0, 2.3, -19.5],
       });
-    }
-    setImportStockProductId(productId);
-    setWarehouseModalTab("import");
-    setWarehouse3DModalOpen(true);
-  }, [activeRoom, stockData]);
+      if (typeof productOrId === "string") {
+        const found = productsData?.items?.find((p) => p.id === productOrId) || null;
+        setEditingProductFor3D(found);
+      } else {
+        setEditingProductFor3D(productOrId || null);
+      }
+      setProductFormModal3DOpen(true);
+    },
+    [productsData],
+  );
 
+  const handleOpenProductForm = useCallback(() => {
+    handleOpenProductForm3D(null);
+  }, [handleOpenProductForm3D]);
+
+  // ── Mở Trạm Tiếp Nhận & Nhập Kho Pallet 3D ───────────────────
+  const handleOpenImportStock = useCallback((productId?: string) => {
+    setTargetFocusPoint({
+      target: [-4.5, 0.8, -22.8],
+      position: [-4.5, 2.3, -19.5],
+    });
+    setImportStockProductId(productId);
+    setWarehouseImportModalOpen(true);
+  }, []);
+
+  // ── Mở Bảng Quản Lý Danh Mục Kho 3D ──────────────────────────
   const handleOpenCategoryManage = useCallback(() => {
     setTargetFocusPoint({
-      target: [-15.35, 2.4, -22.2],
-      position: [-12.0, 2.4, -22.2],
+      target: [-15.0, 2.3, -23.5],
+      position: [-11.5, 2.4, -22.8],
     });
-    setWarehouseModalTab("category");
-    setWarehouse3DModalOpen(true);
+    setCategoryManageModal3DOpen(true);
   }, []);
+
+  // ── Click trực tiếp vào Ô Kệ Kiện Hàng Trên Kệ 3D ──────────
+  const handleSelectCargoItem = useCallback(
+    (item: StockLevelRow, location: CargoLocationInfo) => {
+      const isAisleA = location.aisle === "DÃY KỆ A";
+      setTargetFocusPoint({
+        target: isAisleA ? [-11.2, 1.8, -28.2] : [-4.5, 1.8, -28.2],
+        position: isAisleA ? [-11.2, 2.5, -24.5] : [-4.5, 2.5, -24.5],
+      });
+      setSelectedCargoItem(item);
+      setSelectedCargoLocation(location);
+      setCargoDetailModalOpen(true);
+    },
+    [],
+  );
 
   const handleOpenSettings = useCallback(() => {
     setOfficeSettingsOpen(true);
@@ -977,9 +996,11 @@ export default function Store3DPage() {
             isPOSActive={isPOSActive}
             targetFocusPoint={targetFocusPoint}
             stockItems={stockData || []}
-            onOpenProductForm={handleOpenProductForm}
+            onOpenProductForm={() => handleOpenInspectionDesk()}
             onOpenImportStock={handleOpenImportStock}
             onOpenCategoryManage={handleOpenCategoryManage}
+            onSelectCargoItem={handleSelectCargoItem}
+            highlightCategoryId={highlightCategoryId}
             todayRevenue={todayRevenue}
             pendingCount={pendingCount}
             totalProductsCount={enrichedProducts.length}
@@ -1217,11 +1238,11 @@ export default function Store3DPage() {
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <button
-                    onClick={handleOpenProductForm}
+                    onClick={() => handleOpenProductForm3D(null)}
                     className="flex items-center gap-1.5 rounded-xl border border-sky-500/40 bg-sky-600/30 hover:bg-sky-600/50 px-3 py-1.5 text-xs font-semibold text-sky-200 transition-all hover:scale-105"
                   >
                     <Plus className="h-4 w-4" />
-                    <span>Thêm Sản Phẩm</span>
+                    <span>Thêm Sản Phẩm 3D</span>
                   </button>
                   <button
                     onClick={() => handleOpenImportStock()}
@@ -1231,11 +1252,18 @@ export default function Store3DPage() {
                     <span>Nhập Kho Nhanh</span>
                   </button>
                   <button
+                    onClick={() => handleOpenInspectionDesk()}
+                    className="flex items-center gap-1.5 rounded-xl border border-sky-500/30 bg-slate-900/80 hover:bg-slate-800 px-3 py-1.5 text-xs font-semibold text-sky-300 transition-all hover:scale-105"
+                  >
+                    <Package className="h-4 w-4" />
+                    <span>Bàn Kiểm Hàng QC</span>
+                  </button>
+                  <button
                     onClick={handleOpenCategoryManage}
-                    className="flex items-center gap-1.5 rounded-xl border border-white/15 bg-white/10 hover:bg-white/20 px-3 py-1.5 text-xs font-semibold text-white transition-all hover:scale-105"
+                    className="flex items-center gap-1.5 rounded-xl border border-indigo-500/40 bg-indigo-600/25 hover:bg-indigo-600/40 px-3 py-1.5 text-xs font-semibold text-indigo-200 transition-all hover:scale-105"
                   >
                     <Layers className="h-4 w-4" />
-                    <span>Quản Lý Danh Mục</span>
+                    <span>Quản Lý Danh Mục 3D</span>
                   </button>
                   <button
                     onClick={() => handleSelectRoom("hallway")}
@@ -1674,46 +1702,63 @@ export default function Store3DPage() {
           onOpenChange={setUpgradeModalOpen}
         />
 
-        {/* ── Warehouse 3D Spatial HUD Modal (Kho Hàng 3D Chuẩn Showroom) ─ */}
-        <WarehouseModal3D
-          isOpen={warehouse3DModalOpen}
+        {/* ── 1. Trạm Tiếp Nhận Nhập Kho 3D (Pallet Zone) ──── */}
+        <WarehouseImportModal3D
+          isOpen={warehouseImportModalOpen}
           onClose={() => {
-            setWarehouse3DModalOpen(false);
+            setWarehouseImportModalOpen(false);
             setTargetFocusPoint(null);
           }}
           preselectedProductId={importStockProductId}
-          defaultTab={warehouseModalTab}
-          onOpenProductFormAdvanced={() => setProductFormOpen(true)}
-          onOpenCategoryManageAdvanced={() => setCategoryManageOpen(true)}
         />
 
-        {/* ── Product Form Dialog (Thêm/Sửa SP nâng cao từ Bàn Kiểm Hàng Kho) ─ */}
-        <ProductFormDialog
-          open={productFormOpen}
-          onOpenChange={(open) => {
-            setProductFormOpen(open);
-            if (!open) setTargetFocusPoint(null);
-          }}
-        />
-
-        {/* ── Import Stock Dialog (Dự phòng nhập hàng 2D) ─ */}
-        <ImportStockDialog
-          open={importStockOpen}
-          onOpenChange={(open) => {
-            setImportStockOpen(open);
-            if (!open) setTargetFocusPoint(null);
+        {/* ── 2. Trạm Bàn Kiểm Hàng QC & Soát Barcode 3D ───── */}
+        <WarehouseInspectionModal3D
+          isOpen={warehouseInspectionModalOpen}
+          onClose={() => {
+            setWarehouseInspectionModalOpen(false);
+            setTargetFocusPoint(null);
           }}
           preselectedProductId={importStockProductId}
+          onOpenEditProduct3D={(id) => handleOpenProductForm3D(id)}
+          onOpenImport3D={(id) => handleOpenImportStock(id)}
         />
 
-        {/* ── Category Manage Dialog (Từ Bảng Danh Mục Kho) ─ */}
-        <CategoryManageDialog
-          open={categoryManageOpen}
-          onOpenChange={(open) => {
-            setCategoryManageOpen(open);
-            if (!open) setTargetFocusPoint(null);
+        {/* ── 3. Bàn Thêm / Chỉnh Sửa Sản Phẩm 3D ──────────── */}
+        <ProductFormModal3D
+          isOpen={productFormModal3DOpen}
+          onClose={() => {
+            setProductFormModal3DOpen(false);
+            setTargetFocusPoint(null);
           }}
+          product={editingProductFor3D}
         />
+
+        {/* ── 4. Bảng Quản Lý Danh Mục Kho 3D ──────────────── */}
+        <CategoryManageModal3D
+          isOpen={categoryManageModal3DOpen}
+          onClose={() => {
+            setCategoryManageModal3DOpen(false);
+            setTargetFocusPoint(null);
+          }}
+          highlightCategoryId={highlightCategoryId}
+          onHighlightCategory={setHighlightCategoryId}
+        />
+
+        {/* ── 5. Chi Tiết Ô Kệ Kiện Hàng Trên Kệ 3D ────────── */}
+        <WarehouseCargoDetailModal3D
+          isOpen={cargoDetailModalOpen}
+          onClose={() => {
+            setCargoDetailModalOpen(false);
+            setTargetFocusPoint(null);
+          }}
+          cargoItem={selectedCargoItem}
+          location={selectedCargoLocation}
+          onRestock={(id) => handleOpenImportStock(id)}
+          onInspect={(id) => handleOpenInspectionDesk(id)}
+        />
+
+
 
         {/* ── Employee Form Dialog (Từ Tủ Hồ Sơ Văn Phòng) ─ */}
         <EmployeeFormDialog

@@ -71,7 +71,10 @@ export type CameraPreset =
   | "hallwayDoorC"
   // ── Kho hàng ──
   | "warehouseOverview"
+  | "warehouseIsometric"
   | "warehouseShelves"
+  | "warehouseShelvesA"
+  | "warehouseShelvesB"
   | "warehouseDesk"
   | "warehouseImport"
   | "warehouseCategory"
@@ -170,32 +173,50 @@ export const CAMERA_PRESETS: Record<CameraPreset, CameraPresetConfig> = {
 
   // ── 📦 KHO HÀNG (Tọa độ trung tâm tại [-8, 0, -25]) ──
   warehouseOverview: {
-    position: [-7.8, 3.8, -18.8],
-    target: [-7.8, 1.5, -26.5],
+    position: [-7.8, 5.2, -17.0],
+    target: [-7.8, 1.0, -25.5],
     label: "Toàn cảnh Kho Hàng",
     room: "warehouse",
   },
+  warehouseIsometric: {
+    position: [-1.8, 4.8, -17.2],
+    target: [-9.5, 1.0, -25.5],
+    label: "Góc Nhìn Sa Bàn",
+    room: "warehouse",
+  },
   warehouseShelves: {
-    position: [-7.8, 2.8, -20.2],
-    target: [-7.8, 2.0, -28.2],
+    position: [-7.8, 3.2, -21.0],
+    target: [-7.8, 1.8, -28.2],
     label: "Kệ Kho 3D",
     room: "warehouse",
   },
+  warehouseShelvesA: {
+    position: [-11.0, 2.6, -24.0],
+    target: [-11.0, 1.8, -28.2],
+    label: "Dãy Kệ A",
+    room: "warehouse",
+  },
+  warehouseShelvesB: {
+    position: [-4.5, 2.6, -24.0],
+    target: [-4.5, 1.8, -28.2],
+    label: "Dãy Kệ B",
+    room: "warehouse",
+  },
   warehouseDesk: {
-    position: [-10.8, 2.0, -18.8],
-    target: [-10.8, 1.0, -22.0],
+    position: [-11.0, 2.3, -19.5],
+    target: [-11.0, 1.0, -22.8],
     label: "Bàn Kiểm Hàng",
     room: "warehouse",
   },
   warehouseImport: {
-    position: [-4.6, 2.0, -18.8],
-    target: [-4.6, 0.8, -22.0],
+    position: [-4.5, 2.3, -19.5],
+    target: [-4.5, 0.8, -22.8],
     label: "Khu Nhập Hàng",
     room: "warehouse",
   },
   warehouseCategory: {
-    position: [-12.0, 2.4, -22.2],
-    target: [-15.35, 2.4, -22.2],
+    position: [-11.5, 2.4, -22.8],
+    target: [-15.0, 2.3, -23.5],
     label: "Bảng Danh Mục",
     room: "warehouse",
   },

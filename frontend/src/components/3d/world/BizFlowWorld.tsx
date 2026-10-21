@@ -25,6 +25,11 @@ interface BizFlowWorldProps {
   onOpenProductForm?: () => void;
   onOpenImportStock?: (productId?: string) => void;
   onOpenCategoryManage?: () => void;
+  onSelectCargoItem?: (
+    item: StockLevelRow,
+    location: { aisle: string; level: number; col: number },
+  ) => void;
+  highlightCategoryId?: string | null;
   /** Dữ liệu số liệu cho Phòng Văn Phòng */
   todayRevenue?: number;
   pendingCount?: number;
@@ -46,6 +51,8 @@ export function BizFlowWorld({
   onOpenProductForm,
   onOpenImportStock,
   onOpenCategoryManage,
+  onSelectCargoItem,
+  highlightCategoryId = null,
   todayRevenue = 0,
   pendingCount = 0,
   totalProductsCount = 0,
@@ -63,7 +70,7 @@ export function BizFlowWorld({
         dpr={[1, 1.75]}
         camera={{
           position: [0, 5.8, 9.8],
-          fov: 48,
+          fov: 52,
           near: 0.1,
           far: 120,
         }}
@@ -90,9 +97,9 @@ export function BizFlowWorld({
           ref={controlsRef}
           target={[0, 1.2, 0]}
           minPolarAngle={Math.PI * 0.08}
-          maxPolarAngle={Math.PI * 0.48}
-          minDistance={0.5}
-          maxDistance={22}
+          maxPolarAngle={Math.PI * 0.46}
+          minDistance={1.0}
+          maxDistance={25}
           enableDamping
           dampingFactor={0.08}
           enablePan={!isInteractingWithPOS}
@@ -101,11 +108,13 @@ export function BizFlowWorld({
         />
 
         {/* ── 1. HÀNH LANG TRUNG TÂM (Central Hallway) ──────────────── */}
-        {/* Luôn render để kết nối các phòng với nhau một cách chân thực */}
-        <HallwayScene
-          activeRoom={activeRoom}
-          onEnterRoom={onEnterRoom}
-        />
+        {/* Ẩn khi đang ở phòng Kho hoặc Văn phòng để các góc nhìn toàn cảnh không bị che chắn */}
+        {activeRoom !== "warehouse" && activeRoom !== "office" && (
+          <HallwayScene
+            activeRoom={activeRoom}
+            onEnterRoom={onEnterRoom}
+          />
+        )}
 
         {/* ── 2. LAZY LOAD & MOUNT TỪNG PHÒNG RIÊNG BIỆT ─────────────── */}
         <Suspense fallback={null}>
@@ -123,6 +132,8 @@ export function BizFlowWorld({
               onOpenProductForm={onOpenProductForm}
               onOpenImportStock={onOpenImportStock}
               onOpenCategoryManage={onOpenCategoryManage}
+              onSelectCargoItem={onSelectCargoItem}
+              highlightCategoryId={highlightCategoryId}
               onReturnToHallway={() => onEnterRoom("hallway")}
             />
           )}

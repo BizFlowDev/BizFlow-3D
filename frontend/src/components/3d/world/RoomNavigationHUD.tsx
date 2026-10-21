@@ -66,10 +66,12 @@ export function RoomNavigationHUD({
       case "warehouse":
         return [
           { id: "warehouseOverview" as CameraPreset, label: "Toàn cảnh", icon: Globe },
-          { id: "warehouseShelves" as CameraPreset, label: "Kệ kho 3D", icon: Boxes },
-          { id: "warehouseDesk" as CameraPreset, label: "Bàn kiểm hàng", icon: ClipboardList },
+          { id: "warehouseIsometric" as CameraPreset, label: "Góc sa bàn", icon: Compass },
           { id: "warehouseImport" as CameraPreset, label: "Khu nhập hàng", icon: Package },
+          { id: "warehouseDesk" as CameraPreset, label: "Bàn kiểm hàng", icon: ClipboardList },
           { id: "warehouseCategory" as CameraPreset, label: "Bảng danh mục", icon: Layers },
+          { id: "warehouseShelvesA" as CameraPreset, label: "Kệ A", icon: Boxes },
+          { id: "warehouseShelvesB" as CameraPreset, label: "Kệ B", icon: Boxes },
         ];
       case "office":
         return [

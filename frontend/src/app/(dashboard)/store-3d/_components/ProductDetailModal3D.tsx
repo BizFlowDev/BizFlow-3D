@@ -69,6 +69,15 @@ export function ProductDetailModal3D({
     setAddedAnimation(false);
   }, [product]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
+
   const activeUnit = useMemo<ProductUnit | null>(() => {
     if (!product?.units || product.units.length === 0) return null;
     return product.units.find((u) => u.id === selectedUnitId) || product.units[0];

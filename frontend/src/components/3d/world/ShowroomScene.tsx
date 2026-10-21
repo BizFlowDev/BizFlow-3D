@@ -5,6 +5,7 @@ import { Text } from "@react-three/drei";
 import { StoreDecorations } from "../StoreDecorations";
 import { Door3D, DOOR_TOTAL_HEIGHT } from "./Door3D";
 import { type RoomId, ROOMS } from "./types";
+import { SmartOcclusionGroup } from "./SmartOcclusion";
 
 interface ShowroomSceneProps {
   children?: React.ReactNode;
@@ -71,95 +72,95 @@ function ShowroomWalls({ onReturnToHallway }: { onReturnToHallway?: () => void }
 
   return (
     <group>
-      {/* ── Tường sau có ô cửa mở thông ra Hành Lang ── */}
-      {/* Mảng tường sau bên trái */}
-      <mesh position={[-4.4, STORE_HEIGHT / 2, -STORE_DEPTH / 2]}>
-        <boxGeometry args={[7.2, STORE_HEIGHT, WALL_THICKNESS]} />
-        <meshStandardMaterial color={wallBaseColor} roughness={0.8} />
-      </mesh>
-      {/* Mảng tường sau bên phải */}
-      <mesh position={[4.4, STORE_HEIGHT / 2, -STORE_DEPTH / 2]}>
-        <boxGeometry args={[7.2, STORE_HEIGHT, WALL_THICKNESS]} />
-        <meshStandardMaterial color={wallBaseColor} roughness={0.8} />
-      </mesh>
-      {/* Mảng tường phía trên khung cửa */}
-      <mesh
-        position={[
-          0,
-          DOOR_TOTAL_HEIGHT + (STORE_HEIGHT - DOOR_TOTAL_HEIGHT) / 2,
-          -STORE_DEPTH / 2,
-        ]}
-      >
-        <boxGeometry
-          args={[1.6, STORE_HEIGHT - DOOR_TOTAL_HEIGHT, WALL_THICKNESS]}
-        />
-        <meshStandardMaterial color={wallBaseColor} roughness={0.8} />
-      </mesh>
+      {/* ── Tường sau có ô cửa mở thông ra Hành Lang — Tự động làm mờ khi nhìn từ phía sau ── */}
+      <SmartOcclusionGroup preset="wall-back" threshold={-6.7}>
+        {/* Mảng tường sau bên trái */}
+        <mesh position={[-4.4, STORE_HEIGHT / 2, -STORE_DEPTH / 2]}>
+          <boxGeometry args={[7.2, STORE_HEIGHT, WALL_THICKNESS]} />
+          <meshStandardMaterial color={wallBaseColor} roughness={0.8} />
+        </mesh>
+        {/* Mảng tường sau bên phải */}
+        <mesh position={[4.4, STORE_HEIGHT / 2, -STORE_DEPTH / 2]}>
+          <boxGeometry args={[7.2, STORE_HEIGHT, WALL_THICKNESS]} />
+          <meshStandardMaterial color={wallBaseColor} roughness={0.8} />
+        </mesh>
+        {/* Mảng tường phía trên khung cửa */}
+        <mesh
+          position={[
+            0,
+            DOOR_TOTAL_HEIGHT + (STORE_HEIGHT - DOOR_TOTAL_HEIGHT) / 2,
+            -STORE_DEPTH / 2,
+          ]}
+        >
+          <boxGeometry
+            args={[1.6, STORE_HEIGHT - DOOR_TOTAL_HEIGHT, WALL_THICKNESS]}
+          />
+          <meshStandardMaterial color={wallBaseColor} roughness={0.8} />
+        </mesh>
 
-      {/* Mảng ốp lam gỗ dọc trang trí hai bên tường sau */}
-      {[-5.8, -5.2, -4.6, -4.0, -3.4, -2.8, 2.8, 3.4, 4.0, 4.6, 5.2, 5.8].map(
-        (x, i) => (
-          <mesh
-            key={`slat-${i}`}
-            position={[x, STORE_HEIGHT / 2, -STORE_DEPTH / 2 + 0.12]}
+        {/* Mảng ốp lam gỗ dọc trang trí hai bên tường sau */}
+        {[-5.8, -5.2, -4.6, -4.0, -3.4, -2.8, 2.8, 3.4, 4.0, 4.6, 5.2, 5.8].map(
+          (x, i) => (
+            <mesh
+              key={`slat-${i}`}
+              position={[x, STORE_HEIGHT / 2, -STORE_DEPTH / 2 + 0.12]}
+            >
+              <boxGeometry args={[0.15, STORE_HEIGHT * 0.92, 0.06]} />
+              <meshStandardMaterial color={woodSlatColor} roughness={0.65} />
+            </mesh>
+          ),
+        )}
+
+        {/* Tấm phông trung tâm màu navy sậm cho biển hiệu */}
+        <mesh position={[0, STORE_HEIGHT - 0.8, -STORE_DEPTH / 2 + 0.12]}>
+          <boxGeometry args={[2.2, 1, 0.08]} />
+          <meshStandardMaterial color="#1e1b4b" roughness={0.4} metalness={0.2} />
+        </mesh>
+
+        {/* Viền LED phát sáng quanh bảng hiệu */}
+        <mesh position={[0, STORE_HEIGHT - 0.8, -STORE_DEPTH / 2 + 0.17]}>
+          <boxGeometry args={[2.26, 1, 0.02]} />
+          <meshStandardMaterial
+            color="#6366f1"
+            emissive="#818cf8"
+            emissiveIntensity={0.9}
+          />
+        </mesh>
+
+        {/* Biển hiệu 3D LED "BIZFLOW 3D STORE" */}
+        <group position={[0, STORE_HEIGHT - 1.15, -STORE_DEPTH / 2 + 0.19]}>
+          <Text
+            position={[0, 0.5, 0]}
+            fontSize={0.2}
+            color="#1b0505"
+            anchorX="center"
+            anchorY="middle"
+            letterSpacing={0.06}
+            outlineWidth={0.02}
+            outlineColor="#3d3d3d"
+            outlineOpacity={0.2}
+            outlineBlur={0.08}
           >
-            <boxGeometry args={[0.15, STORE_HEIGHT * 0.92, 0.06]} />
-            <meshStandardMaterial color={woodSlatColor} roughness={0.65} />
-          </mesh>
-        ),
-      )}
+            BIZFLOW 3D
+          </Text>
+          <Text
+            position={[0, 0.22, 0]}
+            fontSize={0.2}
+            color="#1b0505"
+            anchorX="center"
+            anchorY="middle"
+            letterSpacing={0.06}
+            outlineWidth={0.02}
+            outlineColor="#3d3d3d"
+            outlineOpacity={0.2}
+            outlineBlur={0.08}
+          >
+            STORE
+          </Text>
+        </group>
 
-      {/* Tấm phông trung tâm màu navy sậm cho biển hiệu */}
-      <mesh position={[0, STORE_HEIGHT - 0.8, -STORE_DEPTH / 2 + 0.12]}>
-        <boxGeometry args={[2.2, 1, 0.08]} />
-        <meshStandardMaterial color="#1e1b4b" roughness={0.4} metalness={0.2} />
-      </mesh>
-
-      {/* Viền LED phát sáng quanh bảng hiệu */}
-      <mesh position={[0, STORE_HEIGHT - 0.8, -STORE_DEPTH / 2 + 0.17]}>
-        <boxGeometry args={[2.26, 1, 0.02]} />
-        <meshStandardMaterial
-          color="#6366f1"
-          emissive="#818cf8"
-          emissiveIntensity={0.9}
-        />
-      </mesh>
-
-      {/* Biển hiệu 3D LED "BIZFLOW 3D STORE" */}
-      <group position={[0, STORE_HEIGHT - 1.15, -STORE_DEPTH / 2 + 0.19]}>
-        <Text
-          position={[0, 0.5, 0]}
-          fontSize={0.2}
-          color="#1b0505"
-          anchorX="center"
-          anchorY="middle"
-          letterSpacing={0.06}
-          outlineWidth={0.02}
-          outlineColor="#3d3d3d"
-          outlineOpacity={0.2}
-          outlineBlur={0.08}
-        >
-          BIZFLOW 3D
-        </Text>
-        <Text
-          position={[0, 0.22, 0]}
-          fontSize={0.2}
-          color="#1b0505"
-          anchorX="center"
-          anchorY="middle"
-          letterSpacing={0.06}
-          outlineWidth={0.02}
-          outlineColor="#3d3d3d"
-          outlineOpacity={0.2}
-          outlineBlur={0.08}
-        >
-          STORE
-        </Text>
-      </group>
-
-      {/* ── CỬA THÔNG RA HÀNH LANG (Tường sau) ── */}
-      {
-        onReturnToHallway && (
+        {/* ── CỬA THÔNG RA HÀNH LANG (Tường sau) ── */}
+        {onReturnToHallway && (
           <Door3D
             position={[0, 0, -STORE_DEPTH / 2 + 0.1]}
             targetRoom="hallway"
@@ -168,41 +169,47 @@ function ShowroomWalls({ onReturnToHallway }: { onReturnToHallway?: () => void }
             onEnter={() => onReturnToHallway()}
             accentColor="#38bdf8"
           />
-        )
-      }
+        )}
+      </SmartOcclusionGroup>
 
-      {/* ── Tường trái ── */}
-      <mesh
-        position={[-STORE_WIDTH / 2, STORE_HEIGHT / 2, 0]}
-        rotation={[0, Math.PI / 2, 0]}
-      >
-        <boxGeometry args={[STORE_DEPTH, STORE_HEIGHT, WALL_THICKNESS]} />
-        <meshStandardMaterial color={wallBaseColor} roughness={0.8} />
-      </mesh>
+      {/* ── Tường trái — Tự động làm mờ khi camera nhìn từ bên trái ── */}
+      <SmartOcclusionGroup preset="wall-left" threshold={-7.8}>
+        <mesh
+          position={[-STORE_WIDTH / 2, STORE_HEIGHT / 2, 0]}
+          rotation={[0, Math.PI / 2, 0]}
+        >
+          <boxGeometry args={[STORE_DEPTH, STORE_HEIGHT, WALL_THICKNESS]} />
+          <meshStandardMaterial color={wallBaseColor} roughness={0.8} />
+        </mesh>
+      </SmartOcclusionGroup>
 
-      {/* ── Tường phải ── */}
-      <mesh
-        position={[STORE_WIDTH / 2, STORE_HEIGHT / 2, 0]}
-        rotation={[0, Math.PI / 2, 0]}
-      >
-        <boxGeometry args={[STORE_DEPTH, STORE_HEIGHT, WALL_THICKNESS]} />
-        <meshStandardMaterial color={wallBaseColor} roughness={0.8} />
-      </mesh>
+      {/* ── Tường phải — Tự động làm mờ khi camera nhìn từ bên phải ── */}
+      <SmartOcclusionGroup preset="wall-right" threshold={7.8}>
+        <mesh
+          position={[STORE_WIDTH / 2, STORE_HEIGHT / 2, 0]}
+          rotation={[0, Math.PI / 2, 0]}
+        >
+          <boxGeometry args={[STORE_DEPTH, STORE_HEIGHT, WALL_THICKNESS]} />
+          <meshStandardMaterial color={wallBaseColor} roughness={0.8} />
+        </mesh>
+      </SmartOcclusionGroup>
 
-      {/* ── Mặt tiền cửa kính Showroom phía trước ── */}
-      <mesh position={[0, STORE_HEIGHT - 0.2, STORE_DEPTH / 2]}>
-        <boxGeometry args={[STORE_WIDTH, 0.4, 0.2]} />
-        <meshStandardMaterial color="#090d16" roughness={0.3} metalness={0.7} />
-      </mesh>
-      <mesh position={[-STORE_WIDTH / 2 + 0.1, STORE_HEIGHT / 2, STORE_DEPTH / 2]}>
-        <boxGeometry args={[0.2, STORE_HEIGHT, 0.2]} />
-        <meshStandardMaterial color="#090d16" roughness={0.3} metalness={0.7} />
-      </mesh>
-      <mesh position={[STORE_WIDTH / 2 - 0.1, STORE_HEIGHT / 2, STORE_DEPTH / 2]}>
-        <boxGeometry args={[0.2, STORE_HEIGHT, 0.2]} />
-        <meshStandardMaterial color="#090d16" roughness={0.3} metalness={0.7} />
-      </mesh>
-    </group >
+      {/* ── Mặt tiền cửa kính Showroom phía trước — Tự động làm mờ khi nhìn từ ngoài ── */}
+      <SmartOcclusionGroup preset="wall-front" threshold={6.2}>
+        <mesh position={[0, STORE_HEIGHT - 0.2, STORE_DEPTH / 2]}>
+          <boxGeometry args={[STORE_WIDTH, 0.4, 0.2]} />
+          <meshStandardMaterial color="#090d16" roughness={0.3} metalness={0.7} />
+        </mesh>
+        <mesh position={[-STORE_WIDTH / 2 + 0.1, STORE_HEIGHT / 2, STORE_DEPTH / 2]}>
+          <boxGeometry args={[0.2, STORE_HEIGHT, 0.2]} />
+          <meshStandardMaterial color="#090d16" roughness={0.3} metalness={0.7} />
+        </mesh>
+        <mesh position={[STORE_WIDTH / 2 - 0.1, STORE_HEIGHT / 2, STORE_DEPTH / 2]}>
+          <boxGeometry args={[0.2, STORE_HEIGHT, 0.2]} />
+          <meshStandardMaterial color="#090d16" roughness={0.3} metalness={0.7} />
+        </mesh>
+      </SmartOcclusionGroup>
+    </group>
   );
 }
 
@@ -212,38 +219,41 @@ function ShowroomWalls({ onReturnToHallway }: { onReturnToHallway?: () => void }
 function ShowroomCeilingAndLights() {
   return (
     <group>
-      <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, STORE_HEIGHT, 0]}>
-        <planeGeometry args={[STORE_WIDTH, STORE_DEPTH]} />
-        <meshStandardMaterial color="#0b0f19" roughness={0.9} side={2} />
-      </mesh>
+      {/* Trần thạch cao & Đèn ray — Tự động làm mờ khi camera nhìn từ trên cao xuống */}
+      <SmartOcclusionGroup preset="ceiling" threshold={4.8}>
+        <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, STORE_HEIGHT, 0]}>
+          <planeGeometry args={[STORE_WIDTH, STORE_DEPTH]} />
+          <meshStandardMaterial color="#0b0f19" roughness={0.9} side={2} />
+        </mesh>
 
-      {/* Thanh ray đèn */}
-      <mesh position={[0, STORE_HEIGHT - 0.12, -2.5]}>
-        <boxGeometry args={[11, 0.08, 0.08]} />
-        <meshStandardMaterial color="#1e293b" metalness={0.8} roughness={0.2} />
-      </mesh>
-      <mesh position={[0, STORE_HEIGHT - 0.12, 2.5]}>
-        <boxGeometry args={[11, 0.08, 0.08]} />
-        <meshStandardMaterial color="#1e293b" metalness={0.8} roughness={0.2} />
-      </mesh>
+        {/* Thanh ray đèn */}
+        <mesh position={[0, STORE_HEIGHT - 0.12, -2.5]}>
+          <boxGeometry args={[11, 0.08, 0.08]} />
+          <meshStandardMaterial color="#1e293b" metalness={0.8} roughness={0.2} />
+        </mesh>
+        <mesh position={[0, STORE_HEIGHT - 0.12, 2.5]}>
+          <boxGeometry args={[11, 0.08, 0.08]} />
+          <meshStandardMaterial color="#1e293b" metalness={0.8} roughness={0.2} />
+        </mesh>
 
-      {/* Rọi đèn LED */}
-      {[-4, -2, 0, 2, 4].map((x, i) => (
-        <group key={`track-light-${i}`} position={[x, STORE_HEIGHT - 0.2, -2.5]}>
-          <mesh rotation={[0.4, 0, 0]}>
-            <cylinderGeometry args={[0.09, 0.13, 0.2, 16]} />
-            <meshStandardMaterial color="#334155" metalness={0.7} />
-          </mesh>
-          <mesh position={[0, -0.09, 0.03]} rotation={[Math.PI / 2, 0, 0]}>
-            <circleGeometry args={[0.08, 16]} />
-            <meshStandardMaterial
-              color="#fef08a"
-              emissive="#fef08a"
-              emissiveIntensity={1.2}
-            />
-          </mesh>
-        </group>
-      ))}
+        {/* Rọi đèn LED */}
+        {[-4, -2, 0, 2, 4].map((x, i) => (
+          <group key={`track-light-${i}`} position={[x, STORE_HEIGHT - 0.2, -2.5]}>
+            <mesh rotation={[0.4, 0, 0]}>
+              <cylinderGeometry args={[0.09, 0.13, 0.2, 16]} />
+              <meshStandardMaterial color="#334155" metalness={0.7} />
+            </mesh>
+            <mesh position={[0, -0.09, 0.03]} rotation={[Math.PI / 2, 0, 0]}>
+              <circleGeometry args={[0.08, 16]} />
+              <meshStandardMaterial
+                color="#fef08a"
+                emissive="#fef08a"
+                emissiveIntensity={1.2}
+              />
+            </mesh>
+          </group>
+        ))}
+      </SmartOcclusionGroup>
 
       {/* Ánh sáng đa lớp */}
       <ambientLight intensity={0.65} color="#e0e7ff" />

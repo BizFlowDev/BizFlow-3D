@@ -6,6 +6,7 @@ import { Text, Html } from "@react-three/drei";
 import * as THREE from "three";
 import { Door3D } from "./Door3D";
 import { ROOMS } from "./types";
+import { SmartOcclusionGroup } from "./SmartOcclusion";
 
 interface OfficeSceneProps {
   todayRevenue?: number;
@@ -540,64 +541,72 @@ export function OfficeScene({
         <meshStandardMaterial color="#0f172a" roughness={0.75} />
       </mesh>
 
-      {/* Tường trước giáp hành lang (z = -18) */}
-      <mesh position={[1.45, OFFICE_HEIGHT / 2, -18.1]}>
-        <boxGeometry args={[1.9, OFFICE_HEIGHT, WALL_THICKNESS]} />
-        <meshStandardMaterial color="#0f172a" roughness={0.75} />
-      </mesh>
-      <mesh position={[9.75, OFFICE_HEIGHT / 2, -18.1]}>
-        <boxGeometry args={[11.5, OFFICE_HEIGHT, WALL_THICKNESS]} />
-        <meshStandardMaterial color="#0f172a" roughness={0.75} />
-      </mesh>
-      {/* Mảng tường trên cửa ra hành lang */}
-      <mesh
-        position={[
-          3.2,
-          2.8 + (OFFICE_HEIGHT - 2.8) / 2,
-          -18.1,
-        ]}
-      >
-        <boxGeometry args={[1.6, OFFICE_HEIGHT - 2.8, WALL_THICKNESS]} />
-        <meshStandardMaterial color="#0f172a" roughness={0.75} />
-      </mesh>
+      {/* Tường trước giáp hành lang (z = -18.1) — Tự động làm mờ khi camera nhìn từ ngoài/hành lang */}
+      <SmartOcclusionGroup preset="wall-front" threshold={-18.4}>
+        <mesh position={[1.45, OFFICE_HEIGHT / 2, -18.1]}>
+          <boxGeometry args={[1.9, OFFICE_HEIGHT, WALL_THICKNESS]} />
+          <meshStandardMaterial color="#0f172a" roughness={0.75} />
+        </mesh>
+        <mesh position={[9.75, OFFICE_HEIGHT / 2, -18.1]}>
+          <boxGeometry args={[11.5, OFFICE_HEIGHT, WALL_THICKNESS]} />
+          <meshStandardMaterial color="#0f172a" roughness={0.75} />
+        </mesh>
+        {/* Mảng tường trên cửa ra hành lang */}
+        <mesh
+          position={[
+            3.2,
+            2.8 + (OFFICE_HEIGHT - 2.8) / 2,
+            -18.1,
+          ]}
+        >
+          <boxGeometry args={[1.6, OFFICE_HEIGHT - 2.8, WALL_THICKNESS]} />
+          <meshStandardMaterial color="#0f172a" roughness={0.75} />
+        </mesh>
 
-      {/* ── CỬA THÔNG RA HÀNH LANG (x = 3.2, z = -18.1, quay mặt vào trong văn phòng) ── */}
-      <Door3D
-        position={[3.2, 0, -18.1]}
-        rotation={[0, 0, 0]}
-        targetRoom="hallway"
-        label={ROOMS.hallway.name}
-        subLabel="LỐI RA"
-        onEnter={onReturnToHallway}
-        accentColor="#38bdf8"
-      />
+        {/* ── CỬA THÔNG RA HÀNH LANG (x = 3.2, z = -18.1, quay mặt vào trong văn phòng) ── */}
+        <Door3D
+          position={[3.2, 0, -18.1]}
+          rotation={[0, 0, 0]}
+          targetRoom="hallway"
+          label={ROOMS.hallway.name}
+          subLabel="LỐI RA"
+          onEnter={onReturnToHallway}
+          accentColor="#38bdf8"
+        />
+      </SmartOcclusionGroup>
 
-      {/* Tường ngăn với kho hàng (x = 0.5) */}
-      <mesh
-        position={[0.5, OFFICE_HEIGHT / 2, CENTER_Z]}
-        rotation={[0, Math.PI / 2, 0]}
-      >
-        <boxGeometry args={[OFFICE_DEPTH, OFFICE_HEIGHT, WALL_THICKNESS]} />
-        <meshStandardMaterial color="#0f172a" roughness={0.75} />
-      </mesh>
+      {/* Tường ngăn với kho hàng (x = 0.5) — Tự động làm mờ khi camera nhìn từ bên trái */}
+      <SmartOcclusionGroup preset="wall-left" threshold={0.8}>
+        <mesh
+          position={[0.5, OFFICE_HEIGHT / 2, CENTER_Z]}
+          rotation={[0, Math.PI / 2, 0]}
+        >
+          <boxGeometry args={[OFFICE_DEPTH, OFFICE_HEIGHT, WALL_THICKNESS]} />
+          <meshStandardMaterial color="#0f172a" roughness={0.75} />
+        </mesh>
+      </SmartOcclusionGroup>
 
-      {/* Tường kính bên ngoài (x = 15.5) */}
-      <mesh
-        position={[15.5, OFFICE_HEIGHT / 2, CENTER_Z]}
-        rotation={[0, Math.PI / 2, 0]}
-      >
-        <boxGeometry args={[OFFICE_DEPTH, OFFICE_HEIGHT, WALL_THICKNESS]} />
-        <meshStandardMaterial color="#0f172a" roughness={0.75} />
-      </mesh>
+      {/* Tường kính bên ngoài (x = 15.5) — Tự động làm mờ khi camera nhìn từ bên phải */}
+      <SmartOcclusionGroup preset="wall-right" threshold={15.2}>
+        <mesh
+          position={[15.5, OFFICE_HEIGHT / 2, CENTER_Z]}
+          rotation={[0, Math.PI / 2, 0]}
+        >
+          <boxGeometry args={[OFFICE_DEPTH, OFFICE_HEIGHT, WALL_THICKNESS]} />
+          <meshStandardMaterial color="#0f172a" roughness={0.75} />
+        </mesh>
+      </SmartOcclusionGroup>
 
-      {/* ── 3. TRẦN NHÀ & HỆ THỐNG ĐÈN ẤM ÁP ───────────────────────── */}
-      <mesh
-        rotation={[Math.PI / 2, 0, 0]}
-        position={[CENTER_X, OFFICE_HEIGHT, CENTER_Z]}
-      >
-        <planeGeometry args={[OFFICE_WIDTH, OFFICE_DEPTH]} />
-        <meshStandardMaterial color="#0b0f19" roughness={0.9} side={2} />
-      </mesh>
+      {/* ── 3. TRẦN NHÀ & HỆ THỐNG ĐÈN ẤM ÁP — Tự động làm mờ khi camera ở trên cao ───────────────────────── */}
+      <SmartOcclusionGroup preset="ceiling" threshold={4.9}>
+        <mesh
+          rotation={[Math.PI / 2, 0, 0]}
+          position={[CENTER_X, OFFICE_HEIGHT, CENTER_Z]}
+        >
+          <planeGeometry args={[OFFICE_WIDTH, OFFICE_DEPTH]} />
+          <meshStandardMaterial color="#0b0f19" roughness={0.9} side={2} />
+        </mesh>
+      </SmartOcclusionGroup>
 
       {/* Đèn trần âm hiện đại */}
       <ambientLight intensity={0.6} color="#f8fafc" />

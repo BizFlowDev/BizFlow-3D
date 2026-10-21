@@ -1,11 +1,12 @@
 "use client";
 
 import { useRef, useState, useMemo } from "react";
-import { useFrame } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
 import { Text, Html } from "@react-three/drei";
 import * as THREE from "three";
 import { Door3D } from "./Door3D";
 import { ROOMS } from "./types";
+import { SmartOcclusionGroup } from "./SmartOcclusion";
 import type { StockLevelRow } from "@/hooks/useInventory";
 
 interface WarehouseSceneProps {
@@ -13,6 +14,11 @@ interface WarehouseSceneProps {
   onOpenProductForm?: () => void;
   onOpenImportStock?: (productId?: string) => void;
   onOpenCategoryManage?: () => void;
+  onSelectCargoItem?: (
+    item: StockLevelRow,
+    location: { aisle: string; level: number; col: number },
+  ) => void;
+  highlightCategoryId?: string | null;
   onReturnToHallway?: () => void;
 }
 
@@ -24,6 +30,36 @@ const CENTER_X = -8;
 const CENTER_Z = -25;
 const WALL_THICKNESS = 0.2;
 
+// ── VÒNG PHÁT SÁNG NỀN TRẠM KHO (Ground Beacon Ring) ──────────────────────────
+function StationFloorRing({
+  radius = 1.4,
+  color = "#38bdf8",
+}: {
+  radius?: number;
+  color?: string;
+}) {
+  const ringRef = useRef<THREE.Mesh>(null);
+  useFrame(({ clock }) => {
+    if (ringRef.current) {
+      const s = 1 + Math.sin(clock.getElapsedTime() * 2.2) * 0.05;
+      ringRef.current.scale.set(s, s, 1);
+    }
+  });
+
+  return (
+    <group position={[0, 0.015, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh ref={ringRef}>
+        <ringGeometry args={[radius * 0.94, radius, 36]} />
+        <meshBasicMaterial color={color} transparent opacity={0.45} side={2} />
+      </mesh>
+      <mesh>
+        <circleGeometry args={[radius * 0.92, 36]} />
+        <meshBasicMaterial color={color} transparent opacity={0.08} side={2} />
+      </mesh>
+    </group>
+  );
+}
+
 // ── 1. KIỆN HÀNG THỰC TẾ ĐA DẠNG (Realistic Cargo Box) ───────────────────────
 type CargoType = "carton" | "plastic_tote" | "wooden_crate" | "pallet_bundle";
 
@@ -32,11 +68,15 @@ function RealisticCargoItem({
   position,
   type = "carton",
   onSelect,
+  isHighlighted = false,
+  isDimmed = false,
 }: {
   item: StockLevelRow;
   position: [number, number, number];
   type?: CargoType;
   onSelect: (item: StockLevelRow) => void;
+  isHighlighted?: boolean;
+  isDimmed?: boolean;
 }) {
   const [hovered, setHovered] = useState(false);
   const indicatorRef = useRef<THREE.Mesh>(null);
@@ -227,6 +267,16 @@ function RealisticCargoItem({
         />
       </mesh>
 
+      {/* Khung viền Neon khi được làm nổi bật danh mục */}
+      {isHighlighted && (
+        <group position={[0, boxHeight / 2, 0]}>
+          <mesh>
+            <boxGeometry args={[0.76, boxHeight + 0.06, 0.76]} />
+            <meshBasicMaterial color="#c084fc" wireframe={true} />
+          </mesh>
+        </group>
+      )}
+
       {/* ── TOOLTIP THÔNG TIN CHI TIẾT KHI HOVER ── */}
       {hovered && (
         <Html
@@ -284,7 +334,7 @@ function RealisticCargoItem({
               </div>
 
               <div className="pt-2 text-center text-[10px] text-sky-400 font-medium border-t border-white/5">
-                💡 Click để nhập thêm hàng vào kho
+                💡 Click để xem chi tiết ô kệ & kiểm định 3D
               </div>
             </div>
           </div>
@@ -304,6 +354,7 @@ function HeavyDutyWarehouseRack({
   items,
   onSelectItem,
   rackWidth = 6.4,
+  highlightCategoryId = null,
 }: {
   position: [number, number, number];
   rotation?: [number, number, number];
@@ -311,8 +362,12 @@ function HeavyDutyWarehouseRack({
   aisleSub?: string;
   accentColor?: string;
   items: StockLevelRow[];
-  onSelectItem: (item: StockLevelRow) => void;
+  onSelectItem: (
+    item: StockLevelRow,
+    location: { aisle: string; level: number; col: number },
+  ) => void;
   rackWidth?: number;
+  highlightCategoryId?: string | null;
 }) {
   const RACK_W = rackWidth;
   const RACK_D = 1.05;
@@ -390,6 +445,9 @@ function HeavyDutyWarehouseRack({
         const posX = -RACK_W / 2 + 0.6 + colIdx * ((RACK_W - 1.2) / (cols - 1));
         const posY = LEVELS[levelIdx] + 0.07;
 
+        const isHighlighted = !!highlightCategoryId && it.categoryId === highlightCategoryId;
+        const isDimmed = !!highlightCategoryId && it.categoryId !== highlightCategoryId;
+
         // Xoay vòng các loại kiện hàng để tạo sự đa dạng chân thực
         const cargoTypes: CargoType[] = ["carton", "plastic_tote", "wooden_crate", "pallet_bundle"];
         const chosenType = cargoTypes[idx % cargoTypes.length];
@@ -400,7 +458,11 @@ function HeavyDutyWarehouseRack({
             item={it}
             position={[posX, posY, 0]}
             type={chosenType}
-            onSelect={onSelectItem}
+            isHighlighted={isHighlighted}
+            isDimmed={isDimmed}
+            onSelect={(selected) =>
+              onSelectItem(selected, { aisle: aisleName, level: levelIdx, col: colIdx })
+            }
           />
         );
       })}
@@ -936,21 +998,24 @@ function InspectionDesk({
         <meshStandardMaterial color="#0284c7" />
       </mesh>
 
+      {/* Vòng định vị phát sáng sàn trạm */}
+      <StationFloorRing radius={1.4} color="#38bdf8" />
+
       {/* Nút hành động nổi tương tác */}
-      <group position={[0, 1.55, 0]}>
-        <Html center distanceFactor={8}>
+      <group position={[0, 1.85, 0]}>
+        <Html center distanceFactor={11}>
           <button
             type="button"
             onClick={onClick}
-            className={`pointer-events-auto flex items-center gap-2 rounded-xl border px-3.5 py-1.5 shadow-2xl backdrop-blur-md transition-all ${
+            className={`pointer-events-auto flex items-center gap-1.5 rounded-full border px-3 py-1 shadow-2xl backdrop-blur-md transition-all ${
               hovered
                 ? "border-sky-400 bg-sky-600/90 text-white scale-110 shadow-sky-500/40"
-                : "border-white/20 bg-slate-900/85 text-slate-200"
+                : "border-sky-400/40 bg-slate-950/85 text-slate-200"
             }`}
           >
             <span className="h-2 w-2 rounded-full bg-sky-400 animate-ping" />
-            <span className="whitespace-nowrap text-xs font-bold">
-              Bàn Kiểm Hàng &bull; Sửa/Thêm SP
+            <span className="whitespace-nowrap text-[11px] font-bold">
+              Bàn Kiểm Hàng
             </span>
           </button>
         </Html>
@@ -982,6 +1047,9 @@ function PalletImportZone({
         onClick();
       }}
     >
+      {/* Vòng định vị phát sáng sàn trạm */}
+      <StationFloorRing radius={1.5} color="#f59e0b" />
+
       {/* Pallet gỗ tự nhiên tiêu chuẩn */}
       <mesh position={[0, 0.07, 0]} castShadow>
         <boxGeometry args={[1.6, 0.14, 1.4]} />
@@ -1035,20 +1103,20 @@ function PalletImportZone({
       </group>
 
       {/* Nút hành động nổi tương tác */}
-      <group position={[0, 1.55, 0]}>
-        <Html center distanceFactor={8}>
+      <group position={[0, 1.85, 0]}>
+        <Html center distanceFactor={11}>
           <button
             type="button"
             onClick={onClick}
-            className={`pointer-events-auto flex items-center gap-2 rounded-xl border px-3.5 py-1.5 shadow-2xl backdrop-blur-md transition-all ${
+            className={`pointer-events-auto flex items-center gap-1.5 rounded-full border px-3 py-1 shadow-2xl backdrop-blur-md transition-all ${
               hovered
                 ? "border-amber-400 bg-amber-600/90 text-white scale-110 shadow-amber-500/40"
-                : "border-white/20 bg-slate-900/85 text-slate-200"
+                : "border-amber-400/40 bg-slate-950/85 text-slate-200"
             }`}
           >
             <span className="h-2 w-2 rounded-full bg-amber-400 animate-ping" />
-            <span className="whitespace-nowrap text-xs font-bold">
-              Khu Nhập Hàng &bull; Nhập Kho Nhanh
+            <span className="whitespace-nowrap text-[11px] font-bold">
+              Khu Nhập Hàng
             </span>
           </button>
         </Html>
@@ -1205,8 +1273,8 @@ function WarehouseSafetyEquipment() {
 function IndustrialRoofStructure() {
   return (
     <group>
-      {/* ── 4 DẦM THÉP CHỮ I NGANG TRẦN NHÀ XƯỞNG (I-Beams) ── */}
-      {[-30, -26.5, -23, -19.5].map((z, i) => (
+      {/* ── DẦM THÉP CHỮ I BÊN TRÊN KHU VỰC KỆ HÀNG (I-Beams) ── */}
+      {[-30, -27].map((z, i) => (
         <group key={`i-beam-${i}`} position={[CENTER_X, WAREHOUSE_HEIGHT - 0.2, z]}>
           <mesh castShadow>
             <boxGeometry args={[WAREHOUSE_WIDTH, 0.25, 0.12]} />
@@ -1215,18 +1283,30 @@ function IndustrialRoofStructure() {
         </group>
       ))}
 
-      {/* ── ĐƯỜNG ỐNG THÔNG GIÓ HVAC MẠ BẠC (HVAC Ducts) ── */}
-      <group position={[CENTER_X + 2.5, WAREHOUSE_HEIGHT - 0.45, CENTER_Z]}>
+      {/* ── DẦM THÉP CHỮ I PHÍA TRƯỚC (Tự động ẩn khi camera xem từ trên cao) ── */}
+      <SmartOcclusionGroup checkOcclusion={(pos) => pos.y > 4.9}>
+        {[-23, -19.5].map((z, i) => (
+          <group key={`front-beam-${i}`} position={[CENTER_X, WAREHOUSE_HEIGHT - 0.2, z]}>
+            <mesh castShadow>
+              <boxGeometry args={[WAREHOUSE_WIDTH, 0.25, 0.12]} />
+              <meshStandardMaterial color="#334155" metalness={0.8} roughness={0.4} />
+            </mesh>
+          </group>
+        ))}
+      </SmartOcclusionGroup>
+
+      {/* ── ĐƯỜNG ỐNG THÔNG GIÓ HVAC MẠ BẠC (Phía trên dãy kệ) ── */}
+      <group position={[CENTER_X + 2.5, WAREHOUSE_HEIGHT - 0.45, -27.5]}>
         <mesh rotation={[Math.PI / 2, 0, 0]}>
-          <cylinderGeometry args={[0.32, 0.32, WAREHOUSE_DEPTH - 1, 16]} />
+          <cylinderGeometry args={[0.26, 0.26, 8, 16]} />
           <meshStandardMaterial color="#94a3b8" metalness={0.85} roughness={0.25} />
         </mesh>
       </group>
 
       {/* ── ĐƯỜNG ỐNG PCCC ĐỎ VÀ ĐẦU PHUN SPRINKLER ── */}
-      <group position={[CENTER_X - 2.5, WAREHOUSE_HEIGHT - 0.55, CENTER_Z]}>
+      <group position={[CENTER_X - 2.5, WAREHOUSE_HEIGHT - 0.55, -27.5]}>
         <mesh rotation={[Math.PI / 2, 0, 0]}>
-          <cylinderGeometry args={[0.07, 0.07, WAREHOUSE_DEPTH - 1, 12]} />
+          <cylinderGeometry args={[0.07, 0.07, 8, 12]} />
           <meshStandardMaterial color="#dc2626" metalness={0.6} roughness={0.3} />
         </mesh>
         {/* Vòi phun Sprinkler tự động thả xuống */}
@@ -1314,6 +1394,8 @@ export function WarehouseScene({
   onOpenProductForm = () => {},
   onOpenImportStock = () => {},
   onOpenCategoryManage = () => {},
+  onSelectCargoItem = () => {},
+  highlightCategoryId = null,
   onReturnToHallway = () => {},
 }: WarehouseSceneProps) {
   // Tạo dữ liệu mẫu phong phú nếu chưa có dữ liệu thật từ backend
@@ -1366,71 +1448,79 @@ export function WarehouseScene({
       {/* Vạch kẻ an toàn sàn & làn xe nâng */}
       <FloorSafetyMarkings />
 
-      {/* ── 2. CÁC MẢNG TƯỜNG NHÀ KHO CÔNG NGHIỆP ──────────────────────── */}
-      {/* Tường sau (z = -32) */}
+      {/* ── 2. CÁC MẢNG TƯỜNG & TRẦN KHO THÔNG MINH (SMART OCCLUSION) ────── */}
+      {/* Tường sau (z = -32) - Luôn hiển thị vì nằm sau hậu cảnh */}
       <mesh position={[CENTER_X, WAREHOUSE_HEIGHT / 2, -32]} receiveShadow>
         <boxGeometry args={[WAREHOUSE_WIDTH, WAREHOUSE_HEIGHT, WALL_THICKNESS]} />
         <meshStandardMaterial color="#0b1120" roughness={0.8} />
       </mesh>
 
-      {/* Tường trước giáp hành lang (z = -18.1) */}
-      <mesh position={[-9.75, WAREHOUSE_HEIGHT / 2, -18.1]}>
-        <boxGeometry args={[11.5, WAREHOUSE_HEIGHT, WALL_THICKNESS]} />
-        <meshStandardMaterial color="#0b1120" roughness={0.8} />
-      </mesh>
-      <mesh position={[-1.45, WAREHOUSE_HEIGHT / 2, -18.1]}>
-        <boxGeometry args={[1.9, WAREHOUSE_HEIGHT, WALL_THICKNESS]} />
-        <meshStandardMaterial color="#0b1120" roughness={0.8} />
-      </mesh>
-      {/* Mảng tường phía trên cửa ra hành lang */}
-      <mesh
-        position={[
-          -3.2,
-          2.8 + (WAREHOUSE_HEIGHT - 2.8) / 2,
-          -18.1,
-        ]}
-      >
-        <boxGeometry args={[1.6, WAREHOUSE_HEIGHT - 2.8, WALL_THICKNESS]} />
-        <meshStandardMaterial color="#0b1120" roughness={0.8} />
-      </mesh>
+      {/* Tường trước (z = -18.1) — Tự động làm mờ/biến mất khi camera ở góc nhìn toàn cảnh phía trước */}
+      <SmartOcclusionGroup checkOcclusion={(pos) => pos.z > -18.4}>
+        <mesh position={[-9.75, WAREHOUSE_HEIGHT / 2, -18.1]}>
+          <boxGeometry args={[11.5, WAREHOUSE_HEIGHT, WALL_THICKNESS]} />
+          <meshStandardMaterial color="#0b1120" roughness={0.8} />
+        </mesh>
+        <mesh position={[-1.45, WAREHOUSE_HEIGHT / 2, -18.1]}>
+          <boxGeometry args={[1.9, WAREHOUSE_HEIGHT, WALL_THICKNESS]} />
+          <meshStandardMaterial color="#0b1120" roughness={0.8} />
+        </mesh>
+        {/* Mảng tường phía trên cửa ra hành lang */}
+        <mesh
+          position={[
+            -3.2,
+            2.8 + (WAREHOUSE_HEIGHT - 2.8) / 2,
+            -18.1,
+          ]}
+        >
+          <boxGeometry args={[1.6, WAREHOUSE_HEIGHT - 2.8, WALL_THICKNESS]} />
+          <meshStandardMaterial color="#0b1120" roughness={0.8} />
+        </mesh>
 
-      {/* ── CỬA THÔNG RA HÀNH LANG (x = -3.2, z = -18.1) ─────────────── */}
-      <Door3D
-        position={[-3.2, 0, -18.1]}
-        rotation={[0, 0, 0]}
-        targetRoom="hallway"
-        label={ROOMS.hallway.name}
-        subLabel="LỐI RA"
-        onEnter={onReturnToHallway}
-        accentColor="#38bdf8"
-      />
+        {/* Cửa thông ra hành lang */}
+        <Door3D
+          position={[-3.2, 0, -18.1]}
+          rotation={[0, 0, 0]}
+          targetRoom="hallway"
+          label={ROOMS.hallway.name}
+          subLabel="LỐI RA"
+          onEnter={onReturnToHallway}
+          accentColor="#38bdf8"
+        />
+      </SmartOcclusionGroup>
 
-      {/* Tường trái (x = -15.5) */}
-      <mesh
-        position={[-15.5, WAREHOUSE_HEIGHT / 2, CENTER_Z]}
-        rotation={[0, Math.PI / 2, 0]}
-      >
-        <boxGeometry args={[WAREHOUSE_DEPTH, WAREHOUSE_HEIGHT, WALL_THICKNESS]} />
-        <meshStandardMaterial color="#0b1120" roughness={0.8} />
-      </mesh>
+      {/* Trần nhà kho (y = 5.4) — Tự động làm mờ/biến mất khi camera ở trên cao nhìn xuống (Overview / Sa bàn) */}
+      <SmartOcclusionGroup checkOcclusion={(pos) => pos.y > 4.9}>
+        <mesh
+          rotation={[Math.PI / 2, 0, 0]}
+          position={[CENTER_X, WAREHOUSE_HEIGHT, CENTER_Z]}
+        >
+          <planeGeometry args={[WAREHOUSE_WIDTH, WAREHOUSE_DEPTH]} />
+          <meshStandardMaterial color="#050811" roughness={0.9} side={2} />
+        </mesh>
+      </SmartOcclusionGroup>
 
-      {/* Tường phải ngăn cách với Văn phòng (x = -0.5) */}
-      <mesh
-        position={[-0.5, WAREHOUSE_HEIGHT / 2, CENTER_Z]}
-        rotation={[0, Math.PI / 2, 0]}
-      >
-        <boxGeometry args={[WAREHOUSE_DEPTH, WAREHOUSE_HEIGHT, WALL_THICKNESS]} />
-        <meshStandardMaterial color="#0b1120" roughness={0.8} />
-      </mesh>
+      {/* Tường trái (x = -15.5) — Tự động làm mờ khi camera xoay về bên trái */}
+      <SmartOcclusionGroup checkOcclusion={(pos) => pos.x < -15.2}>
+        <mesh
+          position={[-15.5, WAREHOUSE_HEIGHT / 2, CENTER_Z]}
+          rotation={[0, Math.PI / 2, 0]}
+        >
+          <boxGeometry args={[WAREHOUSE_DEPTH, WAREHOUSE_HEIGHT, WALL_THICKNESS]} />
+          <meshStandardMaterial color="#0b1120" roughness={0.8} />
+        </mesh>
+      </SmartOcclusionGroup>
 
-      {/* Trần xưởng tối màu */}
-      <mesh
-        rotation={[Math.PI / 2, 0, 0]}
-        position={[CENTER_X, WAREHOUSE_HEIGHT, CENTER_Z]}
-      >
-        <planeGeometry args={[WAREHOUSE_WIDTH, WAREHOUSE_DEPTH]} />
-        <meshStandardMaterial color="#050811" roughness={0.9} side={2} />
-      </mesh>
+      {/* Tường phải ngăn cách với Văn phòng (x = -0.5) — Tự động làm mờ khi camera xoay về bên phải */}
+      <SmartOcclusionGroup checkOcclusion={(pos) => pos.x > -0.8}>
+        <mesh
+          position={[-0.5, WAREHOUSE_HEIGHT / 2, CENTER_Z]}
+          rotation={[0, Math.PI / 2, 0]}
+        >
+          <boxGeometry args={[WAREHOUSE_DEPTH, WAREHOUSE_HEIGHT, WALL_THICKNESS]} />
+          <meshStandardMaterial color="#0b1120" roughness={0.8} />
+        </mesh>
+      </SmartOcclusionGroup>
 
       {/* ── 3. HỆ THỐNG KẾT CẤU TRẦN THÉP & ÁNH SÁNG ─────────────────── */}
       <IndustrialRoofStructure />
@@ -1460,7 +1550,8 @@ export function WarehouseScene({
         aisleSub="HÀNG GIA DỤNG & ĐIỆN TỬ"
         accentColor="#38bdf8"
         items={itemsAisleA}
-        onSelectItem={(item) => onOpenImportStock(item.productId)}
+        highlightCategoryId={highlightCategoryId}
+        onSelectItem={(item, loc) => onSelectCargoItem(item, loc)}
         rackWidth={5.6}
       />
 
@@ -1471,13 +1562,14 @@ export function WarehouseScene({
         aisleSub="HÀNG TIÊU DÙNG & THỰC PHẨM"
         accentColor="#f59e0b"
         items={itemsAisleB}
-        onSelectItem={(item) => onOpenImportStock(item.productId)}
+        highlightCategoryId={highlightCategoryId}
+        onSelectItem={(item, loc) => onSelectCargoItem(item, loc)}
         rackWidth={5.6}
       />
 
-      {/* Xe nâng hàng Forklift 3D chi tiết ở làn giữa */}
+      {/* Xe nâng hàng Forklift 3D chi tiết ở làn giữa giữa 2 dãy kệ */}
       <WarehouseForklift3D
-        position={[-7.8, 0, -23.8]}
+        position={[-7.8, 0, -26.0]}
         rotation={[0, 0.15, 0]}
       />
 
@@ -1488,24 +1580,24 @@ export function WarehouseScene({
       />
 
       {/* Cân sàn điện tử công nghiệp */}
-      <FloorWeighingScale position={[-2.4, 0, -21.8]} />
+      <FloorWeighingScale position={[-2.4, 0, -22.5]} />
 
       {/* Bàn kiểm hàng & quét mã sản phẩm */}
       <InspectionDesk
-        position={[-10.8, 0, -22.0]}
+        position={[-11.0, 0, -22.8]}
         onClick={onOpenProductForm}
       />
 
       {/* Khu tiếp nhận & Nhập kho nhanh */}
       <PalletImportZone
-        position={[-4.6, 0, -22.0]}
+        position={[-4.5, 0, -22.8]}
         onClick={() => onOpenImportStock()}
       />
 
-      {/* Bảng phân loại danh mục treo trên tường trái */}
+      {/* Bảng phân loại danh mục treo trên tường trái (Góc xoay hướng về trung tâm kho) */}
       <CategoryBoard
-        position={[-15.35, 2.4, -22.2]}
-        rotation={[0, Math.PI / 2, 0]}
+        position={[-15.0, 2.3, -23.5]}
+        rotation={[0, Math.PI / 2 - 0.38, 0]}
         onClick={onOpenCategoryManage}
       />
 
