@@ -1287,7 +1287,7 @@ export function CreateOrderModal3D({
           </div>
         </div>
       )}
-      {/* Modal Nâng cấp gói dịch vụ với tích hợp thanh toán VietQR */}
+      {/* Modal Nâng cấp gói dịch vụ với tích hợp thanh toán Stripe */}
       <UpgradePlanModal open={upgradeModalOpen} onOpenChange={setUpgradeModalOpen} />
     </div>
   );

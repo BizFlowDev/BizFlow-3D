@@ -7,7 +7,6 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
-  DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,15 +23,16 @@ import {
   Building2,
   Check,
   CreditCard,
-  QrCode,
   Save,
   ShieldCheck,
   Loader2,
   Store,
+  Zap,
+  Lock,
+  CheckCircle2,
 } from "lucide-react";
 import {
   VIETNAM_BANKS,
-  generateVietQRUrl,
   sanitizeAccountHolder,
 } from "@/lib/vietqr";
 import {
@@ -54,7 +54,7 @@ export function OfficeSettingsModal({
   const updateBankInfo = useUpdateStoreBankInfo();
   const updateProfile = useUpdateStoreProfile();
 
-  const [activeTab, setActiveTab] = useState<"vietqr" | "store">("vietqr");
+  const [activeTab, setActiveTab] = useState<"store" | "bank" | "stripe">("store");
 
   // Bank Info state
   const [bankCode, setBankCode] = useState<string>("");
@@ -79,17 +79,6 @@ export function OfficeSettingsModal({
     }
   }, [store]);
 
-  const previewQR =
-    bankCode && accountNumber && accountHolder
-      ? generateVietQRUrl({
-          bankCode,
-          accountNumber,
-          accountName: sanitizeAccountHolder(accountHolder),
-          amount: 100000,
-          memo: "THANH TOAN BIZFLOW",
-        })
-      : null;
-
   const handleSaveBank = async () => {
     try {
       await updateBankInfo.mutateAsync({
@@ -108,8 +97,8 @@ export function OfficeSettingsModal({
     try {
       await updateProfile.mutateAsync({
         name: storeName,
-        phone: storePhone,
-        address: storeAddress,
+        phone: storePhone || null,
+        address: storeAddress || null,
       });
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 2500);
@@ -131,7 +120,7 @@ export function OfficeSettingsModal({
                 Bàn Giám Đốc &bull; Cấu Hình Doanh Nghiệp
               </DialogTitle>
               <DialogDescription className="text-xs text-slate-400">
-                Thiết lập tài khoản nhận tiền VietQR và thông tin cửa hàng
+                Thiết lập thông tin cửa hàng, tài khoản kế toán và cổng thanh toán Stripe
               </DialogDescription>
             </div>
           </div>
@@ -139,18 +128,6 @@ export function OfficeSettingsModal({
 
         {/* Tab switcher */}
         <div className="flex rounded-xl bg-slate-900/80 p-1 border border-white/10">
-          <button
-            type="button"
-            onClick={() => setActiveTab("vietqr")}
-            className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-semibold rounded-lg transition-all ${
-              activeTab === "vietqr"
-                ? "bg-emerald-600 text-white shadow-lg shadow-emerald-500/20"
-                : "text-slate-400 hover:text-white"
-            }`}
-          >
-            <QrCode className="h-4 w-4" />
-            Tài Khoản VietQR
-          </button>
           <button
             type="button"
             onClick={() => setActiveTab("store")}
@@ -163,90 +140,33 @@ export function OfficeSettingsModal({
             <Store className="h-4 w-4" />
             Hồ Sơ Cửa Hàng
           </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("bank")}
+            className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-semibold rounded-lg transition-all ${
+              activeTab === "bank"
+                ? "bg-emerald-600 text-white shadow-lg shadow-emerald-500/20"
+                : "text-slate-400 hover:text-white"
+            }`}
+          >
+            <CreditCard className="h-4 w-4" />
+            Tài Khoản Kế Toán
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("stripe")}
+            className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-semibold rounded-lg transition-all ${
+              activeTab === "stripe"
+                ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/20"
+                : "text-slate-400 hover:text-white"
+            }`}
+          >
+            <Zap className="h-4 w-4" />
+            Cổng Stripe
+          </button>
         </div>
 
-        {activeTab === "vietqr" ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-            <div className="space-y-3">
-              <div>
-                <Label className="text-xs text-slate-300">Ngân hàng</Label>
-                <Select value={bankCode} onValueChange={setBankCode}>
-                  <SelectTrigger className="mt-1 border-white/15 bg-slate-900 text-white">
-                    <SelectValue placeholder="Chọn ngân hàng" />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-60 bg-slate-900 border-white/15 text-white">
-                    {VIETNAM_BANKS.map((b) => (
-                      <SelectItem key={b.code} value={b.code}>
-                        {b.shortName} - {b.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label className="text-xs text-slate-300">Số tài khoản</Label>
-                <Input
-                  value={accountNumber}
-                  onChange={(e) => setAccountNumber(e.target.value)}
-                  placeholder="VD: 1029384756"
-                  className="mt-1 border-white/15 bg-slate-900 text-white"
-                />
-              </div>
-
-              <div>
-                <Label className="text-xs text-slate-300">Tên chủ tài khoản</Label>
-                <Input
-                  value={accountHolder}
-                  onChange={(e) => setAccountHolder(e.target.value.toUpperCase())}
-                  placeholder="VD: NGUYEN VAN A"
-                  className="mt-1 border-white/15 bg-slate-900 text-white"
-                />
-              </div>
-
-              <Button
-                onClick={handleSaveBank}
-                disabled={updateBankInfo.isPending}
-                className="w-full bg-emerald-600 hover:bg-emerald-500 text-white"
-              >
-                {updateBankInfo.isPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
-                ) : saveSuccess ? (
-                  <Check className="h-4 w-4 mr-1.5 text-white" />
-                ) : (
-                  <Save className="h-4 w-4 mr-1.5" />
-                )}
-                {saveSuccess ? "Đã Lưu Thành Công!" : "Lưu Thông Tin VietQR"}
-              </Button>
-            </div>
-
-            {/* QR Preview Card */}
-            <div className="flex flex-col items-center justify-center rounded-2xl border border-white/10 bg-slate-900/60 p-4 text-center">
-              {previewQR ? (
-                <>
-                  <div className="rounded-xl bg-white p-2 shadow-xl">
-                    <img
-                      src={previewQR}
-                      alt="VietQR Preview"
-                      className="h-36 w-36 object-contain"
-                    />
-                  </div>
-                  <Badge className="mt-2.5 bg-emerald-500/20 text-emerald-300 border-emerald-500/30">
-                    <ShieldCheck className="h-3 w-3 mr-1" /> NAPAS 24/7 Chuẩn
-                  </Badge>
-                  <p className="mt-1 text-[11px] text-slate-400">
-                    Mã QR thanh toán tự động cho khách tại quầy POS
-                  </p>
-                </>
-              ) : (
-                <div className="text-center text-slate-400 text-xs py-8">
-                  <CreditCard className="h-10 w-10 mx-auto mb-2 opacity-40 text-emerald-400" />
-                  Nhập đủ thông tin để tạo mã VietQR
-                </div>
-              )}
-            </div>
-          </div>
-        ) : (
+        {activeTab === "store" ? (
           <div className="space-y-3 pt-2">
             <div>
               <Label className="text-xs text-slate-300">Tên cửa hàng / Hộ kinh doanh</Label>
@@ -258,7 +178,7 @@ export function OfficeSettingsModal({
               />
             </div>
             <div>
-              <Label className="text-xs text-slate-300">Số điện thoại liên hệ</Label>
+              <Label className="text-xs text-slate-300">Hotline / Số điện thoại</Label>
               <Input
                 value={storePhone}
                 onChange={(e) => setStorePhone(e.target.value)}
@@ -271,37 +191,111 @@ export function OfficeSettingsModal({
               <Input
                 value={storeAddress}
                 onChange={(e) => setStoreAddress(e.target.value)}
-                placeholder="Số 123 Đường ABC, Quận XYZ"
+                placeholder="Tầng 1, Tòa nhà BizFlow, Q.1, TP.HCM"
                 className="mt-1 border-white/15 bg-slate-900 text-white"
               />
             </div>
-
             <Button
               onClick={handleSaveStore}
               disabled={updateProfile.isPending}
-              className="w-full bg-emerald-600 hover:bg-emerald-500 text-white"
+              className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold mt-1"
             >
               {updateProfile.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
               ) : saveSuccess ? (
-                <Check className="h-4 w-4 mr-1.5" />
+                <Check className="h-4 w-4 mr-1.5 text-white" />
               ) : (
                 <Save className="h-4 w-4 mr-1.5" />
               )}
-              {saveSuccess ? "Đã Lưu Thành Công!" : "Lưu Hồ Sơ Cửa Hàng"}
+              {saveSuccess ? "Đã Lưu Hồ Sơ!" : "Lưu Hồ Sơ Cửa Hàng"}
             </Button>
           </div>
-        )}
+        ) : activeTab === "bank" ? (
+          <div className="space-y-3 pt-2">
+            <div>
+              <Label className="text-xs text-slate-300">Ngân hàng thụ hưởng</Label>
+              <Select value={bankCode} onValueChange={setBankCode}>
+                <SelectTrigger className="mt-1 border-white/15 bg-slate-900 text-white">
+                  <SelectValue placeholder="Chọn ngân hàng" />
+                </SelectTrigger>
+                <SelectContent className="max-h-60 bg-slate-900 border-white/15 text-white">
+                  {VIETNAM_BANKS.map((b) => (
+                    <SelectItem key={b.code} value={b.code}>
+                      {b.shortName} - {b.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-        <DialogFooter className="pt-2 border-t border-white/10">
-          <Button
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            className="border-white/15 text-slate-300 hover:bg-white/10"
-          >
-            Đóng
-          </Button>
-        </DialogFooter>
+            <div>
+              <Label className="text-xs text-slate-300">Số tài khoản ngân hàng</Label>
+              <Input
+                value={accountNumber}
+                onChange={(e) => setAccountNumber(e.target.value)}
+                placeholder="VD: 1029384756"
+                className="mt-1 border-white/15 bg-slate-900 text-white font-mono"
+              />
+            </div>
+
+            <div>
+              <Label className="text-xs text-slate-300">Tên chủ tài khoản (In hoa không dấu)</Label>
+              <Input
+                value={accountHolder}
+                onChange={(e) => setAccountHolder(e.target.value.toUpperCase())}
+                placeholder="VD: NGUYEN VAN A"
+                className="mt-1 border-white/15 bg-slate-900 text-white uppercase"
+              />
+            </div>
+
+            <Button
+              onClick={handleSaveBank}
+              disabled={updateBankInfo.isPending}
+              className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold mt-1"
+            >
+              {updateBankInfo.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
+              ) : saveSuccess ? (
+                <Check className="h-4 w-4 mr-1.5 text-white" />
+              ) : (
+                <Save className="h-4 w-4 mr-1.5" />
+              )}
+              {saveSuccess ? "Đã Lưu Thành Công!" : "Lưu Tài Khoản Kế Toán"}
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-3.5 pt-2 text-xs">
+            <div className="rounded-xl border border-indigo-500/30 bg-indigo-950/40 p-4 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-indigo-300 flex items-center gap-1.5">
+                  <ShieldCheck className="h-4 w-4 text-indigo-400" />
+                  Cổng Thanh Toán Quốc Tế Stripe
+                </span>
+                <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 gap-1 text-[11px]">
+                  <CheckCircle2 className="h-3 w-3" /> Đang Hoạt Động
+                </Badge>
+              </div>
+              <p className="text-slate-300 text-[11px] leading-relaxed">
+                Tất cả quy trình thanh toán tại Quầy Thu Ngân 3D và Thu nợ khách hàng đã được tích hợp tự động qua Cổng Stripe với mã QR nét cao và đối soát tự động.
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-white/10 bg-slate-900/60 p-3.5 space-y-2">
+              <div className="flex justify-between items-center text-slate-300">
+                <span className="text-slate-400">Phương thức hỗ trợ:</span>
+                <span className="font-semibold text-white">Stripe QR · Visa · Master · Apple Pay</span>
+              </div>
+              <div className="flex justify-between items-center text-slate-300">
+                <span className="text-slate-400">Chuẩn bảo mật:</span>
+                <span className="font-semibold text-white">PCI-DSS Level 1</span>
+              </div>
+              <div className="flex justify-between items-center text-slate-300">
+                <span className="text-slate-400">Cơ chế đối soát:</span>
+                <span className="font-semibold text-emerald-400">Real-time Polling 2s</span>
+              </div>
+            </div>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );

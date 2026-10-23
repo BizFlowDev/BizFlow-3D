@@ -47,7 +47,7 @@ export function useCurrentStore() {
 }
 
 /**
- * Hook cập nhật thông tin ngân hàng nhận tiền (VietQR)
+ * Hook cập nhật thông tin ngân hàng nhận tiền (kế toán & đối soát nội bộ)
  */
 export function useUpdateStoreBankInfo() {
   const queryClient = useQueryClient();

@@ -111,7 +111,7 @@ export const NAV_SECTIONS: NavSection[] = [
         roles: ["owner"],
       },
       {
-        title: "Cài đặt & VietQR",
+        title: "Cài đặt Cửa hàng",
         href: "/settings",
         icon: Cog,
         roles: ["owner"],

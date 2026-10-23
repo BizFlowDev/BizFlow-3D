@@ -10,11 +10,13 @@ import {
   ExternalLink,
   Info,
   Loader2,
-  QrCode,
+  Lock,
   Save,
   ShieldCheck,
   Sparkles,
-  Store as StoreIcon,
+  Zap,
+  Globe2,
+  CheckCircle2,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -32,10 +34,8 @@ import {
 import { useToast, ToastViewport } from "@/components/ui/toast";
 import {
   VIETNAM_BANKS,
-  generateVietQRUrl,
   getBankByCode,
   sanitizeAccountHolder,
-  formatPaymentMemo,
 } from "@/lib/vietqr";
 import { useCurrentStore, useUpdateStoreBankInfo, useUpdateStoreProfile } from "@/hooks/useStore";
 
@@ -45,14 +45,10 @@ export default function SettingsPage() {
   const updateProfile = useUpdateStoreProfile();
   const { toasts, showToast, dismiss } = useToast();
 
-  // ── State: Bank Settings ──
+  // ── State: Bank Settings (Dành cho Kế toán & Lưu trữ) ──
   const [bankCode, setBankCode] = useState<string>("");
   const [accountNumber, setAccountNumber] = useState<string>("");
   const [accountHolder, setAccountHolder] = useState<string>("");
-
-  // ── State: Demo QR Preview ──
-  const [demoAmount, setDemoAmount] = useState<number>(50000);
-  const [demoMemo, setDemoMemo] = useState<string>("BF3D DEMO");
   const [copied, setCopied] = useState<string | null>(null);
 
   // ── State: General Store Profile ──
@@ -77,18 +73,7 @@ export default function SettingsPage() {
     }
   }, [store]);
 
-  // Selected Bank Object
   const selectedBank = getBankByCode(bankCode);
-
-  // Live QR Preview URL
-  const qrPreviewUrl = generateVietQRUrl({
-    bankCode,
-    accountNumber,
-    accountName: accountHolder,
-    amount: demoAmount,
-    memo: demoMemo,
-    template: "compact2",
-  });
 
   // Handle Save Bank Info
   const handleSaveBankInfo = async (e: React.FormEvent) => {
@@ -114,7 +99,7 @@ export default function SettingsPage() {
         bankAccountHolder: sanitizeAccountHolder(accountHolder),
       });
 
-      showToast("success", "Cập nhật thành công!", "Thông tin tài khoản VietQR đã được lưu");
+      showToast("success", "Cập nhật thành công!", "Thông tin tài khoản doanh nghiệp đã được lưu");
     } catch (err: unknown) {
       const errorMsg = err instanceof Error ? err.message : "Có lỗi xảy ra";
       showToast("error", "Cập nhật thất bại", errorMsg);
@@ -158,15 +143,15 @@ export default function SettingsPage() {
       {/* ── Header ── */}
       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Cài đặt Cửa hàng</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Cài đặt Cửa hàng & Thanh toán</h1>
           <p className="text-sm text-muted-foreground">
-            Cấu hình thông tin nhận tiền chuyển khoản qua mã QR Napas247 (Miễn phí 100%) và thông tin cửa hàng
+            Quản lý hồ sơ cửa hàng, tài khoản kế toán doanh nghiệp và cấu hình Cổng thanh toán trực tuyến Stripe.
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Badge variant="outline" className="gap-1 border-blue-500/30 bg-blue-500/10 text-blue-600 dark:text-blue-400">
-            <ShieldCheck className="h-3.5 w-3.5" />
-            VietQR Napas247 Chuẩn Quốc Gia
+          <Badge variant="outline" className="gap-1.5 border-indigo-500/30 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 py-1 px-3">
+            <ShieldCheck className="h-4 w-4" />
+            Cổng Stripe PCI-DSS Sẵn Sàng
           </Badge>
         </div>
       </div>
@@ -178,114 +163,9 @@ export default function SettingsPage() {
         </div>
       ) : (
         <div className="grid gap-6 lg:grid-cols-12">
-          {/* ── Cột trái: Cài đặt Tài khoản VietQR (7 cols) ── */}
+          {/* ── Cột trái: Thông tin Cửa hàng & Tài khoản Doanh nghiệp (7 cols) ── */}
           <div className="space-y-6 lg:col-span-7">
-            <Card className="border-border/60 shadow-sm">
-              <CardHeader className="border-b bg-muted/20 pb-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600/10 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400">
-                      <QrCode className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-base font-semibold">Tài khoản nhận tiền (VietQR)</CardTitle>
-                      <CardDescription className="text-xs">
-                        Mã QR động sẽ tự động sinh khi thanh toán tại quầy POS mà không mất phí dịch vụ
-                      </CardDescription>
-                    </div>
-                  </div>
-                  <Badge variant="secondary" className="text-xs font-semibold text-emerald-600 bg-emerald-500/10 border-emerald-500/20">
-                    0đ Phí giao dịch
-                  </Badge>
-                </div>
-              </CardHeader>
-
-              <CardContent className="pt-5">
-                <form onSubmit={handleSaveBankInfo} className="space-y-4">
-                  {/* Chọn Ngân hàng */}
-                  <div className="space-y-1.5">
-                    <Label htmlFor="bankSelect" className="text-xs font-semibold uppercase text-muted-foreground">
-                      Ngân hàng thụ hưởng <span className="text-red-500">*</span>
-                    </Label>
-                    <Select value={bankCode} onValueChange={setBankCode}>
-                      <SelectTrigger id="bankSelect" className="h-10">
-                        <SelectValue placeholder="Chọn ngân hàng..." />
-                      </SelectTrigger>
-                      <SelectContent className="max-h-72">
-                        {VIETNAM_BANKS.map((b) => (
-                          <SelectItem key={b.code} value={b.code} className="py-2">
-                            <div className="flex items-center gap-2.5">
-                              <span className="font-semibold text-blue-600 dark:text-blue-400">{b.shortName}</span>
-                              <span className="text-xs text-muted-foreground truncate">({b.name})</span>
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* Số tài khoản */}
-                  <div className="space-y-1.5">
-                    <Label htmlFor="accountNumber" className="text-xs font-semibold uppercase text-muted-foreground">
-                      Số tài khoản ngân hàng <span className="text-red-500">*</span>
-                    </Label>
-                    <div className="relative">
-                      <CreditCard className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                      <Input
-                        id="accountNumber"
-                        value={accountNumber}
-                        onChange={(e) => setAccountNumber(e.target.value.replace(/\s+/g, ""))}
-                        placeholder="VD: 0987654321, 1903..."
-                        className="pl-9 font-mono font-medium"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Tên chủ tài khoản */}
-                  <div className="space-y-1.5">
-                    <Label htmlFor="accountHolder" className="text-xs font-semibold uppercase text-muted-foreground">
-                      Tên chủ tài khoản (In hoa không dấu) <span className="text-red-500">*</span>
-                    </Label>
-                    <Input
-                      id="accountHolder"
-                      value={accountHolder}
-                      onChange={(e) => setAccountHolder(e.target.value)}
-                      onBlur={(e) => setAccountHolder(sanitizeAccountHolder(e.target.value))}
-                      placeholder="VD: NGUYEN VAN A"
-                      className="uppercase font-semibold tracking-wide"
-                    />
-                    <p className="text-[11px] text-muted-foreground">
-                      Hệ thống tự động chuyển thành chữ hoa không dấu chuẩn định dạng ngân hàng Napas
-                    </p>
-                  </div>
-
-                  <div className="pt-2">
-                    <Button
-                      type="submit"
-                      disabled={updateBankInfo.isPending}
-                      className="w-full gap-2 bg-gradient-to-r from-blue-600 to-blue-500 font-semibold text-white shadow-md shadow-blue-500/20 hover:from-blue-500 hover:to-blue-400"
-                    >
-                      {updateBankInfo.isPending ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Save className="h-4 w-4" />
-                      )}
-                      Lưu cấu hình VietQR
-                    </Button>
-                  </div>
-                </form>
-
-                {/* Hướng dẫn ngắn */}
-                <div className="mt-4 flex items-start gap-2.5 rounded-lg border border-blue-500/20 bg-blue-500/5 p-3 text-xs text-blue-700 dark:text-blue-300">
-                  <Info className="h-4 w-4 shrink-0 mt-0.5" />
-                  <div>
-                    <span className="font-semibold">Cơ chế hoạt động:</span> Khi bạn chọn thanh toán mã QR tại quầy POS, hệ thống sẽ tự động chèn đúng số tiền và mã hóa đơn vào mã QR. Khách hàng dùng bất kỳ ứng dụng ngân hàng nào (Vietcombank, MB, Techcombank, MoMo,...) quét mã là tiền sẽ chuyển thẳng vào tài khoản của bạn.
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* ── Thông tin chung Cửa hàng ── */}
+            {/* ── 1. Thông tin chung Cửa hàng ── */}
             <Card className="border-border/60 shadow-sm">
               <CardHeader className="border-b bg-muted/20 pb-4">
                 <div className="flex items-center gap-2.5">
@@ -295,7 +175,7 @@ export default function SettingsPage() {
                   <div>
                     <CardTitle className="text-base font-semibold">Thông tin cửa hàng</CardTitle>
                     <CardDescription className="text-xs">
-                      Tên và thông tin liên hệ hiển thị trên phiếu in hóa đơn bán lẻ
+                      Tên và thông tin liên hệ hiển thị trên phiếu in hóa đơn bán lẻ và chứng từ
                     </CardDescription>
                   </div>
                 </div>
@@ -365,8 +245,7 @@ export default function SettingsPage() {
                     <Button
                       type="submit"
                       disabled={updateProfile.isPending}
-                      variant="outline"
-                      className="w-full gap-2 font-semibold"
+                      className="w-full gap-2 bg-gradient-to-r from-emerald-600 to-emerald-500 font-semibold text-white shadow-md shadow-emerald-500/20 hover:from-emerald-500 hover:to-emerald-400"
                     >
                       {updateProfile.isPending ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
@@ -379,115 +258,208 @@ export default function SettingsPage() {
                 </form>
               </CardContent>
             </Card>
+
+            {/* ── 2. Tài khoản Ngân hàng Doanh nghiệp (Kế toán & Đối soát) ── */}
+            <Card className="border-border/60 shadow-sm">
+              <CardHeader className="border-b bg-muted/20 pb-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600/10 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400">
+                      <CreditCard className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-base font-semibold">Tài khoản ngân hàng doanh nghiệp</CardTitle>
+                      <CardDescription className="text-xs">
+                        Thông tin tài khoản ngân hàng chính thức dùng cho hạch toán nội bộ & đối soát kế toán
+                      </CardDescription>
+                    </div>
+                  </div>
+                  <Badge variant="secondary" className="text-xs font-medium">
+                    Kế toán & Sổ quỹ
+                  </Badge>
+                </div>
+              </CardHeader>
+
+              <CardContent className="pt-5">
+                <form onSubmit={handleSaveBankInfo} className="space-y-4">
+                  {/* Chọn Ngân hàng */}
+                  <div className="space-y-1.5">
+                    <Label htmlFor="bankSelect" className="text-xs font-semibold uppercase text-muted-foreground">
+                      Ngân hàng thụ hưởng <span className="text-red-500">*</span>
+                    </Label>
+                    <Select value={bankCode} onValueChange={setBankCode}>
+                      <SelectTrigger id="bankSelect" className="h-10">
+                        <SelectValue placeholder="Chọn ngân hàng..." />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-72">
+                        {VIETNAM_BANKS.map((b) => (
+                          <SelectItem key={b.code} value={b.code} className="py-2">
+                            <div className="flex items-center gap-2.5">
+                              <span className="font-semibold text-blue-600 dark:text-blue-400">{b.shortName}</span>
+                              <span className="text-xs text-muted-foreground truncate">({b.name})</span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Số tài khoản */}
+                  <div className="space-y-1.5">
+                    <Label htmlFor="accountNumber" className="text-xs font-semibold uppercase text-muted-foreground">
+                      Số tài khoản ngân hàng <span className="text-red-500">*</span>
+                    </Label>
+                    <div className="relative">
+                      <CreditCard className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        id="accountNumber"
+                        value={accountNumber}
+                        onChange={(e) => setAccountNumber(e.target.value.replace(/\s+/g, ""))}
+                        placeholder="VD: 0987654321, 1903..."
+                        className="pl-9 font-mono font-medium"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Tên chủ tài khoản */}
+                  <div className="space-y-1.5">
+                    <Label htmlFor="accountHolder" className="text-xs font-semibold uppercase text-muted-foreground">
+                      Tên chủ tài khoản (In hoa không dấu) <span className="text-red-500">*</span>
+                    </Label>
+                    <Input
+                      id="accountHolder"
+                      value={accountHolder}
+                      onChange={(e) => setAccountHolder(e.target.value)}
+                      onBlur={(e) => setAccountHolder(sanitizeAccountHolder(e.target.value))}
+                      placeholder="VD: NGUYEN VAN A"
+                      className="uppercase font-semibold tracking-wide"
+                    />
+                  </div>
+
+                  <div className="pt-2">
+                    <Button
+                      type="submit"
+                      disabled={updateBankInfo.isPending}
+                      variant="outline"
+                      className="w-full gap-2 font-semibold"
+                    >
+                      {updateBankInfo.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Save className="h-4 w-4" />
+                      )}
+                      Lưu thông tin tài khoản doanh nghiệp
+                    </Button>
+                  </div>
+                </form>
+              </CardContent>
+            </Card>
           </div>
 
-          {/* ── Cột phải: Live Preview Mã VietQR (5 cols) ── */}
+          {/* ── Cột phải: Cổng thanh toán trực tuyến Stripe (5 cols) ── */}
           <div className="space-y-6 lg:col-span-5">
             <Card className="sticky top-20 border-border/60 shadow-sm overflow-hidden">
-              <CardHeader className="border-b bg-gradient-to-r from-blue-600/10 via-cyan-500/10 to-transparent pb-4">
+              <CardHeader className="border-b bg-gradient-to-r from-indigo-600/10 via-purple-500/10 to-transparent pb-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Sparkles className="h-4 w-4 text-blue-600" />
-                    <CardTitle className="text-base font-semibold">Xem trước mã VietQR mẫu</CardTitle>
+                    <Sparkles className="h-4 w-4 text-indigo-600" />
+                    <CardTitle className="text-base font-semibold">Cổng thanh toán Stripe</CardTitle>
                   </div>
-                  <Badge variant="outline" className="text-[11px] bg-background">
-                    Real-time
+                  <Badge variant="outline" className="text-[11px] bg-emerald-500/10 text-emerald-600 border-emerald-500/30 font-semibold gap-1">
+                    <CheckCircle2 className="h-3 w-3" /> Đang hoạt động
                   </Badge>
                 </div>
                 <CardDescription className="text-xs">
-                  Mã QR sẽ hiển thị thế này cho khách hàng quét khi thanh toán
+                  Xử lý thanh toán trực tuyến tự động cho toàn bộ hệ thống POS, Store 3D và Thu nợ
                 </CardDescription>
               </CardHeader>
 
               <CardContent className="pt-5 space-y-4">
-                {/* Khung ảnh QR Code */}
-                <div className="flex flex-col items-center justify-center rounded-xl border bg-muted/30 p-4 text-center">
-                  {bankCode && accountNumber ? (
-                    <motion.div
-                      key={`${bankCode}-${accountNumber}-${accountHolder}-${demoAmount}-${demoMemo}`}
-                      initial={{ scale: 0.95, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      transition={{ duration: 0.25 }}
-                      className="relative rounded-lg bg-white p-2 shadow-md"
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={qrPreviewUrl}
-                        alt="Mã VietQR xem trước"
-                        className="max-h-[290px] w-auto rounded object-contain"
-                        onError={(e) => {
-                          (e.target as HTMLElement).style.display = "none";
-                        }}
-                      />
-                    </motion.div>
-                  ) : (
-                    <div className="py-12 text-center text-muted-foreground">
-                      <QrCode className="mx-auto h-12 w-12 opacity-30" />
-                      <p className="mt-2 text-sm">Vui lòng chọn Ngân hàng và nhập Số tài khoản để tạo mã QR</p>
-                    </div>
-                  )}
+                {/* Feature highlight card */}
+                <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 p-4 dark:border-indigo-900/40 dark:bg-indigo-950/20 space-y-3">
+                  <div className="flex items-center gap-2 text-indigo-700 dark:text-indigo-300">
+                    <Zap className="h-4 w-4" />
+                    <span className="text-xs font-bold uppercase tracking-wider">Tính năng thanh toán</span>
+                  </div>
 
-                  {/* Thông tin tài khoản dạng text */}
-                  {bankCode && accountNumber && (
-                    <div className="mt-4 w-full space-y-2 rounded-lg border bg-background p-3 text-left text-xs">
-                      <div className="flex items-center justify-between">
-                        <span className="text-muted-foreground">Ngân hàng:</span>
-                        <span className="font-semibold">{selectedBank?.shortName || bankCode}</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-muted-foreground">Số tài khoản:</span>
-                        <div className="flex items-center gap-1.5 font-mono font-bold">
-                          <span>{accountNumber}</span>
-                          <button
-                            type="button"
-                            onClick={() => copyToClipboard(accountNumber, "Số tài khoản")}
-                            className="text-muted-foreground hover:text-foreground"
-                          >
-                            {copied === "Số tài khoản" ? (
-                              <Check className="h-3.5 w-3.5 text-emerald-500" />
-                            ) : (
-                              <Copy className="h-3.5 w-3.5" />
-                            )}
-                          </button>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-muted-foreground">Chủ tài khoản:</span>
-                        <span className="font-semibold uppercase">{accountHolder || "Chưa nhập"}</span>
-                      </div>
-                    </div>
-                  )}
+                  <ul className="space-y-2 text-xs text-foreground/80">
+                    <li className="flex items-start gap-2">
+                      <Check className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />
+                      <span><strong>Stripe Checkout QR Code:</strong> Khách quét mã thanh toán tức thì bằng ứng dụng ngân hàng.</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <Check className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />
+                      <span><strong>Thẻ quốc tế & Ví điện tử:</strong> Hỗ trợ Visa, MasterCard, JCB, Apple Pay, Google Pay.</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <Check className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />
+                      <span><strong>Đối soát Real-time:</strong> Polling 2s và Webhook tự động ghi nhận tiền vào không cần kiểm tra thủ công.</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <Check className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />
+                      <span><strong>Khóa chống chốt khống:</strong> Nút xác nhận bị khóa tuyệt đối cho đến khi tiền thực sự đã vào tài khoản.</span>
+                    </li>
+                  </ul>
                 </div>
 
-                {/* Khung Test thử số tiền & nội dung Demo */}
-                <div className="space-y-3 rounded-lg border bg-muted/20 p-3">
-                  <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                    Thử nghiệm quét QR
+                {/* Security Standards */}
+                <div className="space-y-2 rounded-lg border bg-background p-3.5 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground flex items-center gap-1.5">
+                      <Lock className="h-3.5 w-3.5 text-slate-500" />
+                      Chuẩn bảo mật:
+                    </span>
+                    <span className="font-semibold text-foreground">PCI-DSS Level 1 & SSL 256-bit</span>
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <Label className="text-[11px] text-muted-foreground">Số tiền thử nghiệm</Label>
-                      <Input
-                        type="number"
-                        min={0}
-                        step={10000}
-                        value={demoAmount}
-                        onChange={(e) => setDemoAmount(Number(e.target.value))}
-                        className="h-8 text-xs font-mono"
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-[11px] text-muted-foreground">Nội dung thử nghiệm</Label>
-                      <Input
-                        value={demoMemo}
-                        onChange={(e) => setDemoMemo(e.target.value)}
-                        className="h-8 text-xs"
-                      />
-                    </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground flex items-center gap-1.5">
+                      <Globe2 className="h-3.5 w-3.5 text-slate-500" />
+                      Tiền tệ xử lý:
+                    </span>
+                    <span className="font-semibold text-foreground">VND & Đa ngoại tệ</span>
                   </div>
-                  <p className="text-[11px] text-muted-foreground">
-                    Bạn có thể mở app ngân hàng trên điện thoại để quét thử ngay mã QR ở trên!
-                  </p>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground flex items-center gap-1.5">
+                      <ShieldCheck className="h-3.5 w-3.5 text-slate-500" />
+                      Phân hệ áp dụng:
+                    </span>
+                    <span className="font-semibold text-indigo-600 dark:text-indigo-400">POS 2D · Showroom 3D · Thu nợ</span>
+                  </div>
+                </div>
+
+                {/* Account info summary */}
+                {bankCode && accountNumber && (
+                  <div className="rounded-lg border bg-muted/40 p-3 text-xs space-y-1.5">
+                    <span className="text-muted-foreground block text-[11px] font-medium">Tài khoản kế toán đã lưu:</span>
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold">{selectedBank?.shortName} - {accountNumber}</span>
+                      <button
+                        type="button"
+                        onClick={() => copyToClipboard(accountNumber, "Số tài khoản")}
+                        className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-[11px]"
+                      >
+                        {copied === "Số tài khoản" ? (
+                          <span className="text-emerald-500 flex items-center gap-0.5"><Check className="h-3 w-3" /> Đã chép</span>
+                        ) : (
+                          <span className="flex items-center gap-0.5"><Copy className="h-3 w-3" /> Sao chép</span>
+                        )}
+                      </button>
+                    </div>
+                    <span className="text-[11px] text-muted-foreground block uppercase font-mono">{accountHolder}</span>
+                  </div>
+                )}
+
+                {/* Link to Stripe Dashboard */}
+                <div className="pt-2">
+                  <Button
+                    asChild
+                    variant="outline"
+                    className="w-full gap-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-950/30"
+                  >
+                    <a href="https://dashboard.stripe.com" target="_blank" rel="noopener noreferrer">
+                      Truy cập Stripe Dashboard <ExternalLink className="h-3.5 w-3.5" />
+                    </a>
+                  </Button>
                 </div>
               </CardContent>
             </Card>

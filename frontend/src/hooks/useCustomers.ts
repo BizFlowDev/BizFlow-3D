@@ -786,7 +786,7 @@ export function useCustomerDebtHistory(id: string) {
               amount: p.amount,
               remainingBalance: 0,
               operator: operatorName,
-              note: p.note || (p.paymentMethod === "transfer" ? "Chuyển khoản (VietQR)" : "Tiền mặt"),
+              note: p.note || (p.paymentMethod === "transfer" ? "Chuyển khoản / Stripe" : "Tiền mặt"),
             });
           }
 

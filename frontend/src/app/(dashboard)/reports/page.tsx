@@ -223,7 +223,7 @@ export default function ReportsPage() {
           o.paymentMethod === "stripe"
             ? "Stripe"
             : o.paymentMethod === "qr_code"
-              ? "VietQR"
+              ? "Chuyển khoản QR"
               : o.paymentMethod === "debt"
                 ? "Ghi nợ"
                 : "Tiền mặt",

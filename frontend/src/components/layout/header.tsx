@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Bell, Boxes, CheckCheck, Crown, LogOut, QrCode, User, X } from "lucide-react";
+import { Bell, Boxes, CheckCheck, Crown, LogOut, Settings, User, X } from "lucide-react";
 import type { UserRole } from "@/config/navigation";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -246,8 +246,8 @@ export function Header({ role }: HeaderProps) {
                   Gói dịch vụ & Nâng cấp
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => router.push("/settings")}>
-                  <QrCode className="mr-2 h-4 w-4 text-blue-600" />
-                  Cài đặt & VietQR
+                  <Settings className="mr-2 h-4 w-4 text-blue-600" />
+                  Cài đặt Cửa hàng
                 </DropdownMenuItem>
               </>
             )}
@@ -262,7 +262,7 @@ export function Header({ role }: HeaderProps) {
         </DropdownMenu>
       </div>
 
-      {/* Modal Nâng cấp gói dịch vụ với tích hợp thanh toán VietQR (chỉ dành cho store, không render ở admin) */}
+      {/* Modal Nâng cấp gói dịch vụ với tích hợp thanh toán Stripe (chỉ dành cho store, không render ở admin) */}
       {!isAdmin && (
         <UpgradePlanModal open={upgradeModalOpen} onOpenChange={setUpgradeModalOpen} />
       )}

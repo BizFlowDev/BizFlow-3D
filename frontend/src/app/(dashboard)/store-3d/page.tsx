@@ -1291,7 +1291,7 @@ export default function Store3DPage() {
                       </span>
                     </h2>
                     <p className="text-xs text-slate-400">
-                      Báo cáo TV &bull; Bàn Giám Đốc VietQR &bull; Hồ sơ nhân sự &bull; Bảng chỉ số KPI
+                      Báo cáo TV &bull; Bàn Giám Đốc &bull; Hồ sơ nhân sự &bull; Bảng chỉ số KPI
                     </p>
                   </div>
                 </div>
@@ -1301,7 +1301,7 @@ export default function Store3DPage() {
                     className="flex items-center gap-1.5 rounded-xl border border-emerald-500/40 bg-emerald-600/30 hover:bg-emerald-600/50 px-3 py-1.5 text-xs font-semibold text-emerald-200 transition-all hover:scale-105"
                   >
                     <CreditCard className="h-4 w-4" />
-                    <span>Cài Đặt VietQR</span>
+                    <span>Cài Đặt Cửa Hàng</span>
                   </button>
                   <button
                     onClick={handleOpenEmployeeDialog}

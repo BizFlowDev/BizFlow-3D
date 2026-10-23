@@ -74,7 +74,6 @@ import {
   type OrderStatus,
   type OrderStripeSessionData,
 } from "@/hooks/useOrders";
-import { useCurrentStore } from "@/hooks/useStore";
 import { useToast, ToastViewport } from "@/components/ui/toast";
 import { printInvoice } from "@/lib/invoice";
 import { QRCodeSVG } from "qrcode.react";
@@ -153,9 +152,6 @@ const CASH_PRESETS = [10000, 20000, 50000, 100000, 200000, 500000];
 export default function NewOrderPage() {
   const router = useRouter();
   const { toasts, showToast, dismiss } = useToast();
-
-  // ── Query Store Info (để lấy VietQR Bank Settings) ──
-  const { data: storeInfo } = useCurrentStore();
 
   // ── State: tìm kiếm / danh mục ──
   const [search, setSearch] = useState("");

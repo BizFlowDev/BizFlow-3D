@@ -187,7 +187,7 @@ function WallMountedTV({
 }
 
 /**
- * DirectorDesk — Bàn làm việc Giám đốc (Click -> Mở Cấu hình VietQR & Hồ sơ)
+ * DirectorDesk — Bàn làm việc Giám đốc (Click -> Mở Cấu hình Cửa hàng)
  */
 function DirectorDesk({
   position,
@@ -239,7 +239,7 @@ function DirectorDesk({
           <boxGeometry args={[1.2, 0.46, 0.04]} />
           <meshStandardMaterial color="#0f172a" metalness={0.8} />
         </mesh>
-        {/* Màn hình phát sáng hiển thị logo VietQR */}
+        {/* Màn hình phát sáng hiển thị bảng quản trị */}
         <mesh position={[0, 0, 0.022]}>
           <planeGeometry args={[1.16, 0.42]} />
           <meshStandardMaterial
@@ -297,7 +297,7 @@ function DirectorDesk({
           >
             <span className="h-2 w-2 rounded-full bg-emerald-400 animate-ping" />
             <span className="whitespace-nowrap text-xs font-bold">
-              Bàn Giám Đốc &bull; VietQR & Cài Đặt
+              Bàn Giám Đốc &bull; Cài Đặt Cửa Hàng
             </span>
           </button>
         </Html>

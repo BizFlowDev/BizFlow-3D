@@ -36,7 +36,7 @@ const benefits = [
   {
     icon: TrendingUp,
     title: "Quản lý kho & nợ khách hàng",
-    desc: "Kiểm soát tồn kho real-time, theo dõi công nợ và mã VietQR động.",
+    desc: "Kiểm soát tồn kho real-time, theo dõi công nợ và Cổng thanh toán trực tuyến Stripe.",
     color: "from-amber-500/20 to-orange-500/20 border-amber-500/30 text-amber-400",
   },
 ];

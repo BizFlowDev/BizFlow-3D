@@ -280,7 +280,7 @@ export default function Counter({
         </mesh>
       </group>
 
-      {/* 4. Đế cắm bảng VietQR thanh toán (QR Stand) */}
+      {/* 4. Đế cắm bảng mã QR thanh toán Stripe / POS (QR Stand) */}
       <group position={[-1.30, COUNTER_H + 0.14, 0.18]} rotation={[0, 0.2, 0]}>
         {/* Đế mica trong */}
         <mesh position={[0, 0, 0]}>
