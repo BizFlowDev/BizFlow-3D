@@ -182,15 +182,28 @@ export class AutoPostingUseCase {
   async postDebtPayment(payment: DebtPayment): Promise<void> {
     if (await this.isAlreadyPosted('debt_payment', payment.id)) return;
 
-    const cashAccount = payment.paymentMethod === 'transfer' ? '112' : '111';
-    const cashAccountName = payment.paymentMethod === 'transfer' ? 'Tiền gửi ngân hàng' : 'Tiền mặt';
+    const isBankOrStripe = payment.paymentMethod === 'transfer' || payment.paymentMethod === 'stripe';
+    const cashAccount = isBankOrStripe ? '112' : '111';
+    const cashAccountName =
+      payment.paymentMethod === 'stripe'
+        ? 'Cổng thanh toán Stripe'
+        : payment.paymentMethod === 'transfer'
+          ? 'Tiền gửi ngân hàng'
+          : 'Tiền mặt';
+
+    const methodDesc =
+      payment.paymentMethod === 'stripe'
+        ? 'cổng Stripe'
+        : payment.paymentMethod === 'transfer'
+          ? 'chuyển khoản'
+          : 'tiền mặt';
 
     await this.accountingRepo.createMany([
       this.entry({
         storeId: payment.storeId, entryDate: payment.createdAt,
         accountCode: cashAccount, accountName: cashAccountName,
         debit: payment.amount, referenceType: 'debt_payment', referenceId: payment.id,
-        description: `Thu nợ khách hàng (${payment.paymentMethod === 'transfer' ? 'chuyển khoản' : 'tiền mặt'})`,
+        description: `Thu nợ khách hàng (${methodDesc})`,
       }),
       this.entry({
         storeId: payment.storeId, entryDate: payment.createdAt,

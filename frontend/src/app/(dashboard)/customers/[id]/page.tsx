@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState, useMemo } from "react";
+import { use, useState, useMemo, useRef, useCallback, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "motion/react";
@@ -28,12 +28,20 @@ import {
   Receipt,
   QrCode,
   ShieldAlert,
+  ShieldCheck,
   Copy,
   Check,
   ExternalLink,
-  Maximize2,
+  RefreshCw,
 } from "lucide-react";
-import { VietQRModal } from "@/components/shared/VietQRModal";
+import { QRCodeSVG } from "qrcode.react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -67,7 +75,11 @@ import {
   useDeleteCustomer,
 } from "@/hooks/useCustomers";
 import { useCurrentStore } from "@/hooks/useStore";
-import { generateVietQRUrl, getBankByCode, formatPaymentMemo } from "@/lib/vietqr";
+import {
+  useCreateOrderStripeSession,
+  useOrderStripeSessionStatus,
+  type OrderStripeSessionData,
+} from "@/hooks/useOrders";
 import {
   printDebtReceiptPDF,
   printDebtReceiptThermal,
@@ -281,54 +293,76 @@ export default function CustomerDetailPage({
 
   // Payment tab inline state
   const [payAmount, setPayAmount] = useState("");
-  const [payMethod, setPayMethod] = useState<"cash" | "transfer">("cash");
+  const [payMethod, setPayMethod] = useState<"cash" | "stripe">("cash");
   const [payNote, setPayNote] = useState("");
   const [paySuccess, setPaySuccess] = useState(false);
   const [lastPaymentInfo, setLastPaymentInfo] = useState<{
     previousDebt: number;
     paidAmount: number;
     remainingDebt: number;
-    paymentMethod: "cash" | "transfer";
+    paymentMethod: "cash" | "stripe" | "transfer";
     note?: string;
   } | null>(null);
-  const [copiedField, setCopiedField] = useState<string | null>(null);
-  const [qrZoomOpen, setQrZoomOpen] = useState(false);
+
+  // Stripe state
+  const [stripeModalOpen, setStripeModalOpen] = useState(false);
+  const [stripeSession, setStripeSession] = useState<OrderStripeSessionData | null>(null);
+  const [stripeError, setStripeError] = useState<string | null>(null);
 
   const paymentMutation = useRecordDebtPayment();
+  const createStripeSessionMutation = useCreateOrderStripeSession();
+  const {
+    data: stripeStatus,
+    refetch: refetchStripeStatus,
+    isFetching: isCheckingStripe,
+  } = useOrderStripeSessionStatus(stripeSession?.sessionId, stripeModalOpen);
 
-  const copyToClipboard = (text: string, field: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedField(field);
-    setTimeout(() => setCopiedField(null), 2000);
-  };
+  const autoSubmittedRef = useRef(false);
 
-  const vietQrInfo = useMemo(() => {
-    if (!store?.bankCode || !store?.bankAccountNumber || !customer) return null;
-    const bank = getBankByCode(store.bankCode);
-    const memo = formatPaymentMemo(customer.code || customer.name, "TT NO");
-    const amount = Number(payAmount) > 0 ? Number(payAmount) : 0;
-    const qrUrl = generateVietQRUrl({
-      bankCode: store.bankCode,
-      accountNumber: store.bankAccountNumber,
-      accountName: store.bankAccountHolder || "",
-      amount,
-      memo,
-      template: "compact2",
-    });
-    return {
-      bank,
-      memo,
-      amount,
-      qrUrl,
-      accountNumber: store.bankAccountNumber,
-      accountHolder: store.bankAccountHolder,
-    };
-  }, [store, customer, payAmount]);
+  // Handle open Stripe checkout modal & generate QR session
+  const handleOpenStripeModal = useCallback(async () => {
+    if (!customer) return;
+    const amount = Number(payAmount);
+    if (!amount || amount < 1000) {
+      showToast("info", "Vui lòng nhập số tiền hợp lệ", "Số tiền tối thiểu 1,000₫");
+      return;
+    }
+    if (amount > customer.debtBalance) {
+      showToast("error", "Số tiền không hợp lệ", `Vượt quá dư nợ (${formatCurrency(customer.debtBalance)})`);
+      return;
+    }
+    setStripeError(null);
+    setStripeModalOpen(true);
+
+    try {
+      const session = await createStripeSessionMutation.mutateAsync({
+        amount,
+        orderCode: `TTNO-${customer.code || customer.id.slice(0, 8)}`,
+        customerName: customer.name,
+        items: [
+          {
+            name: `Thu nợ khách hàng: ${customer.name}`,
+            quantity: 1,
+            unitPrice: amount,
+          },
+        ],
+      });
+      setStripeSession(session);
+    } catch (err: any) {
+      setStripeError(err?.message || "Không thể khởi tạo phiên thanh toán Stripe");
+    }
+  }, [customer, payAmount, createStripeSessionMutation, showToast]);
 
   const handleInlinePayment = async () => {
     if (!customer || !payAmount) return;
     const amount = Number(payAmount);
     if (isNaN(amount) || amount <= 0) return;
+
+    // Double Guard: Chặn hoàn tất nợ nếu chọn Stripe mà chưa nhận được tiền
+    if (payMethod === "stripe" && !stripeStatus?.isPaid) {
+      handleOpenStripeModal();
+      return;
+    }
 
     const previousDebt = customer.debtBalance;
     const remainingDebt = Math.max(0, previousDebt - amount);
@@ -345,14 +379,36 @@ export default function CustomerDetailPage({
         paymentMethod: payMethod,
         note: payNote,
       });
-      setQrZoomOpen(false);
+      setStripeModalOpen(false);
       setPaySuccess(true);
       setPayAmount("");
       setPayNote("");
-    } catch {
-      // handled
+      showToast("success", "Ghi nhận thu nợ thành công!");
+    } catch (err: any) {
+      showToast("error", "Lỗi khi ghi nhận thu nợ", err?.message);
     }
   };
+
+  // Reset auto submit lock when modal closes
+  useEffect(() => {
+    if (!stripeModalOpen || !stripeSession) {
+      autoSubmittedRef.current = false;
+    }
+  }, [stripeModalOpen, stripeSession]);
+
+  // Auto-complete payment when Stripe is paid
+  useEffect(() => {
+    if (
+      stripeStatus?.isPaid &&
+      payMethod === "stripe" &&
+      stripeModalOpen &&
+      !autoSubmittedRef.current &&
+      !paymentMutation.isPending
+    ) {
+      autoSubmittedRef.current = true;
+      handleInlinePayment();
+    }
+  }, [stripeStatus?.isPaid, payMethod, stripeModalOpen]);
 
   const handlePrintPDF = (dataToPrint?: typeof lastPaymentInfo) => {
     const info = dataToPrint || lastPaymentInfo;
@@ -1111,7 +1167,7 @@ export default function CustomerDetailPage({
                       <Select
                         value={payMethod}
                         onValueChange={(val) =>
-                          setPayMethod(val as "cash" | "transfer")
+                          setPayMethod(val as "cash" | "stripe")
                         }
                       >
                         <SelectTrigger>
@@ -1124,148 +1180,77 @@ export default function CustomerDetailPage({
                               Tiền mặt
                             </span>
                           </SelectItem>
-                          <SelectItem value="transfer">
+                          <SelectItem value="stripe">
                             <span className="flex items-center gap-2">
-                              <CreditCard className="h-4 w-4 text-blue-500" />
-                              Chuyển khoản (VietQR Napas247)
+                              <CreditCard className="h-4 w-4 text-indigo-500" />
+                              Cổng Stripe (Thẻ quốc tế & QR Code)
                             </span>
                           </SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
 
-                    {/* VietQR Dynamic Section */}
-                    {payMethod === "transfer" && (
+                    {/* Stripe Dynamic Section */}
+                    {payMethod === "stripe" && (
                       <motion.div
                         initial={{ opacity: 0, height: 0 }}
                         animate={{ opacity: 1, height: "auto" }}
                         exit={{ opacity: 0, height: 0 }}
-                        className="overflow-hidden rounded-xl border border-blue-200 bg-blue-50/60 p-4 dark:border-blue-900/60 dark:bg-blue-950/20"
+                        className="overflow-hidden rounded-xl border border-indigo-200 bg-indigo-50/60 p-4 dark:border-indigo-900/60 dark:bg-indigo-950/20"
                       >
-                        {vietQrInfo ? (
-                          <div className="space-y-3">
-                            <div className="flex items-center justify-between">
-                              <span className="flex items-center gap-1.5 text-xs font-semibold text-blue-700 dark:text-blue-300">
-                                <QrCode className="h-4 w-4" />
-                                Quét mã VietQR chuyển khoản
-                              </span>
-                              <span className="text-[11px] text-muted-foreground">
-                                {vietQrInfo.bank?.shortName || "Napas247"}
-                              </span>
-                            </div>
-
-                            <div className="flex flex-col sm:flex-row items-center gap-4 bg-background/80 rounded-lg p-3 border border-blue-100 dark:border-blue-900/40">
-                              {/* QR Code Image with Zoom Preview */}
-                              <div className="flex flex-col items-center gap-1.5 shrink-0">
-                                <div
-                                  className="relative group cursor-pointer overflow-hidden rounded-lg border bg-white p-1 shadow-sm transition-all hover:shadow-md hover:ring-2 hover:ring-blue-500/50"
-                                  onClick={() => setQrZoomOpen(true)}
-                                  title="Nhấp để phóng to mã QR"
-                                >
-                                  <img
-                                    src={vietQrInfo.qrUrl}
-                                    alt="VietQR Code"
-                                    className="h-32 w-32 rounded object-contain transition-transform group-hover:scale-105"
-                                  />
-                                  <div className="absolute inset-0 flex items-center justify-center rounded bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
-                                    <span className="flex items-center gap-1 rounded-full bg-white/95 px-2 py-0.5 text-[10px] font-bold text-slate-800 shadow">
-                                      <Maximize2 className="h-3 w-3" /> Phóng to
-                                    </span>
-                                  </div>
-                                </div>
-                                <button
-                                  type="button"
-                                  onClick={() => setQrZoomOpen(true)}
-                                  className="inline-flex items-center gap-1 text-[11px] font-medium text-blue-600 hover:underline dark:text-blue-400"
-                                >
-                                  <Maximize2 className="h-3 w-3" /> Phóng to mã QR
-                                </button>
-                              </div>
-
-                              <div className="flex-1 space-y-2 text-xs w-full">
-                                <div>
-                                  <p className="text-muted-foreground text-[11px]">Ngân hàng:</p>
-                                  <p className="font-semibold text-foreground">
-                                    {vietQrInfo.bank?.name} ({vietQrInfo.bank?.shortName})
-                                  </p>
-                                </div>
-
-                                <div>
-                                  <p className="text-muted-foreground text-[11px]">Số tài khoản:</p>
-                                  <div className="flex items-center justify-between gap-1 font-mono font-bold text-sm text-foreground">
-                                    <span>{vietQrInfo.accountNumber}</span>
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-6 w-6"
-                                      onClick={() =>
-                                        copyToClipboard(vietQrInfo.accountNumber || "", "stk")
-                                      }
-                                    >
-                                      {copiedField === "stk" ? (
-                                        <Check className="h-3 w-3 text-emerald-500" />
-                                      ) : (
-                                        <Copy className="h-3 w-3" />
-                                      )}
-                                    </Button>
-                                  </div>
-                                </div>
-
-                                <div>
-                                  <p className="text-muted-foreground text-[11px]">Chủ tài khoản:</p>
-                                  <p className="font-semibold uppercase text-foreground">
-                                    {vietQrInfo.accountHolder || "—"}
-                                  </p>
-                                </div>
-
-                                <div>
-                                  <p className="text-muted-foreground text-[11px]">Nội dung CK:</p>
-                                  <div className="flex items-center justify-between gap-1 font-mono font-medium bg-muted/60 px-2 py-1 rounded">
-                                    <span className="truncate">{vietQrInfo.memo}</span>
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-5 w-5 shrink-0"
-                                      onClick={() => copyToClipboard(vietQrInfo.memo, "memo")}
-                                    >
-                                      {copiedField === "memo" ? (
-                                        <Check className="h-3 w-3 text-emerald-500" />
-                                      ) : (
-                                        <Copy className="h-3 w-3" />
-                                      )}
-                                    </Button>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-
-                            <p className="text-[11px] text-muted-foreground italic text-center">
-                              Mã QR đã tích hợp sẵn số tiền {formatCurrency(Number(payAmount) || 0)} và nội dung nhận diện.
-                            </p>
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <span className="flex items-center gap-1.5 text-xs font-semibold text-indigo-700 dark:text-indigo-300">
+                              <ShieldCheck className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                              Cổng thanh toán Stripe PCI-DSS
+                            </span>
+                            <span className="text-[11px] text-muted-foreground">
+                              Visa / Master / Apple Pay
+                            </span>
                           </div>
-                        ) : (
-                          <div className="flex items-start gap-2.5 text-xs text-amber-700 dark:text-amber-300">
-                            <ShieldAlert className="h-4 w-4 shrink-0 text-amber-500 mt-0.5" />
-                            <div>
-                              <p className="font-semibold">Cửa hàng chưa cài đặt VietQR</p>
-                              <p className="mt-0.5 text-muted-foreground text-[11px]">
-                                Để khách hàng có thể quét mã QR thanh toán nhanh, hãy cập nhật thông tin ngân hàng trong cài đặt.
+
+                          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-background/80 rounded-lg p-3 border border-indigo-100 dark:border-indigo-900/40">
+                            <div className="space-y-1 text-xs">
+                              <p className="font-medium text-foreground">
+                                Số tiền thu:{" "}
+                                <span className="font-bold text-indigo-600 dark:text-indigo-400">
+                                  {formatCurrency(Number(payAmount) || 0)}
+                                </span>
                               </p>
-                              <Button
-                                asChild
-                                variant="link"
-                                size="sm"
-                                className="p-0 h-auto text-xs text-blue-600 mt-1 inline-flex items-center gap-1"
-                              >
-                                <Link href="/settings">
-                                  Đi tới Cài đặt ngân hàng <ExternalLink className="h-3 w-3" />
-                                </Link>
-                              </Button>
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-muted-foreground">Trạng thái:</span>
+                                {stripeStatus?.isPaid ? (
+                                  <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-bold">
+                                    <CheckCircle2 className="h-3.5 w-3.5" /> Đã nhận thanh toán
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400 font-medium">
+                                    <Clock className="h-3.5 w-3.5 animate-spin" /> Chờ khách quét mã / thanh toán
+                                  </span>
+                                )}
+                              </div>
                             </div>
+
+                            <Button
+                              type="button"
+                              size="sm"
+                              onClick={handleOpenStripeModal}
+                              disabled={createStripeSessionMutation.isPending || !payAmount || Number(payAmount) < 1000}
+                              className="shrink-0 gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium shadow-sm"
+                            >
+                              {createStripeSessionMutation.isPending ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <QrCode className="h-4 w-4" />
+                              )}
+                              {stripeSession ? "Xem mã QR Stripe" : "Mở mã QR Stripe"}
+                            </Button>
                           </div>
-                        )}
+
+                          <p className="text-[11px] text-muted-foreground italic text-center">
+                            Hệ thống tự động tra soát giao dịch real-time chu kỳ 2s và khóa nút xác nhận cho đến khi khách thanh toán xong.
+                          </p>
+                        </div>
                       </motion.div>
                     )}
 
@@ -1315,24 +1300,51 @@ export default function CustomerDetailPage({
                       >
                         Hủy
                       </Button>
-                      <Button
-                        className="flex-1 bg-gradient-to-r from-emerald-600 to-emerald-500 text-white shadow-lg shadow-emerald-500/25"
-                        disabled={
-                          paymentMutation.isPending ||
-                          !payAmount ||
-                          Number(payAmount) <= 0
-                        }
-                        onClick={handleInlinePayment}
-                      >
-                        {paymentMutation.isPending ? (
-                          <>
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            Đang xử lý...
-                          </>
-                        ) : (
-                          "Ghi nhận thanh toán"
-                        )}
-                      </Button>
+
+                      {payMethod === "stripe" && !stripeStatus?.isPaid ? (
+                        <Button
+                          type="button"
+                          className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-500/25 font-semibold"
+                          disabled={!payAmount || Number(payAmount) < 1000 || createStripeSessionMutation.isPending}
+                          onClick={handleOpenStripeModal}
+                        >
+                          {createStripeSessionMutation.isPending ? (
+                            <>
+                              <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
+                              Đang tạo mã QR...
+                            </>
+                          ) : (
+                            <>
+                              <QrCode className="h-4 w-4 mr-1.5" />
+                              Mở mã QR Stripe ({formatCurrency(Number(payAmount) || 0)})
+                            </>
+                          )}
+                        </Button>
+                      ) : (
+                        <Button
+                          className="flex-1 bg-gradient-to-r from-emerald-600 to-emerald-500 text-white shadow-lg shadow-emerald-500/25 font-semibold"
+                          disabled={
+                            paymentMutation.isPending ||
+                            !payAmount ||
+                            Number(payAmount) <= 0
+                          }
+                          onClick={handleInlinePayment}
+                        >
+                          {paymentMutation.isPending ? (
+                            <>
+                              <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
+                              Đang xử lý...
+                            </>
+                          ) : payMethod === "stripe" && stripeStatus?.isPaid ? (
+                            <>
+                              <CheckCircle2 className="h-4 w-4 mr-1.5" />
+                              Đã nhận Stripe · Ghi nhận ngay
+                            </>
+                          ) : (
+                            "Ghi nhận thanh toán"
+                          )}
+                        </Button>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
@@ -1368,25 +1380,175 @@ export default function CustomerDetailPage({
         showToast={showToast}
       />
 
-      {/* ── Modal Phóng To VietQR Tận Dụng Từ Đơn Hàng ── */}
-      {vietQrInfo && (
-        <VietQRModal
-          open={qrZoomOpen}
-          onOpenChange={setQrZoomOpen}
-          qrUrl={vietQrInfo.qrUrl}
-          bankName={vietQrInfo.bank?.name}
-          bankShortName={vietQrInfo.bank?.shortName}
-          accountNumber={vietQrInfo.accountNumber}
-          accountHolder={vietQrInfo.accountHolder}
-          amount={vietQrInfo.amount}
-          memo={vietQrInfo.memo}
-          title="Quét mã VietQR thanh toán nợ"
-          description="Quét mã qua bất kỳ App ngân hàng nào (Napas247 miễn phí)"
-          confirmButtonText="Xác nhận đã nhận tiền & Hoàn tất"
-          onConfirm={handleInlinePayment}
-          confirmLoading={paymentMutation.isPending}
-        />
-      )}
+      {/* ── Modal Thanh Toán Stripe QR ── */}
+      <Dialog open={stripeModalOpen} onOpenChange={setStripeModalOpen}>
+        <DialogContent className="sm:max-w-[460px] rounded-2xl p-6 border-indigo-200 dark:border-indigo-900 bg-background/95 backdrop-blur-xl shadow-2xl">
+          <DialogHeader className="text-center sm:text-center">
+            <DialogTitle className="text-lg font-bold flex items-center justify-center gap-2">
+              <CreditCard className="h-5 w-5 text-indigo-500" />
+              Thanh Toán Công Nợ Qua Stripe
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Quét mã QR bằng ứng dụng ngân hàng hoặc mở cổng Stripe để thanh toán bằng thẻ.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex flex-col items-center justify-center space-y-4 py-2">
+            {/* Amount Banner */}
+            <div className="w-full text-center bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/50 py-2.5 px-4 rounded-xl">
+              <span className="text-xs text-muted-foreground block">Số tiền cần thu</span>
+              <span className="text-2xl font-black text-indigo-600 dark:text-indigo-400">
+                {formatCurrency(Number(payAmount) || 0)}
+              </span>
+              <span className="text-[11px] text-muted-foreground block mt-0.5">
+                Khách hàng: <strong>{customer.name}</strong>
+              </span>
+            </div>
+
+            {/* QR Code Container */}
+            <div className="relative p-3.5 bg-white rounded-2xl border-2 border-dashed border-indigo-300 dark:border-indigo-700 shadow-md">
+              {createStripeSessionMutation.isPending ? (
+                <div className="h-56 w-56 flex flex-col items-center justify-center gap-2 text-indigo-600">
+                  <Loader2 className="h-8 w-8 animate-spin" />
+                  <span className="text-xs font-medium">Đang khởi tạo phiên Stripe...</span>
+                </div>
+              ) : stripeError ? (
+                <div className="h-56 w-56 flex flex-col items-center justify-center gap-2 text-red-500 text-center p-3">
+                  <AlertTriangle className="h-8 w-8 text-red-500" />
+                  <span className="text-xs font-semibold">{stripeError}</span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleOpenStripeModal}
+                    className="mt-2 text-xs"
+                  >
+                    Thử lại
+                  </Button>
+                </div>
+              ) : stripeSession ? (
+                <div className="relative group">
+                  {stripeSession.qrCodeUrl ? (
+                    <img
+                      src={stripeSession.qrCodeUrl}
+                      alt="Stripe Checkout QR"
+                      className="h-56 w-56 object-contain rounded-lg"
+                    />
+                  ) : (
+                    <QRCodeSVG
+                      value={stripeSession.checkoutUrl}
+                      size={224}
+                      level="H"
+                      className="rounded-lg"
+                    />
+                  )}
+                  {stripeStatus?.isPaid && (
+                    <div className="absolute inset-0 bg-emerald-500/90 backdrop-blur-sm rounded-lg flex flex-col items-center justify-center text-white gap-2">
+                      <CheckCircle2 className="h-12 w-12" />
+                      <span className="font-bold text-sm">Đã Nhận Thanh Toán!</span>
+                      <span className="text-[11px] text-emerald-100">Đang lưu phiếu thu...</span>
+                    </div>
+                  )}
+                </div>
+              ) : null}
+            </div>
+
+            {/* Status & Actions */}
+            <div className="w-full space-y-2.5">
+              <div className="flex items-center justify-between text-xs px-1">
+                <span className="text-muted-foreground flex items-center gap-1.5">
+                  <span className="relative flex h-2 w-2">
+                    <span
+                      className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                        stripeStatus?.isPaid ? "bg-emerald-400" : "bg-amber-400"
+                      }`}
+                    />
+                    <span
+                      className={`relative inline-flex rounded-full h-2 w-2 ${
+                        stripeStatus?.isPaid ? "bg-emerald-500" : "bg-amber-500"
+                      }`}
+                    />
+                  </span>
+                  Trạng thái đối soát:
+                </span>
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`font-bold ${
+                      stripeStatus?.isPaid
+                        ? "text-emerald-600 dark:text-emerald-400"
+                        : "text-amber-600 dark:text-amber-400"
+                    }`}
+                  >
+                    {stripeStatus?.isPaid ? "Thành công (Paid)" : "Chờ thanh toán..."}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                    onClick={() => refetchStripeStatus()}
+                    disabled={isCheckingStripe}
+                    title="Kiểm tra trạng thái ngay"
+                  >
+                    <RefreshCw
+                      className={`h-3.5 w-3.5 ${isCheckingStripe ? "animate-spin" : ""}`}
+                    />
+                  </Button>
+                </div>
+              </div>
+
+              {stripeSession?.checkoutUrl && (
+                <a
+                  href={stripeSession.checkoutUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-1.5 text-xs text-indigo-600 hover:underline dark:text-indigo-400 py-1"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  Mở trang thanh toán Stripe trên trình duyệt
+                </a>
+              )}
+
+              {/* Locked Confirmation Button until Paid */}
+              <Button
+                type="button"
+                className={`w-full font-semibold transition-all shadow-md ${
+                  stripeStatus?.isPaid
+                    ? "bg-gradient-to-r from-emerald-600 to-teal-500 text-white hover:from-emerald-500 hover:to-teal-400 shadow-emerald-500/25"
+                    : "bg-muted text-muted-foreground cursor-not-allowed hover:bg-muted"
+                }`}
+                disabled={!stripeStatus?.isPaid || paymentMutation.isPending}
+                onClick={handleInlinePayment}
+              >
+                {paymentMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
+                    Đang lưu phiếu thu...
+                  </>
+                ) : stripeStatus?.isPaid ? (
+                  <>
+                    <CheckCircle2 className="h-4 w-4 mr-1.5" />
+                    Đã nhận thanh toán · Hoàn tất thu nợ ngay
+                  </>
+                ) : (
+                  <>
+                    <Clock className="h-4 w-4 mr-1.5 animate-spin" />
+                    Chưa thanh toán (Không thể xác nhận)
+                  </>
+                )}
+              </Button>
+
+              <Button
+                type="button"
+                variant="ghost"
+                className="w-full text-xs text-muted-foreground"
+                onClick={() => setStripeModalOpen(false)}
+              >
+                Đóng cửa sổ mã QR
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <ToastViewport toasts={toasts} onDismiss={dismiss} />
     </motion.div>

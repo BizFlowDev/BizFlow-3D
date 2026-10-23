@@ -11,7 +11,7 @@ const RecordPaymentInputSchema = z.object({
   customerId: z.string().uuid(),
   orderId: z.string().uuid().nullish(),
   amount: z.number().positive(),
-  paymentMethod: z.enum(['cash', 'transfer']),
+  paymentMethod: z.enum(['cash', 'transfer', 'stripe']),
   note: z.string().nullish(),
   createdBy: z.string().uuid().nullish(),
 });

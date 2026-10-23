@@ -12,7 +12,7 @@ export interface DebtReceiptData {
   previousDebt: number;
   paidAmount: number;
   remainingDebt: number;
-  paymentMethod: "cash" | "transfer";
+  paymentMethod: "cash" | "transfer" | "stripe";
   note?: string | null;
   operator?: string | null;
   createdAt?: string | Date;
@@ -187,7 +187,11 @@ export async function printDebtReceiptPDF(data: DebtReceiptData): Promise<void> 
 
   // Bảng thông tin khách hàng & lý do
   const paymentMethodLabel =
-    data.paymentMethod === "transfer" ? "Chuyển khoản (VietQR / Ngân hàng)" : "Tiền mặt";
+    data.paymentMethod === "stripe"
+      ? "Cổng thanh toán Stripe"
+      : data.paymentMethod === "transfer"
+        ? "Chuyển khoản (Ngân hàng)"
+        : "Tiền mặt";
 
   autoTable(doc, {
     startY: y,
@@ -318,7 +322,11 @@ export function printDebtReceiptThermal(data: DebtReceiptData): void {
     )}`;
 
   const paymentMethodLabel =
-    data.paymentMethod === "transfer" ? "Chuyển khoản (VietQR)" : "Tiền mặt";
+    data.paymentMethod === "stripe"
+      ? "Cổng Stripe"
+      : data.paymentMethod === "transfer"
+        ? "Chuyển khoản"
+        : "Tiền mặt";
 
   const printWindow = window.open("", "_blank", "width=380,height=600");
   if (!printWindow) return;

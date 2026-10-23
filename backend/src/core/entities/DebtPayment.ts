@@ -8,7 +8,7 @@ export const DebtPaymentSchema = z.object({
   customerId: z.string().uuid(),
   orderId: z.string().uuid().nullish(),
   amount: z.coerce.number().positive(),
-  paymentMethod: z.enum(['cash', 'transfer']),
+  paymentMethod: z.enum(['cash', 'transfer', 'stripe']),
   note: z.string().nullish(),
   createdBy: z.string().uuid().nullish(),
   createdByName: z.string().nullish(),
@@ -24,7 +24,7 @@ export class DebtPayment {
   readonly customerId: string;
   readonly orderId: string | null;
   readonly amount: number;
-  readonly paymentMethod: 'cash' | 'transfer';
+  readonly paymentMethod: 'cash' | 'transfer' | 'stripe';
   readonly note: string | null;
   readonly createdBy: string | null;
   readonly createdByName: string | null;

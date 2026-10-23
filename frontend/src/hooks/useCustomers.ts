@@ -72,7 +72,7 @@ export interface CustomerFormData {
 
 export interface DebtPaymentData {
   amount: number;
-  paymentMethod: "cash" | "transfer";
+  paymentMethod: "cash" | "transfer" | "stripe";
   note?: string;
 }
 
