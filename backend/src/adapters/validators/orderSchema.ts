@@ -15,7 +15,7 @@ const orderItemSchema = z.object({
 export const createOrderSchema = z.object({
   customerId: z.string().uuid('ID khách hàng không hợp lệ').nullish(),
   orderType: z.enum(['counter', 'ai_generated']).default('counter'),
-  paymentMethod: z.enum(['cash', 'qr_code', 'debt']).default('cash'),
+  paymentMethod: z.enum(['cash', 'stripe', 'qr_code', 'debt']).default('cash'),
   paidAmount: z.number().min(0).default(0),
   changeAmount: z.number().min(0).default(0),
   note: z.string().nullish(),

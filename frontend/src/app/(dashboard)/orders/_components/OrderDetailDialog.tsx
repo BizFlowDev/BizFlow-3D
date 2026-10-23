@@ -88,9 +88,17 @@ export function statusBadge(status: "draft" | "confirmed" | "cancelled") {
 }
 
 export function paymentMethodBadge(method?: string) {
+  if (method === "stripe") {
+    return {
+      label: "Cổng Stripe",
+      icon: CreditCard,
+      className:
+        "bg-indigo-100 text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:text-indigo-400",
+    };
+  }
   if (method === "qr_code") {
     return {
-      label: "Quét VietQR",
+      label: "Quét mã QR",
       icon: QrCode,
       className:
         "bg-blue-100 text-blue-700 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-400",
@@ -233,11 +241,13 @@ export default function OrderDetailDialog({
               />
               <InfoItem
                 icon={
-                  order.paymentMethod === "qr_code"
-                    ? QrCode
-                    : order.paymentMethod === "debt"
-                      ? FileText
-                      : Banknote
+                  order.paymentMethod === "stripe"
+                    ? CreditCard
+                    : order.paymentMethod === "qr_code"
+                      ? QrCode
+                      : order.paymentMethod === "debt"
+                        ? FileText
+                        : Banknote
                 }
                 label="Hình thức TT"
                 value={paymentMethodBadge(order.paymentMethod).label}

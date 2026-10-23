@@ -13,6 +13,19 @@ export interface CreateCheckoutSessionParams {
   customerEmail?: string | null;
 }
 
+export interface CreateOrderCheckoutSessionParams {
+  storeId: string;
+  storeName: string;
+  amount: number; // In VND
+  orderCode?: string;
+  customerName?: string | null;
+  items?: Array<{
+    name: string;
+    quantity: number;
+    unitPrice: number;
+  }>;
+}
+
 export interface CheckoutSessionResult {
   sessionId: string;
   checkoutUrl: string;
@@ -95,6 +108,73 @@ export class StripeGateway {
 
     if (!session.url) {
       throw new Error('Không thể tạo liên kết thanh toán Stripe');
+    }
+
+    const qrCodeUrl = await this.generateQrCodeDataUrl(session.url);
+
+    return {
+      sessionId: session.id,
+      checkoutUrl: session.url,
+      qrCodeUrl,
+      expiresAt: new Date(expiresAtTimestamp * 1000),
+    };
+  }
+
+  async createOrderCheckoutSession(params: CreateOrderCheckoutSessionParams): Promise<CheckoutSessionResult> {
+    const client = this.ensureClient();
+
+    const frontendBase = env.FRONTEND_URL.replace(/\/+$/, '');
+    const successUrl = `${frontendBase}/orders?stripe_payment=success&session_id={CHECKOUT_SESSION_ID}`;
+    const cancelUrl = `${frontendBase}/orders/new?stripe_payment=cancelled`;
+
+    const expiresAtTimestamp = Math.floor(Date.now() / 1000) + 30 * 60; // 30 minutes from now
+
+    const currency = env.STRIPE_CURRENCY || 'vnd';
+    const unitAmount = currency === 'vnd' ? Math.round(params.amount) : Math.round(params.amount * 100);
+
+    const lineItems = (params.items && params.items.length > 0)
+      ? params.items.slice(0, 15).map((item) => ({
+          price_data: {
+            currency,
+            product_data: {
+              name: item.name,
+              description: `Cửa hàng: ${params.storeName}`,
+            },
+            unit_amount: currency === 'vnd' ? Math.round(item.unitPrice) : Math.round(item.unitPrice * 100),
+          },
+          quantity: item.quantity,
+        }))
+      : [
+          {
+            price_data: {
+              currency,
+              product_data: {
+                name: `Thanh toán đơn hàng ${params.orderCode || ''}`.trim(),
+                description: `Cửa hàng: ${params.storeName}`,
+              },
+              unit_amount: unitAmount,
+            },
+            quantity: 1,
+          },
+        ];
+
+    const session = await client.checkout.sessions.create({
+      mode: 'payment',
+      line_items: lineItems,
+      metadata: {
+        type: 'retail_order',
+        storeId: params.storeId,
+        orderCode: params.orderCode || '',
+        customerName: params.customerName || '',
+        amount: params.amount.toString(),
+      },
+      expires_at: expiresAtTimestamp,
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+    });
+
+    if (!session.url) {
+      throw new Error('Không thể tạo liên kết thanh toán Stripe cho đơn hàng');
     }
 
     const qrCodeUrl = await this.generateQrCodeDataUrl(session.url);

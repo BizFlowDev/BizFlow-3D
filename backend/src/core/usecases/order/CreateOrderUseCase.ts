@@ -21,7 +21,7 @@ const CreateOrderInputSchema = z.object({
   customerId: z.string().uuid().nullish(),
   userId: z.string().uuid().nullish(),
   orderType: z.enum(['counter', 'ai_generated']).default('counter'),
-  paymentMethod: z.enum(['cash', 'qr_code', 'debt']).default('cash'),
+  paymentMethod: z.enum(['cash', 'stripe', 'qr_code', 'debt']).default('cash'),
   note: z.string().nullish(),
   discountAmount: z.number().min(0).default(0),
   debtAmount: z.number().min(0).default(0),

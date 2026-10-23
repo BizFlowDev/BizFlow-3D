@@ -69,10 +69,13 @@ export class AutoPostingUseCase {
     // 1a) Doanh thu (khống nhất theo T88: doanh thu chưa thuế).
     if (cashAmount > 0) {
       // Chọn tài khoản theo phương thức thanh toán
-      const cashAccountCode = order.paymentMethod === 'qr_code' ? '112' : '111';
-      const cashAccountName = order.paymentMethod === 'qr_code' ? 'Tiền gửi ngân hàng' : 'Tiền mặt';
-      const cashDescription = order.paymentMethod === 'qr_code'
-        ? 'Doanh thu bán hàng thu bằng chuyển khoản'
+      const isElectronic = order.paymentMethod === 'stripe' || order.paymentMethod === 'qr_code';
+      const cashAccountCode = isElectronic ? '112' : '111';
+      const cashAccountName = isElectronic ? 'Tiền gửi ngân hàng / Cổng thanh toán' : 'Tiền mặt';
+      const cashDescription = order.paymentMethod === 'stripe'
+        ? 'Doanh thu bán hàng thu qua cổng thanh toán Stripe'
+        : order.paymentMethod === 'qr_code'
+        ? 'Doanh thu bán hàng thu bằng chuyển khoản QR'
         : 'Doanh thu bán hàng thu bằng tiền mặt';
 
       await this.accountingRepo.createMany([

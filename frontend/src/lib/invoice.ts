@@ -81,8 +81,10 @@ export async function printInvoice(order: Order): Promise<void> {
 
   // ── Thông tin đơn ──
   const paymentMethodText =
-    order.paymentMethod === "qr_code"
-      ? "Chuyển khoản VietQR"
+    order.paymentMethod === "stripe"
+      ? "Cổng Stripe"
+      : order.paymentMethod === "qr_code"
+      ? "Chuyển khoản QR"
       : order.paymentMethod === "debt"
       ? "Ghi nợ"
       : "Tiền mặt";
@@ -156,6 +158,8 @@ export async function printInvoice(order: Order): Promise<void> {
       summaryBody.push(["Tiền khách đưa", `${formatCurrency(cashGiven)} đ`]);
       summaryBody.push(["Tiền thối lại", `${formatCurrency(order.changeAmount || 0)} đ`]);
     }
+  } else if (order.paymentMethod === "stripe") {
+    summaryBody.push(["Đã thanh toán (Stripe)", `${formatCurrency(order.finalAmount)} đ`]);
   } else if (order.paymentMethod === "qr_code") {
     summaryBody.push(["Đã thanh toán (QR)", `${formatCurrency(order.finalAmount)} đ`]);
   }

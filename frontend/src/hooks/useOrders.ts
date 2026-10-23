@@ -30,7 +30,7 @@ export interface Order {
   userId: string | null;
   orderType: OrderType;
   status: OrderStatus;
-  paymentMethod?: 'cash' | 'qr_code' | 'debt';
+  paymentMethod?: 'cash' | 'stripe' | 'qr_code' | 'debt';
   totalAmount: number;
   discountAmount: number;
   finalAmount: number;
@@ -53,7 +53,7 @@ export interface Order {
 export interface CreateOrderData {
   customerId?: string;
   orderType?: OrderType;
-  paymentMethod?: 'cash' | 'qr_code' | 'debt';
+  paymentMethod?: 'cash' | 'stripe' | 'qr_code' | 'debt';
   note?: string;
   discountAmount?: number;
   debtAmount?: number;
@@ -65,6 +65,22 @@ export interface CreateOrderData {
     quantity: number;
     unitPrice: number;
   }[];
+}
+
+export interface OrderStripeSessionData {
+  sessionId: string;
+  checkoutUrl: string;
+  qrCodeUrl: string;
+  expiresAt: string;
+}
+
+export interface OrderStripeSessionStatus {
+  sessionId: string;
+  status: string;
+  paymentStatus: string;
+  isPaid: boolean;
+  amountTotal?: number;
+  currency?: string;
 }
 
 export interface OrderListParams {
@@ -603,6 +619,50 @@ export function useCreateOrder() {
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       queryClient.invalidateQueries({ queryKey: ["customers"] });
       queryClient.invalidateQueries({ queryKey: ["accounting"] });
+    },
+  });
+}
+
+/** Tạo phiên thanh toán Stripe cho đơn hàng bán lẻ tại quầy */
+export function useCreateOrderStripeSession() {
+  return useMutation({
+    mutationFn: async (payload: {
+      amount: number;
+      orderCode?: string;
+      customerName?: string;
+      items?: Array<{ name: string; quantity: number; unitPrice: number }>;
+    }): Promise<OrderStripeSessionData> => {
+      const { data } = await apiClient.post<ApiResponseData<OrderStripeSessionData>>(
+        "/orders/stripe-session",
+        payload,
+      );
+      if (!data.data) {
+        throw new Error(data.message || "Không thể tạo phiên thanh toán Stripe");
+      }
+      return data.data;
+    },
+  });
+}
+
+/** Tra cứu trạng thái thanh toán của phiên Stripe Checkout */
+export function useOrderStripeSessionStatus(sessionId?: string | null, enabled = true) {
+  return useQuery({
+    queryKey: ["orders", "stripe-session-status", sessionId],
+    queryFn: async (): Promise<OrderStripeSessionStatus> => {
+      if (!sessionId) throw new Error("Missing sessionId");
+      const { data } = await apiClient.get<ApiResponseData<OrderStripeSessionStatus>>(
+        `/orders/stripe-session/${sessionId}/status`,
+      );
+      if (!data.data) {
+        throw new Error("Không thể kiểm tra trạng thái thanh toán");
+      }
+      return data.data;
+    },
+    enabled: Boolean(sessionId && enabled),
+    refetchInterval: (query) => {
+      const status = query.state.data;
+      if (status?.isPaid) return false;
+      return 2000;
     },
   });
 }

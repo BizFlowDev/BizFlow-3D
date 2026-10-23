@@ -31,7 +31,8 @@ export function OrderSuccessModal({
   const orderCode = getOrderCode(order);
   const paymentLabels: Record<string, string> = {
     cash: "Tiền mặt",
-    qr_code: "Chuyển khoản VietQR",
+    stripe: "Cổng Stripe",
+    qr_code: "Chuyển khoản QR",
     debt: "Ghi nợ",
   };
 

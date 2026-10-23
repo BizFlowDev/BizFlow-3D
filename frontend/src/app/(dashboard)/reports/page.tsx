@@ -220,11 +220,13 @@ export default function ReportsPage() {
           formatDateTime(o.createdAt),
           o.customerName || "Khách lẻ",
           (o.items ?? []).reduce((s, it) => s + it.quantity, 0),
-          o.paymentMethod === "qr_code"
-            ? "VietQR"
-            : o.paymentMethod === "debt"
-              ? "Ghi nợ"
-              : "Tiền mặt",
+          o.paymentMethod === "stripe"
+            ? "Stripe"
+            : o.paymentMethod === "qr_code"
+              ? "VietQR"
+              : o.paymentMethod === "debt"
+                ? "Ghi nợ"
+                : "Tiền mặt",
           o.finalAmount,
           o.debtAmount,
           o.status === "confirmed"

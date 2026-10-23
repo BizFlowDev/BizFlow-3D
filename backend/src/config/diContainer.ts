@@ -303,6 +303,8 @@ export const controllers = {
     getOrderDetailUseCase,
     confirmOrderUseCase,
     orderRepo,
+    stripeGateway,
+    storeRepo,
   ),
   inventoryController: new InventoryController(
     importStockUseCase,

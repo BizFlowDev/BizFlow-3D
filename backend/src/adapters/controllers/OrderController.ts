@@ -4,6 +4,8 @@ import { ListOrdersUseCase } from '../../core/usecases/order/ListOrdersUseCase.j
 import { GetOrderDetailUseCase } from '../../core/usecases/order/GetOrderDetailUseCase.js';
 import { ConfirmOrderUseCase } from '../../core/usecases/order/ConfirmOrderUseCase.js';
 import type { IOrderRepository } from '../../core/repositories/IOrderRepository.js';
+import type { IStoreRepository } from '../../core/repositories/IStoreRepository.js';
+import type { StripeGateway } from '../../frameworks/payment/StripeGateway.js';
 import { ApiResponse } from '../presenters/ApiResponse.js';
 import { AuthenticationError } from '../../core/errors/AuthenticationError.js';
 import { NotFoundError } from '../../core/errors/NotFoundError.js';
@@ -11,7 +13,7 @@ import { ValidationError } from '../../core/errors/ValidationError.js';
 
 /**
  * Order controller.
- * Handles order creation, listing, detail, confirmation, and cancellation.
+ * Handles order creation, listing, detail, confirmation, cancellation, and Stripe checkout sessions.
  */
 export class OrderController {
   constructor(
@@ -20,6 +22,8 @@ export class OrderController {
     private readonly getOrderDetailUseCase: GetOrderDetailUseCase,
     private readonly confirmOrderUseCase: ConfirmOrderUseCase,
     private readonly orderRepo: IOrderRepository,
+    private readonly stripeGateway?: StripeGateway,
+    private readonly storeRepo?: IStoreRepository,
   ) {}
 
   /**
@@ -153,6 +157,80 @@ export class OrderController {
       });
 
       const response = ApiResponse.success(cancelledOrder, 'Hủy đơn hàng thành công');
+      res.status(response.statusCode).json(response.toJSON());
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * POST /api/orders/stripe-session
+   * Body: { amount: number, orderCode?: string, customerName?: string, items?: Array<{ name: string; quantity: number; unitPrice: number }> }
+   */
+  createStripeSession = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const storeId = req.user?.storeId;
+      if (!storeId) throw new AuthenticationError('Store không xác định');
+
+      const { amount, orderCode, customerName, items } = req.body;
+      if (!amount || typeof amount !== 'number' || amount <= 0) {
+        throw new ValidationError('Số tiền thanh toán qua Stripe không hợp lệ');
+      }
+
+      if (!this.stripeGateway) {
+        throw new ValidationError('Cổng thanh toán Stripe chưa được cấu hình');
+      }
+
+      let storeName = 'BizFlow Store';
+      if (this.storeRepo) {
+        const store = await this.storeRepo.findById(storeId);
+        if (store?.name) storeName = store.name;
+      }
+
+      const session = await this.stripeGateway.createOrderCheckoutSession({
+        storeId,
+        storeName,
+        amount,
+        orderCode,
+        customerName,
+        items,
+      });
+
+      const response = ApiResponse.success(session, 'Khởi tạo phiên thanh toán Stripe thành công');
+      res.status(response.statusCode).json(response.toJSON());
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * GET /api/orders/stripe-session/:sessionId/status
+   */
+  getStripeSessionStatus = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const sessionId = req.params.sessionId as string;
+      if (!sessionId) {
+        throw new ValidationError('Thiếu sessionId phiên Stripe');
+      }
+
+      if (!this.stripeGateway) {
+        throw new ValidationError('Cổng thanh toán Stripe chưa được cấu hình');
+      }
+
+      const session = await this.stripeGateway.retrieveCheckoutSession(sessionId);
+      const isPaid = session.payment_status === 'paid';
+
+      const response = ApiResponse.success(
+        {
+          sessionId: session.id,
+          status: session.status,
+          paymentStatus: session.payment_status,
+          isPaid,
+          amountTotal: session.amount_total,
+          currency: session.currency,
+        },
+        'Lấy trạng thái phiên thanh toán Stripe thành công',
+      );
       res.status(response.statusCode).json(response.toJSON());
     } catch (error) {
       next(error);

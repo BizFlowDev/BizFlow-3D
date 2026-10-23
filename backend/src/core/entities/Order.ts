@@ -12,7 +12,7 @@ export const OrderSchema = z.object({
   userId: z.string().uuid().nullish(),
   orderType: z.enum(['counter', 'ai_generated']),
   status: z.enum(['draft', 'confirmed', 'cancelled']),
-  paymentMethod: z.enum(['cash', 'qr_code', 'debt']).default('cash'),
+  paymentMethod: z.enum(['cash', 'stripe', 'qr_code', 'debt']).default('cash'),
   totalAmount: z.coerce.number().min(0),
   discountAmount: z.coerce.number().min(0),
   finalAmount: z.coerce.number().min(0),
@@ -40,7 +40,7 @@ export class Order {
   readonly userId: string | null;
   readonly orderType: 'counter' | 'ai_generated';
   readonly status: 'draft' | 'confirmed' | 'cancelled';
-  readonly paymentMethod: 'cash' | 'qr_code' | 'debt';
+  readonly paymentMethod: 'cash' | 'stripe' | 'qr_code' | 'debt';
   readonly totalAmount: number;
   readonly discountAmount: number;
   readonly finalAmount: number;
@@ -88,7 +88,7 @@ export class Order {
     > & {
       id?: string;
       status?: 'draft' | 'confirmed' | 'cancelled';
-      paymentMethod?: 'cash' | 'qr_code' | 'debt';
+      paymentMethod?: 'cash' | 'stripe' | 'qr_code' | 'debt';
       totalAmount?: number;
       discountAmount?: number;
       finalAmount?: number;

@@ -9,6 +9,9 @@ const { orderController } = controllers;
 
 router.use(authMiddleware);
 
+router.post('/stripe-session', orderController.createStripeSession);
+router.get('/stripe-session/:sessionId/status', orderController.getStripeSessionStatus);
+
 router.post('/', validate(createOrderSchema), orderController.create);
 router.get('/', orderController.list);
 router.get('/:id', orderController.getById);
