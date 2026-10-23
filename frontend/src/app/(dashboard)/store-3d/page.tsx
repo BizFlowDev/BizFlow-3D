@@ -1696,7 +1696,7 @@ export default function Store3DPage() {
           onClose={() => setCreatedOrder(null)}
         />
 
-        {/* ── Upgrade Plan Modal (Tích hợp thanh toán VietQR) ─ */}
+        {/* ── Upgrade Plan Modal (Tích hợp thanh toán Stripe) ─ */}
         <UpgradePlanModal
           open={upgradeModalOpen}
           onOpenChange={setUpgradeModalOpen}
