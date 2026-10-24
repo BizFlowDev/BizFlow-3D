@@ -3,12 +3,13 @@
 import { useMemo } from "react";
 import { Text } from "@react-three/drei";
 import { Door3D, DOOR_TOTAL_HEIGHT } from "./Door3D";
-import { type RoomId, ROOMS } from "./types";
+import { type RoomId, ROOMS, type DoorId } from "./types";
 import { SmartOcclusionGroup } from "./SmartOcclusion";
 
 interface HallwaySceneProps {
   activeRoom: RoomId;
   onEnterRoom: (room: RoomId) => void;
+  openDoor?: DoorId | null;
 }
 
 const HALLWAY_WIDTH = 16;
@@ -22,7 +23,11 @@ const DOOR_OPENING_WIDTH = 1.6;
 const WALL_ABOVE_DOOR_HEIGHT = HALLWAY_HEIGHT - DOOR_TOTAL_HEIGHT;
 const WALL_ABOVE_DOOR_Y = DOOR_TOTAL_HEIGHT + WALL_ABOVE_DOOR_HEIGHT / 2;
 
-export function HallwayScene({ activeRoom, onEnterRoom }: HallwaySceneProps) {
+export function HallwayScene({
+  activeRoom,
+  onEnterRoom,
+  openDoor = null,
+}: HallwaySceneProps) {
   const wallBaseColor = "#151d2f";
   const woodSlatColor = "#78350f";
 
@@ -177,10 +182,11 @@ export function HallwayScene({ activeRoom, onEnterRoom }: HallwaySceneProps) {
           {/* ── CỬA B: KHO & SẢN PHẨM (x = -3.2) ───────────────────────── */}
           <Door3D
             position={[-3.2, 0, 0]}
+            doorId="hallway_door_warehouse"
             targetRoom="warehouse"
             label={ROOMS.warehouse.name}
             subLabel={ROOMS.warehouse.badge}
-            isOpen={activeRoom === "warehouse"}
+            isOpen={openDoor === "hallway_door_warehouse"}
             onEnter={onEnterRoom}
             accentColor={ROOMS.warehouse.accentColor}
           />
@@ -188,10 +194,11 @@ export function HallwayScene({ activeRoom, onEnterRoom }: HallwaySceneProps) {
           {/* ── CỬA C: VĂN PHÒNG QUẢN LÝ (x = 3.2) ────────────────────── */}
           <Door3D
             position={[3.2, 0, 0]}
+            doorId="hallway_door_office"
             targetRoom="office"
             label={ROOMS.office.name}
             subLabel={ROOMS.office.badge}
-            isOpen={activeRoom === "office"}
+            isOpen={openDoor === "hallway_door_office"}
             onEnter={onEnterRoom}
             accentColor={ROOMS.office.accentColor}
           />
@@ -221,10 +228,11 @@ export function HallwayScene({ activeRoom, onEnterRoom }: HallwaySceneProps) {
           <Door3D
             position={[0, 0, 0]}
             rotation={[0, Math.PI, 0]}
+            doorId="hallway_door_showroom"
             targetRoom="showroom"
             label={ROOMS.showroom.name}
             subLabel={ROOMS.showroom.badge}
-            isOpen={activeRoom === "showroom"}
+            isOpen={openDoor === "hallway_door_showroom"}
             onEnter={onEnterRoom}
             accentColor={ROOMS.showroom.accentColor}
           />

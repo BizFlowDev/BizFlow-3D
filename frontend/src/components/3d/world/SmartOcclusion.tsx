@@ -71,9 +71,16 @@ export function SmartOcclusionGroup({
     groupRef.current.traverse((child) => {
       if ((child as THREE.Mesh).isMesh) {
         const mesh = child as THREE.Mesh;
+        // Bỏ qua Troika Text Mesh hoặc mesh đặc thù tự quản lý shader/material pipeline
+        if (typeof (mesh as any).sync === "function" || mesh.constructor?.name === "Text") {
+          return;
+        }
+
         if (Array.isArray(mesh.material)) {
-          mesh.material = mesh.material.map((mat) => mat.clone());
-        } else if (mesh.material) {
+          mesh.material = mesh.material.map((mat) =>
+            mat && typeof mat.clone === "function" ? mat.clone() : mat,
+          );
+        } else if (mesh.material && typeof mesh.material.clone === "function") {
           mesh.material = mesh.material.clone();
         }
       }
@@ -134,23 +141,51 @@ export function SmartOcclusionGroup({
       groupRef.current.traverse((child) => {
         if ((child as THREE.Mesh).isMesh) {
           const mesh = child as THREE.Mesh;
-          const materials = Array.isArray(mesh.material)
-            ? mesh.material
-            : [mesh.material];
+          const isTroikaText =
+            typeof (mesh as any).sync === "function" ||
+            mesh.constructor?.name === "Text";
+
+          if (isTroikaText) {
+            // Troika Text quản lý độ mờ qua fillOpacity và outlineOpacity
+            const textMesh = mesh as any;
+            textMesh.fillOpacity = currentOpacity;
+            if (
+              textMesh.outlineWidth !== undefined &&
+              textMesh.outlineWidth !== 0
+            ) {
+              textMesh.outlineOpacity = currentOpacity;
+            }
+            if (passThroughRaycast) {
+              mesh.raycast =
+                currentOpacity > 0.15
+                  ? THREE.Mesh.prototype.raycast
+                  : () => {};
+            }
+            return;
+          }
+
+          const matProp = mesh.material;
+          if (!matProp) return;
+
+          const materials = Array.isArray(matProp) ? matProp : [matProp];
 
           materials.forEach((mat) => {
-            if (mat) {
-              mat.transparent = !isSolid;
+            if (mat && typeof mat === "object") {
+              if (mat.transparent !== !isSolid) {
+                mat.transparent = !isSolid;
+                mat.needsUpdate = true;
+              }
+              if (mat.depthWrite !== isSolid) {
+                mat.depthWrite = isSolid;
+              }
               mat.opacity = currentOpacity;
-              // Chỉ bật depthWrite khi mảng tường gần như đặc hoàn toàn (tránh vỡ hình depth sort)
-              mat.depthWrite = isSolid;
-              mat.needsUpdate = true;
             }
           });
 
           // Cho phép click chuột xuyên qua vật thể khi đang mờ
           if (passThroughRaycast) {
-            mesh.raycast = currentOpacity > 0.15 ? THREE.Mesh.prototype.raycast : () => {};
+            mesh.raycast =
+              currentOpacity > 0.15 ? THREE.Mesh.prototype.raycast : () => {};
           }
         }
       });

@@ -733,6 +733,7 @@ export default function Store3DPage() {
   const handleCloseProductDetail = useCallback(() => {
     setSelectedProductForDetail(null);
     setTargetFocusPoint(null);
+    setCameraPreset("showroomOverview");
   }, []);
 
   const handleAddToOrder = useCallback((item: CartItem3D) => {
@@ -934,27 +935,75 @@ export default function Store3DPage() {
     "shelfSideRight",
   ].includes(cameraPreset);
 
-  // Phím tắt ESC để thoát quầy POS, thoát góc nhìn xem kệ hoặc quay lại hành lang
+  const isRoomOverview =
+    (activeRoom === "showroom" && (cameraPreset === "showroomOverview" || cameraPreset === "overview")) ||
+    (activeRoom === "warehouse" && cameraPreset === "warehouseOverview") ||
+    (activeRoom === "office" && cameraPreset === "officeOverview") ||
+    (activeRoom === "hallway" && cameraPreset === "hallwayOverview");
+
+  // Hàm quay lại tầm nhìn toàn cảnh của phòng hiện tại và đóng mọi modal/focus
+  const handleReturnToOverview = useCallback(() => {
+    setSelectedProductForDetail(null);
+    setWarehouseImportModalOpen(false);
+    setWarehouseInspectionModalOpen(false);
+    setProductFormModal3DOpen(false);
+    setCategoryManageModal3DOpen(false);
+    setCargoDetailModalOpen(false);
+    setEmployeeFormOpen(false);
+    setOfficeSettingsOpen(false);
+    setUpgradeModalOpen(false);
+    setTargetFocusPoint(null);
+
+    if (isPOSActive) {
+      setIsPOSActive(false);
+      setIsHUDCollapsed(false);
+    }
+
+    if (activeRoom === "warehouse") {
+      setCameraPreset("warehouseOverview");
+    } else if (activeRoom === "office") {
+      setCameraPreset("officeOverview");
+    } else if (activeRoom === "hallway") {
+      setCameraPreset("hallwayOverview");
+    } else {
+      setCameraPreset("showroomOverview");
+    }
+  }, [activeRoom, isPOSActive]);
+
+  // Phím tắt ESC để thoát quầy POS, đóng modal, thoát góc nhìn zoom hoặc quay lại hành lang
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
+        const isAnyModalOpen = Boolean(
+          selectedProductForDetail ||
+          warehouseImportModalOpen ||
+          warehouseInspectionModalOpen ||
+          productFormModal3DOpen ||
+          categoryManageModal3DOpen ||
+          cargoDetailModalOpen ||
+          employeeFormOpen ||
+          officeSettingsOpen ||
+          upgradeModalOpen ||
+          targetFocusPoint
+        );
+
+        if (isAnyModalOpen) {
+          handleReturnToOverview();
+          return;
+        }
+
         if (isPOSActive) {
           handleExitPOS();
-        } else if (isViewingShelf) {
-          handleSelectPreset("showroomOverview");
-        } else if (activeRoom !== "hallway") {
-          const isRoomOverview =
-            (activeRoom === "showroom" && (cameraPreset === "showroomOverview" || cameraPreset === "overview")) ||
-            (activeRoom === "warehouse" && cameraPreset === "warehouseOverview") ||
-            (activeRoom === "office" && cameraPreset === "officeOverview");
+          return;
+        }
 
-          if (isRoomOverview) {
-            handleSelectRoom("hallway");
-          } else {
-            if (activeRoom === "showroom") handleSelectPreset("showroomOverview");
-            else if (activeRoom === "warehouse") handleSelectPreset("warehouseOverview");
-            else if (activeRoom === "office") handleSelectPreset("officeOverview");
-          }
+        if (!isRoomOverview) {
+          handleReturnToOverview();
+          return;
+        }
+
+        if (activeRoom !== "hallway") {
+          handleSelectRoom("hallway");
         } else if (isHUDCollapsed) {
           setIsHUDCollapsed(false);
         }
@@ -962,7 +1011,25 @@ export default function Store3DPage() {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isPOSActive, isViewingShelf, isHUDCollapsed, activeRoom, cameraPreset, handleExitPOS, handleSelectPreset, handleSelectRoom]);
+  }, [
+    isPOSActive,
+    isRoomOverview,
+    isHUDCollapsed,
+    activeRoom,
+    targetFocusPoint,
+    selectedProductForDetail,
+    warehouseImportModalOpen,
+    warehouseInspectionModalOpen,
+    productFormModal3DOpen,
+    categoryManageModal3DOpen,
+    cargoDetailModalOpen,
+    employeeFormOpen,
+    officeSettingsOpen,
+    upgradeModalOpen,
+    handleExitPOS,
+    handleReturnToOverview,
+    handleSelectRoom,
+  ]);
 
   // ── Render ─────────────────────────────────────────────────
 
@@ -1478,13 +1545,13 @@ export default function Store3DPage() {
                   </button>
                 )}
 
-                {/* Nút trở về toàn cảnh khi đang xem 1 kệ hàng */}
-                {isViewingShelf && !isPOSActive && (
+                {/* Nút trở về toàn cảnh khi đang zoom vào bất kỳ trạm / kệ nào */}
+                {(!isRoomOverview || targetFocusPoint !== null) && !isPOSActive && (
                   <button
                     type="button"
-                    onClick={() => handleSelectPreset("overview")}
+                    onClick={handleReturnToOverview}
                     className="flex items-center gap-1.5 rounded-2xl border border-sky-500/40 bg-sky-600/30 hover:bg-sky-600/50 px-3 py-2.5 text-xs font-bold text-sky-200 shadow-xl backdrop-blur-xl transition-all animate-in fade-in"
-                    title="Quay lại toàn cảnh showroom hoặc nhấn phím ESC"
+                    title="Quay lại tầm nhìn toàn cảnh hoặc nhấn phím ESC"
                   >
                     <X className="h-3.5 w-3.5" />
                     <span className="hidden sm:inline">Toàn cảnh [ESC]</span>
@@ -1708,6 +1775,7 @@ export default function Store3DPage() {
           onClose={() => {
             setWarehouseImportModalOpen(false);
             setTargetFocusPoint(null);
+            setCameraPreset("warehouseOverview");
           }}
           preselectedProductId={importStockProductId}
         />
@@ -1718,6 +1786,7 @@ export default function Store3DPage() {
           onClose={() => {
             setWarehouseInspectionModalOpen(false);
             setTargetFocusPoint(null);
+            setCameraPreset("warehouseOverview");
           }}
           preselectedProductId={importStockProductId}
           onOpenEditProduct3D={(id) => handleOpenProductForm3D(id)}
@@ -1730,6 +1799,7 @@ export default function Store3DPage() {
           onClose={() => {
             setProductFormModal3DOpen(false);
             setTargetFocusPoint(null);
+            setCameraPreset("warehouseOverview");
           }}
           product={editingProductFor3D}
         />
@@ -1740,6 +1810,7 @@ export default function Store3DPage() {
           onClose={() => {
             setCategoryManageModal3DOpen(false);
             setTargetFocusPoint(null);
+            setCameraPreset("warehouseOverview");
           }}
           highlightCategoryId={highlightCategoryId}
           onHighlightCategory={setHighlightCategoryId}
@@ -1751,6 +1822,7 @@ export default function Store3DPage() {
           onClose={() => {
             setCargoDetailModalOpen(false);
             setTargetFocusPoint(null);
+            setCameraPreset("warehouseOverview");
           }}
           cargoItem={selectedCargoItem}
           location={selectedCargoLocation}
@@ -1763,14 +1835,26 @@ export default function Store3DPage() {
         {/* ── Employee Form Dialog (Từ Tủ Hồ Sơ Văn Phòng) ─ */}
         <EmployeeFormDialog
           open={employeeFormOpen}
-          onOpenChange={setEmployeeFormOpen}
+          onOpenChange={(open) => {
+            setEmployeeFormOpen(open);
+            if (!open) {
+              setTargetFocusPoint(null);
+              setCameraPreset("officeOverview");
+            }
+          }}
           currentEmployeeCount={employeeCount}
         />
 
         {/* ── Office Settings Modal (Từ Bàn Giám Đốc) ───── */}
         <OfficeSettingsModal
           open={officeSettingsOpen}
-          onOpenChange={setOfficeSettingsOpen}
+          onOpenChange={(open) => {
+            setOfficeSettingsOpen(open);
+            if (!open) {
+              setTargetFocusPoint(null);
+              setCameraPreset("officeOverview");
+            }
+          }}
         />
       </div>
     </>

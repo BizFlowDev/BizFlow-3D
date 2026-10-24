@@ -5,7 +5,7 @@ import { useFrame } from "@react-three/fiber";
 import { Text, Html } from "@react-three/drei";
 import * as THREE from "three";
 import { Door3D } from "./Door3D";
-import { ROOMS } from "./types";
+import { type RoomId, ROOMS, type DoorId } from "./types";
 import { SmartOcclusionGroup } from "./SmartOcclusion";
 
 interface OfficeSceneProps {
@@ -17,6 +17,7 @@ interface OfficeSceneProps {
   onOpenEmployeeDialog?: () => void;
   onOpenReports?: () => void;
   onReturnToHallway?: () => void;
+  openDoor?: DoorId | null;
 }
 
 const OFFICE_WIDTH = 15;
@@ -505,6 +506,7 @@ export function OfficeScene({
   onOpenEmployeeDialog = () => {},
   onOpenReports = () => {},
   onReturnToHallway = () => {},
+  openDoor = null,
 }: OfficeSceneProps) {
   return (
     <group position={[0, 0, 0]}>
@@ -567,9 +569,11 @@ export function OfficeScene({
         <Door3D
           position={[3.2, 0, -18.1]}
           rotation={[0, 0, 0]}
+          doorId="office_exit"
           targetRoom="hallway"
           label={ROOMS.hallway.name}
           subLabel="LỐI RA"
+          isOpen={openDoor === "office_exit"}
           onEnter={onReturnToHallway}
           accentColor="#38bdf8"
         />

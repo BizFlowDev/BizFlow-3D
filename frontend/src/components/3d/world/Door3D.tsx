@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Text, Html } from "@react-three/drei";
 import * as THREE from "three";
-import { type RoomId, ROOMS } from "./types";
+import { type RoomId, ROOMS, type DoorId } from "./types";
 
 interface Door3DProps {
   /** Vị trí cửa */
@@ -19,6 +19,8 @@ interface Door3DProps {
   subLabel?: string;
   /** Cửa đang mở hay đóng */
   isOpen?: boolean;
+  /** Mã định danh cánh cửa */
+  doorId?: DoorId;
   /** Callback khi click vào cửa */
   onEnter: (room: RoomId) => void;
   /** Màu nhấn chủ đạo */
@@ -146,11 +148,11 @@ export function Door3D({
   const roomConfig = ROOMS[targetRoom] || ROOMS.showroom;
   const effectiveAccent = accentColor || roomConfig.accentColor;
 
-  // Animation bản lề mở/đóng cửa qua useFrame (lerp mượt)
+  // Animation bản lề mở/đóng cửa êm ái, chuyển động đầm chắc tự nhiên (~0.65s)
   useFrame((_, delta) => {
     if (!hingeRef.current) return;
-    const targetAngle = isOpen ? -Math.PI * 0.45 : 0; // Xoay ~80 độ
-    const step = delta * 5.0;
+    const targetAngle = isOpen ? -Math.PI * 0.48 : 0; // Xoay ~86 độ
+    const step = Math.min(1, delta * 4.2);
     currentAngleRef.current = THREE.MathUtils.lerp(
       currentAngleRef.current,
       targetAngle,
@@ -429,14 +431,24 @@ export function Door3D({
           <mesh position={[DOOR_WIDTH / 2 - 0.22, 0.65, 0.045]}>
             <circleGeometry args={[0.035, 16]} />
             <meshStandardMaterial
-              color={hovered ? "#22c55e" : effectiveAccent}
-              emissive={hovered ? "#22c55e" : effectiveAccent}
-              emissiveIntensity={1.5}
+              color={isOpen || hovered ? "#22c55e" : effectiveAccent}
+              emissive={isOpen || hovered ? "#22c55e" : effectiveAccent}
+              emissiveIntensity={isOpen ? 2.5 : hovered ? 1.8 : 0.9}
             />
           </mesh>
 
           {/* LOD Preview của phòng đích hiển thị sau ô kính khi cửa đóng */}
           {!isOpen && <DoorLODPreview room={targetRoom} />}
+
+          {/* Ánh sáng tràn qua ngưỡng cửa khi mở (Doorway Light Beam) */}
+          {isOpen && (
+            <pointLight
+              position={[0, 1.2, -0.2]}
+              intensity={5.5}
+              distance={4.2}
+              color={effectiveAccent}
+            />
+          )}
         </group>
       </group>
 

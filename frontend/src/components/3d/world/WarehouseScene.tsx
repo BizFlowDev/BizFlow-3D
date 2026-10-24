@@ -5,7 +5,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { Text, Html } from "@react-three/drei";
 import * as THREE from "three";
 import { Door3D } from "./Door3D";
-import { ROOMS } from "./types";
+import { type RoomId, ROOMS, type DoorId } from "./types";
 import { SmartOcclusionGroup } from "./SmartOcclusion";
 import type { StockLevelRow } from "@/hooks/useInventory";
 
@@ -20,6 +20,7 @@ interface WarehouseSceneProps {
   ) => void;
   highlightCategoryId?: string | null;
   onReturnToHallway?: () => void;
+  openDoor?: DoorId | null;
 }
 
 // ── Kích thước & tọa độ phòng kho ─────────────────────────────────────────────
@@ -292,13 +293,12 @@ function RealisticCargoItem({
                 <p className="text-[10px] text-slate-400">Mã: {item.code || "WH-SKU"}</p>
               </div>
               <span
-                className={`rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase ${
-                  isLowStock
-                    ? "bg-red-500/20 text-red-400 border border-red-500/40"
-                    : isHealthy
+                className={`rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase ${isLowStock
+                  ? "bg-red-500/20 text-red-400 border border-red-500/40"
+                  : isHealthy
                     ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40"
                     : "bg-amber-500/20 text-amber-400 border border-amber-500/40"
-                }`}
+                  }`}
               >
                 {isLowStock ? "Sắp hết" : isHealthy ? "Đủ hàng" : "Mức vừa"}
               </span>
@@ -474,7 +474,7 @@ function HeavyDutyWarehouseRack({
           <meshStandardMaterial color="#090d16" roughness={0.2} metalness={0.8} />
         </mesh>
         {/* Khung viền LED màu chỉ định */}
-        <mesh position={[0, 0, 0.03]}>
+        <mesh position={[0, 0, 0]}>
           <boxGeometry args={[2.84, 0.49, 0.02]} />
           <meshStandardMaterial color={accentColor} emissive={accentColor} emissiveIntensity={0.8} />
         </mesh>
@@ -534,7 +534,7 @@ function WarehouseWMSDashboard({
       </mesh>
 
       {/* Viền LED phát sáng màu Sky */}
-      <mesh position={[0, 0, 0.045]}>
+      <mesh position={[0, 0, 0]}>
         <boxGeometry args={[4.44, 2.34, 0.02]} />
         <meshStandardMaterial
           color="#0284c7"
@@ -873,7 +873,7 @@ function FloorWeighingScale({ position }: { position: [number, number, number] }
         <meshStandardMaterial color="#334155" roughness={0.3} metalness={0.7} />
       </mesh>
       {/* Viền vàng cảnh báo quanh bệ cân */}
-      <mesh position={[0, 0.045, 0]}>
+      <mesh position={[0, 0., 0]}>
         <boxGeometry args={[1.34, 0.07, 1.34]} />
         <meshStandardMaterial color="#ca8a04" emissive="#ca8a04" emissiveIntensity={0.4} />
       </mesh>
@@ -1007,11 +1007,10 @@ function InspectionDesk({
           <button
             type="button"
             onClick={onClick}
-            className={`pointer-events-auto flex items-center gap-1.5 rounded-full border px-3 py-1 shadow-2xl backdrop-blur-md transition-all ${
-              hovered
-                ? "border-sky-400 bg-sky-600/90 text-white scale-110 shadow-sky-500/40"
-                : "border-sky-400/40 bg-slate-950/85 text-slate-200"
-            }`}
+            className={`pointer-events-auto flex items-center gap-1.5 rounded-full border px-3 py-1 shadow-2xl backdrop-blur-md transition-all ${hovered
+              ? "border-sky-400 bg-sky-600/90 text-white scale-110 shadow-sky-500/40"
+              : "border-sky-400/40 bg-slate-950/85 text-slate-200"
+              }`}
           >
             <span className="h-2 w-2 rounded-full bg-sky-400 animate-ping" />
             <span className="whitespace-nowrap text-[11px] font-bold">
@@ -1108,11 +1107,10 @@ function PalletImportZone({
           <button
             type="button"
             onClick={onClick}
-            className={`pointer-events-auto flex items-center gap-1.5 rounded-full border px-3 py-1 shadow-2xl backdrop-blur-md transition-all ${
-              hovered
-                ? "border-amber-400 bg-amber-600/90 text-white scale-110 shadow-amber-500/40"
-                : "border-amber-400/40 bg-slate-950/85 text-slate-200"
-            }`}
+            className={`pointer-events-auto flex items-center gap-1.5 rounded-full border px-3 py-1 shadow-2xl backdrop-blur-md transition-all ${hovered
+              ? "border-amber-400 bg-amber-600/90 text-white scale-110 shadow-amber-500/40"
+              : "border-amber-400/40 bg-slate-950/85 text-slate-200"
+              }`}
           >
             <span className="h-2 w-2 rounded-full bg-amber-400 animate-ping" />
             <span className="whitespace-nowrap text-[11px] font-bold">
@@ -1156,7 +1154,7 @@ function CategoryBoard({
         <meshStandardMaterial color="#0f172a" roughness={0.3} metalness={0.6} />
       </mesh>
       {/* Viền LED */}
-      <mesh position={[0, 0, 0.02]}>
+      <mesh position={[0, 0, 0]}>
         <boxGeometry args={[2.64, 1.64, 0.02]} />
         <meshStandardMaterial
           color="#38bdf8"
@@ -1169,7 +1167,7 @@ function CategoryBoard({
         QUẢN LÝ DANH MỤC
       </Text>
       <Text position={[0, 0.1, 0.04]} fontSize={0.11} color="#ffffff" anchorX="center" anchorY="middle">
-        Click de xem & phan loai
+        Click để xem & phân loai
       </Text>
 
       <group position={[0, -0.4, 0.1]}>
@@ -1177,9 +1175,8 @@ function CategoryBoard({
           <button
             type="button"
             onClick={onClick}
-            className={`pointer-events-auto rounded-lg border border-sky-400/40 bg-sky-600/80 px-3 py-1.5 text-xs font-bold text-white shadow-lg backdrop-blur-md transition-all ${
-              hovered ? "scale-105 bg-sky-500" : ""
-            }`}
+            className={`pointer-events-auto rounded-lg border border-sky-400/40 bg-sky-600/80 px-3 py-1.5 text-xs font-bold text-white shadow-lg backdrop-blur-md transition-all ${hovered ? "scale-105 bg-sky-500" : ""
+              }`}
           >
             Mở Danh Mục
           </button>
@@ -1391,12 +1388,13 @@ function FloorSafetyMarkings() {
 // ── MAIN: WAREHOUSE SCENE NÂNG CẤP TRỌN GÓI ──────────────────────────────────
 export function WarehouseScene({
   stockItems = [],
-  onOpenProductForm = () => {},
-  onOpenImportStock = () => {},
-  onOpenCategoryManage = () => {},
-  onSelectCargoItem = () => {},
+  onOpenProductForm = () => { },
+  onOpenImportStock = () => { },
+  onOpenCategoryManage = () => { },
+  onSelectCargoItem = () => { },
   highlightCategoryId = null,
-  onReturnToHallway = () => {},
+  onReturnToHallway = () => { },
+  openDoor = null,
 }: WarehouseSceneProps) {
   // Tạo dữ liệu mẫu phong phú nếu chưa có dữ liệu thật từ backend
   const displayItems: StockLevelRow[] = useMemo(() => {
@@ -1481,9 +1479,11 @@ export function WarehouseScene({
         <Door3D
           position={[-3.2, 0, -18.1]}
           rotation={[0, 0, 0]}
+          doorId="warehouse_exit"
           targetRoom="hallway"
           label={ROOMS.hallway.name}
           subLabel="LỐI RA"
+          isOpen={openDoor === "warehouse_exit"}
           onEnter={onReturnToHallway}
           accentColor="#38bdf8"
         />

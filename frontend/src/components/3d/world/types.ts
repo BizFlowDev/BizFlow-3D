@@ -253,3 +253,20 @@ export const CAMERA_PRESETS: Record<CameraPreset, CameraPresetConfig> = {
     room: "office",
   },
 };
+
+// ── Hệ thống chuyển cảnh đa phòng qua cửa 3D (Door Transition System) ─────────
+export type DoorId =
+  | "hallway_door_showroom"
+  | "hallway_door_warehouse"
+  | "hallway_door_office"
+  | "showroom_exit"
+  | "warehouse_exit"
+  | "office_exit";
+
+export interface TransitionWaypoint {
+  position: [number, number, number];
+  target: [number, number, number];
+  duration: number; // Thời gian chuyển tới waypoint (giây)
+  openDoor?: DoorId | null;
+  activeRoomHint?: RoomId;
+}

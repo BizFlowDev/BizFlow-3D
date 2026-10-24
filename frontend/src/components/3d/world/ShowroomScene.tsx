@@ -4,12 +4,13 @@ import { useMemo } from "react";
 import { Text } from "@react-three/drei";
 import { StoreDecorations } from "../StoreDecorations";
 import { Door3D, DOOR_TOTAL_HEIGHT } from "./Door3D";
-import { type RoomId, ROOMS } from "./types";
+import { type RoomId, ROOMS, type DoorId } from "./types";
 import { SmartOcclusionGroup } from "./SmartOcclusion";
 
 interface ShowroomSceneProps {
   children?: React.ReactNode;
   onReturnToHallway?: () => void;
+  openDoor?: DoorId | null;
 }
 
 const STORE_WIDTH = 16;
@@ -66,7 +67,13 @@ function ShowroomFloor() {
 /**
  * ShowroomWalls — Tường ốp lam gỗ, bảng hiệu LED và Cửa kết nối ra Hành Lang
  */
-function ShowroomWalls({ onReturnToHallway }: { onReturnToHallway?: () => void }) {
+function ShowroomWalls({
+  onReturnToHallway,
+  openDoor,
+}: {
+  onReturnToHallway?: () => void;
+  openDoor?: DoorId | null;
+}) {
   const wallBaseColor = "#0f172a";
   const woodSlatColor = "#854d0e";
 
@@ -163,9 +170,11 @@ function ShowroomWalls({ onReturnToHallway }: { onReturnToHallway?: () => void }
         {onReturnToHallway && (
           <Door3D
             position={[0, 0, -STORE_DEPTH / 2 + 0.1]}
+            doorId="showroom_exit"
             targetRoom="hallway"
             label={ROOMS.hallway.name}
             subLabel="LỐI RA"
+            isOpen={openDoor === "showroom_exit"}
             onEnter={() => onReturnToHallway()}
             accentColor="#38bdf8"
           />
@@ -336,12 +345,16 @@ function ShowroomFloorTrim() {
 /**
  * ShowroomScene — Phòng 1: Showroom trưng bày sản phẩm & Bán hàng POS
  */
-export function ShowroomScene({ children, onReturnToHallway }: ShowroomSceneProps) {
+export function ShowroomScene({
+  children,
+  onReturnToHallway,
+  openDoor = null,
+}: ShowroomSceneProps) {
   return (
     <group position={[0, 0, 0]}>
       <ShowroomCeilingAndLights />
       <ShowroomFloor />
-      <ShowroomWalls onReturnToHallway={onReturnToHallway} />
+      <ShowroomWalls onReturnToHallway={onReturnToHallway} openDoor={openDoor} />
       <ShowroomFloorTrim />
       <StoreDecorations />
       {/* ProductShelf x 4 & Counter (chứa POS) */}
