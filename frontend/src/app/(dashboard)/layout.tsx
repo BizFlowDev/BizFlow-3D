@@ -8,6 +8,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuthStore } from "@/stores/auth-store";
 import type { UserRole } from "@/config/navigation";
 import { BizFlowSplash } from "@/components/shared/bizflow-splash";
+import { SubscriptionExpiredAlertModal } from "@/components/shared/SubscriptionExpiredAlertModal";
 
 export default function DashboardLayout({
   children,
@@ -39,6 +40,7 @@ export default function DashboardLayout({
         </div>
       </div>
       <SocketProvider />
+      <SubscriptionExpiredAlertModal />
     </TooltipProvider>
   );
 }

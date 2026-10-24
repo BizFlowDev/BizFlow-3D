@@ -144,6 +144,35 @@ export function UpgradePlanModal({ open, onOpenChange }: UpgradePlanModalProps) 
   const discountAmount = Math.round((basePrice * (durationOption.discount ?? 0)) / 100);
   const finalPrice = Math.max(0, basePrice - discountAmount);
 
+  // Tính toán hạn dùng mới theo quy tắc: nếu đã hết hạn thì tính tiếp nối từ ngày hết hạn cũ
+  const newExpiryPreview = useMemo(() => {
+    const now = new Date();
+    const isExpired =
+      store?.subscriptionStatus === "expired" ||
+      (store?.subscriptionExpiresAt &&
+        new Date(store.subscriptionExpiresAt).getTime() < now.getTime());
+
+    let base = now;
+    if (store?.subscriptionExpiresAt) {
+      base = new Date(store.subscriptionExpiresAt);
+    }
+
+    const calculated = new Date(base);
+    calculated.setMonth(calculated.getMonth() + durationMonths);
+
+    // Nếu thời hạn tính ra vẫn <= now (do hết hạn quá lâu trước đó), đảm bảo tối thiểu now + durationMonths
+    if (calculated.getTime() <= now.getTime()) {
+      calculated.setTime(now.getTime());
+      calculated.setMonth(calculated.getMonth() + durationMonths);
+    }
+
+    return {
+      date: calculated,
+      isFromExpired: Boolean(isExpired && store?.subscriptionExpiresAt),
+      baseDate: store?.subscriptionExpiresAt,
+    };
+  }, [store?.subscriptionStatus, store?.subscriptionExpiresAt, durationMonths]);
+
   // Hàm làm mới / tạo lại phiên Stripe
   const initStripeSession = useCallback(() => {
     if (!selectedPlanSlug || finalPrice <= 0 || isSuccess) return;
@@ -490,6 +519,19 @@ export function UpgradePlanModal({ open, onOpenChange }: UpgradePlanModalProps) 
                     <span>Thời hạn sử dụng:</span>
                     <span>{durationMonths} tháng</span>
                   </div>
+
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-muted-foreground">Hạn sử dụng mới (dự kiến):</span>
+                    <span className="font-bold text-foreground">
+                      {formatDate(newExpiryPreview.date.toISOString())}
+                    </span>
+                  </div>
+
+                  {newExpiryPreview.isFromExpired && (
+                    <p className="text-[11px] text-amber-600 dark:text-amber-400 italic text-right -mt-1">
+                      (Tính tiếp nối từ ngày hết hạn: {formatDate(newExpiryPreview.baseDate)})
+                    </p>
+                  )}
 
                   {discountAmount > 0 && (
                     <div className="flex justify-between text-emerald-600 font-medium">

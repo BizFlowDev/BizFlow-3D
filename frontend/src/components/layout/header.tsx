@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Bell, Boxes, CheckCheck, Crown, LogOut, Settings, User, X } from "lucide-react";
+import { Bell, Boxes, CheckCheck, Crown, LogOut, Settings, User, X, AlertTriangle } from "lucide-react";
 import type { UserRole } from "@/config/navigation";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -99,15 +99,28 @@ export function Header({ role }: HeaderProps) {
             type="button"
             onClick={() => setUpgradeModalOpen(true)}
             size="sm"
-            className="h-8 gap-1.5 rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-semibold shadow-xs transition-all hover:scale-102 active:scale-98 text-xs px-2.5 sm:px-3"
-            title="Nâng cấp hoặc gia hạn gói dịch vụ cửa hàng"
+            className={cn(
+              "h-8 gap-1.5 rounded-lg font-semibold shadow-xs transition-all hover:scale-102 active:scale-98 text-xs px-2.5 sm:px-3 text-white",
+              store?.subscriptionStatus === "expired"
+                ? "bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 shadow-rose-600/30 ring-2 ring-rose-500/50 animate-pulse"
+                : "bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 shadow-amber-500/20"
+            )}
+            title={
+              store?.subscriptionStatus === "expired"
+                ? "Gói dịch vụ đã hết hạn! Bấm để thanh toán gia hạn ngay"
+                : "Nâng cấp hoặc gia hạn gói dịch vụ cửa hàng"
+            }
           >
-            <Crown className="h-3.5 w-3.5 text-white animate-pulse" />
+            {store?.subscriptionStatus === "expired" ? (
+              <AlertTriangle className="h-3.5 w-3.5 text-white animate-bounce" />
+            ) : (
+              <Crown className="h-3.5 w-3.5 text-white animate-pulse" />
+            )}
             <span className="hidden sm:inline">
               Gói: <strong className="capitalize font-bold">{store?.subscriptionPlan || "Basic"}</strong>
             </span>
             <span className="inline-flex items-center rounded bg-black/20 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide">
-              Nâng cấp
+              {store?.subscriptionStatus === "expired" ? "Hết hạn" : "Nâng cấp"}
             </span>
           </Button>
         )}
