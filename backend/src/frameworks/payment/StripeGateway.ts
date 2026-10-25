@@ -72,7 +72,12 @@ export class StripeGateway {
     const successUrl = `${frontendBase}?payment_status=success&session_id={CHECKOUT_SESSION_ID}&order_id=${params.orderId}`;
     const cancelUrl = `${frontendBase}?payment_status=cancelled&order_id=${params.orderId}`;
 
-    const expiresAtTimestamp = Math.floor(Date.now() / 1000) + 30 * 60; // 30 minutes from now
+    // Quy định thời gian hiệu lực mã thanh toán là 15 phút
+    const fifteenMinutesMs = 15 * 60 * 1000;
+    const sessionExpiresAt = new Date(Date.now() + fifteenMinutesMs);
+
+    // Stripe API yêu cầu expires_at tối thiểu là 30 phút từ thời điểm tạo
+    const expiresAtTimestamp = Math.floor(Date.now() / 1000) + 30 * 60;
 
     const currency = env.STRIPE_CURRENCY || 'vnd';
     // Stripe VND is a zero-decimal currency (1 VND = 1 unit).
@@ -116,7 +121,7 @@ export class StripeGateway {
       sessionId: session.id,
       checkoutUrl: session.url,
       qrCodeUrl,
-      expiresAt: new Date(expiresAtTimestamp * 1000),
+      expiresAt: sessionExpiresAt,
     };
   }
 
@@ -127,7 +132,12 @@ export class StripeGateway {
     const successUrl = `${frontendBase}/orders?stripe_payment=success&session_id={CHECKOUT_SESSION_ID}`;
     const cancelUrl = `${frontendBase}/orders/new?stripe_payment=cancelled`;
 
-    const expiresAtTimestamp = Math.floor(Date.now() / 1000) + 30 * 60; // 30 minutes from now
+    // Quy định thời gian hiệu lực mã thanh toán là 15 phút
+    const fifteenMinutesMs = 15 * 60 * 1000;
+    const sessionExpiresAt = new Date(Date.now() + fifteenMinutesMs);
+
+    // Stripe API yêu cầu expires_at tối thiểu là 30 phút từ thời điểm tạo
+    const expiresAtTimestamp = Math.floor(Date.now() / 1000) + 30 * 60;
 
     const currency = env.STRIPE_CURRENCY || 'vnd';
     const unitAmount = currency === 'vnd' ? Math.round(params.amount) : Math.round(params.amount * 100);
@@ -183,13 +193,26 @@ export class StripeGateway {
       sessionId: session.id,
       checkoutUrl: session.url,
       qrCodeUrl,
-      expiresAt: new Date(expiresAtTimestamp * 1000),
+      expiresAt: sessionExpiresAt,
     };
   }
 
   async retrieveCheckoutSession(sessionId: string): Promise<Stripe.Checkout.Session> {
     const client = this.ensureClient();
     return client.checkout.sessions.retrieve(sessionId);
+  }
+
+  /**
+   * Hủy hoặc làm hết hạn phiên Stripe Checkout ngay lập tức
+   */
+  async expireCheckoutSession(sessionId: string): Promise<Stripe.Checkout.Session | null> {
+    const client = this.ensureClient();
+    try {
+      return await client.checkout.sessions.expire(sessionId);
+    } catch (err: any) {
+      console.warn(`[StripeGateway] Không thể hết hạn session ${sessionId}:`, err?.message || err);
+      return null;
+    }
   }
 
   constructWebhookEvent(payload: Buffer | string, signature: string): Stripe.Event {

@@ -36,12 +36,17 @@ import {
   useStoreSubscriptionPlans,
   useCreateStripeUpgradeSession,
   useSubscriptionOrderStatus,
+  useCancelSubscriptionOrder,
   STORE_QUERY_KEY,
   type StripeUpgradeSessionData,
 } from "@/hooks/useStore";
 import { useSocket } from "@/hooks/useSocket";
 import { useToast } from "@/components/ui/toast";
 import { QRCodeSVG } from "qrcode.react";
+import {
+  StripeCountdownTimer,
+  StripeExpiredOverlay,
+} from "@/components/shared/StripeCountdownTimer";
 
 export interface UpgradePlanModalProps {
   open: boolean;
@@ -88,6 +93,7 @@ export function UpgradePlanModal({ open, onOpenChange }: UpgradePlanModalProps) 
   const { data: store } = useCurrentStore();
   const { data: plansData, isLoading: isLoadingPlans } = useStoreSubscriptionPlans();
   const { mutate: createStripeSession, isPending: isCreatingStripeSession } = useCreateStripeUpgradeSession();
+  const { mutate: cancelSubscriptionOrder } = useCancelSubscriptionOrder();
   const { socket } = useSocket();
   const { showToast } = useToast();
 
@@ -100,8 +106,17 @@ export function UpgradePlanModal({ open, onOpenChange }: UpgradePlanModalProps) 
   // Stripe Session State
   const [stripeSession, setStripeSession] = useState<StripeUpgradeSessionData | null>(null);
   const [stripeError, setStripeError] = useState<string | null>(null);
+  const [isStripeExpired, setIsStripeExpired] = useState<boolean>(false);
   const [isSuccess, setIsSuccess] = useState<boolean>(false);
   const [successInfo, setSuccessInfo] = useState<{ planName?: string; expiresAt?: string } | null>(null);
+
+  // Callback hủy đơn khi hết hạn 15 phút
+  const handleStripeExpire = useCallback(() => {
+    setIsStripeExpired(true);
+    if (stripeSession?.orderId) {
+      cancelSubscriptionOrder(stripeSession.orderId);
+    }
+  }, [stripeSession?.orderId, cancelSubscriptionOrder]);
 
   // Giữ trạng thái modal đã khởi tạo để tránh store refetch làm reset selection hoặc nhảy sang gói khác
   const hasInitializedRef = useRef<boolean>(false);
@@ -119,6 +134,7 @@ export function UpgradePlanModal({ open, onOpenChange }: UpgradePlanModalProps) 
       setSuccessInfo(null);
       setStripeError(null);
       setStripeSession(null);
+      setIsStripeExpired(false);
 
       // Nếu store đã có gói và gói đó nằm trong danh sách plans -> giữ nguyên gói hiện tại
       // Ngược lại chọn gói đầu tiên
@@ -178,6 +194,7 @@ export function UpgradePlanModal({ open, onOpenChange }: UpgradePlanModalProps) 
     if (!selectedPlanSlug || finalPrice <= 0 || isSuccess) return;
     setStripeError(null);
     setStripeSession(null);
+    setIsStripeExpired(false);
     createStripeSession(
       {
         plan: selectedPlanSlug,
@@ -186,6 +203,7 @@ export function UpgradePlanModal({ open, onOpenChange }: UpgradePlanModalProps) 
       {
         onSuccess: (data) => {
           setStripeSession(data);
+          setIsStripeExpired(false);
           setStripeError(null);
         },
         onError: (err: any) => {
@@ -213,6 +231,7 @@ export function UpgradePlanModal({ open, onOpenChange }: UpgradePlanModalProps) 
     // Reset session cũ ngay lập tức để người dùng không quét nhầm mã QR giá cũ
     setStripeError(null);
     setStripeSession(null);
+    setIsStripeExpired(false);
 
     let isSubscribed = true;
     const timer = setTimeout(() => {
@@ -225,6 +244,7 @@ export function UpgradePlanModal({ open, onOpenChange }: UpgradePlanModalProps) 
           onSuccess: (data) => {
             if (isSubscribed) {
               setStripeSession(data);
+              setIsStripeExpired(false);
               setStripeError(null);
             }
           },
@@ -257,8 +277,14 @@ export function UpgradePlanModal({ open, onOpenChange }: UpgradePlanModalProps) 
   // Fallback Polling đơn hàng
   const { data: orderStatus } = useSubscriptionOrderStatus(
     stripeSession?.orderId ?? null,
-    open && !isSuccess,
+    open && !isSuccess && !isStripeExpired,
   );
+
+  useEffect(() => {
+    if (orderStatus?.status === "expired" || orderStatus?.status === "cancelled") {
+      setIsStripeExpired(true);
+    }
+  }, [orderStatus?.status]);
 
   useEffect(() => {
     if (orderStatus?.status === "completed" && !isSuccess) {
@@ -609,116 +635,139 @@ export function UpgradePlanModal({ open, onOpenChange }: UpgradePlanModalProps) 
                     </div>
                   </div>
 
+                  {/* Countdown Timer 15 phút */}
+                  {isStripeSessionValid && stripeSession && !stripeError && !isSuccess && (
+                    <StripeCountdownTimer
+                      initialSeconds={900}
+                      onExpire={handleStripeExpire}
+                      isPaused={isSuccess}
+                    />
+                  )}
+
                   {/* Khung ảnh QR Code Stripe */}
                   <div className="my-1 bg-white p-3 rounded-xl shadow-md border relative">
-                    {isCreatingStripeSession ? (
-                      <div className="w-48 h-48 flex flex-col items-center justify-center gap-2 text-muted-foreground p-2 text-center">
-                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                        <span className="text-xs font-semibold text-foreground">
-                          Đang tạo mã QR {formatVND(finalPrice)}
-                        </span>
-                        <span className="text-[10px] text-muted-foreground">
-                          Đồng bộ đúng gói {selectedPlan?.name} ({durationMonths} tháng)...
-                        </span>
-                      </div>
-                    ) : stripeError ? (
-                      <div className="w-48 h-48 flex flex-col items-center justify-center gap-2 p-3 text-center">
-                        <div className="p-2 rounded-full bg-destructive/10 text-destructive">
-                          <RefreshCw className="h-5 w-5" />
+                    <StripeExpiredOverlay
+                      isExpired={isStripeExpired}
+                      onRegenerate={initStripeSession}
+                    >
+                      {isCreatingStripeSession ? (
+                        <div className="w-48 h-48 flex flex-col items-center justify-center gap-2 text-muted-foreground p-2 text-center">
+                          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                          <span className="text-xs font-semibold text-foreground">
+                            Đang tạo mã QR {formatVND(finalPrice)}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground">
+                            Đồng bộ đúng gói {selectedPlan?.name} ({durationMonths} tháng)...
+                          </span>
                         </div>
-                        <p className="text-xs font-medium text-destructive line-clamp-2">
-                          {stripeError}
-                        </p>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={initStripeSession}
-                          className="text-xs h-7 mt-1"
-                        >
-                          <RefreshCw className="h-3 w-3 mr-1" /> Thử lại
-                        </Button>
-                      </div>
-                    ) : isStripeSessionValid && stripeSession ? (
-                      <div className="relative group flex items-center justify-center">
-                        {stripeSession.qrCodeUrl ? (
-                          /* eslint-disable-next-line @next/next/no-img-element */
-                          <img
-                            src={stripeSession.qrCodeUrl}
-                            alt={`Mã QR Stripe Checkout - ${formatVND(finalPrice)}`}
-                            className="w-48 h-48 object-contain rounded"
-                          />
-                        ) : stripeSession.checkoutUrl ? (
-                          <div className="p-2 bg-white rounded flex items-center justify-center">
-                            <QRCodeSVG
-                              value={stripeSession.checkoutUrl}
-                              size={180}
-                              level="M"
-                            />
+                      ) : stripeError ? (
+                        <div className="w-48 h-48 flex flex-col items-center justify-center gap-2 p-3 text-center">
+                          <div className="p-2 rounded-full bg-destructive/10 text-destructive">
+                            <RefreshCw className="h-5 w-5" />
                           </div>
-                        ) : null}
-                        <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px] opacity-0 group-hover:opacity-100 transition-opacity rounded flex items-center justify-center">
-                          <a
-                            href={stripeSession.checkoutUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-white text-xs font-bold flex items-center gap-1 bg-indigo-600 px-3 py-1.5 rounded-lg shadow"
+                          <p className="text-xs font-medium text-destructive line-clamp-2">
+                            {stripeError}
+                          </p>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={initStripeSession}
+                            className="text-xs h-7 mt-1"
                           >
-                            <ExternalLink className="h-3.5 w-3.5" />
-                            Mở cổng Stripe
-                          </a>
+                            <RefreshCw className="h-3 w-3 mr-1" /> Thử lại
+                          </Button>
                         </div>
-                      </div>
-                    ) : (
-                      <div className="w-48 h-48 flex flex-col items-center justify-center gap-2 p-2 text-center">
-                        {isCurrentPlanSelected ? (
-                          <>
-                            <Crown className="h-7 w-7 text-amber-500 animate-pulse" />
-                            <div className="text-xs font-semibold text-foreground">Bạn đang dùng gói này</div>
-                            <p className="text-[10px] text-muted-foreground">Nhấn bên dưới nếu muốn gia hạn</p>
-                            <Button
-                              size="sm"
-                              onClick={initStripeSession}
-                              disabled={isCreatingStripeSession}
-                              className="text-xs h-8 bg-amber-500 hover:bg-amber-600 text-white font-medium shadow-sm"
+                      ) : isStripeSessionValid && stripeSession ? (
+                        <div className="relative group flex items-center justify-center">
+                          {stripeSession.qrCodeUrl ? (
+                            /* eslint-disable-next-line @next/next/no-img-element */
+                            <img
+                              src={stripeSession.qrCodeUrl}
+                              alt={`Mã QR Stripe Checkout - ${formatVND(finalPrice)}`}
+                              className="w-48 h-48 object-contain rounded"
+                            />
+                          ) : stripeSession.checkoutUrl ? (
+                            <div className="p-2 bg-white rounded flex items-center justify-center">
+                              <QRCodeSVG
+                                value={stripeSession.checkoutUrl}
+                                size={180}
+                                level="M"
+                              />
+                            </div>
+                          ) : null}
+                          <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px] opacity-0 group-hover:opacity-100 transition-opacity rounded flex items-center justify-center">
+                            <a
+                              href={stripeSession.checkoutUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-white text-xs font-bold flex items-center gap-1 bg-indigo-600 px-3 py-1.5 rounded-lg shadow"
                             >
-                              {isCreatingStripeSession ? (
-                                <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
-                              ) : (
-                                <RefreshCw className="h-3.5 w-3.5 mr-1" />
-                              )}
-                              Tạo mã QR gia hạn
-                            </Button>
-                          </>
-                        ) : (
-                          <>
-                            <p className="text-xs text-muted-foreground">Chưa có mã QR</p>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={initStripeSession}
-                              disabled={isCreatingStripeSession}
-                            >
-                              <RefreshCw className={`h-3 w-3 mr-1 ${isCreatingStripeSession ? "animate-spin" : ""}`} /> Tạo mã QR thanh toán
-                            </Button>
-                          </>
-                        )}
-                      </div>
-                    )}
+                              <ExternalLink className="h-3.5 w-3.5" />
+                              Mở cổng Stripe
+                            </a>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="w-48 h-48 flex flex-col items-center justify-center gap-2 p-2 text-center">
+                          {isCurrentPlanSelected ? (
+                            <>
+                              <Crown className="h-7 w-7 text-amber-500 animate-pulse" />
+                              <div className="text-xs font-semibold text-foreground">Bạn đang dùng gói này</div>
+                              <p className="text-[10px] text-muted-foreground">Nhấn bên dưới nếu muốn gia hạn</p>
+                              <Button
+                                size="sm"
+                                onClick={initStripeSession}
+                                disabled={isCreatingStripeSession}
+                                className="text-xs h-8 bg-amber-500 hover:bg-amber-600 text-white font-medium shadow-sm"
+                              >
+                                {isCreatingStripeSession ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+                                ) : (
+                                  <RefreshCw className="h-3.5 w-3.5 mr-1" />
+                                )}
+                                Tạo mã QR gia hạn
+                              </Button>
+                            </>
+                          ) : (
+                            <>
+                              <p className="text-xs text-muted-foreground">Chưa có mã QR</p>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={initStripeSession}
+                                disabled={isCreatingStripeSession}
+                              >
+                                <RefreshCw className={`h-3 w-3 mr-1 ${isCreatingStripeSession ? "animate-spin" : ""}`} /> Tạo mã QR thanh toán
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </StripeExpiredOverlay>
                   </div>
 
                   {/* Status pulsing bar */}
-                  <div className="w-full flex items-center justify-center gap-2 py-1.5 px-3 rounded-lg bg-background border text-[11px]">
-                    <span className="relative flex h-2 w-2">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                    </span>
-                    <span className="text-muted-foreground font-medium">
-                      Đang chờ bạn quét mã thanh toán đúng <strong>{formatVND(finalPrice)}</strong>...
-                    </span>
-                  </div>
+                  {isStripeExpired ? (
+                    <div className="w-full flex items-center justify-center gap-2 py-1.5 px-3 rounded-lg bg-red-500/10 border border-red-500/30 text-[11px] text-red-600 dark:text-red-400 font-medium">
+                      <span className="relative flex h-2 w-2">
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                      </span>
+                      <span>Mã QR đã hết hạn (15 phút). Vui lòng bấm &quot;Tạo Lại Mã QR&quot; để tiếp tục.</span>
+                    </div>
+                  ) : (
+                    <div className="w-full flex items-center justify-center gap-2 py-1.5 px-3 rounded-lg bg-background border text-[11px]">
+                      <span className="relative flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                      </span>
+                      <span className="text-muted-foreground font-medium">
+                        Đang chờ bạn quét mã thanh toán đúng <strong>{formatVND(finalPrice)}</strong>...
+                      </span>
+                    </div>
+                  )}
 
                   {/* Direct link button if user prefers desktop */}
-                  {isStripeSessionValid && stripeSession?.checkoutUrl && (
+                  {isStripeSessionValid && stripeSession?.checkoutUrl && !isStripeExpired && (
                     <div className="w-full pt-1">
                       <a
                         href={stripeSession.checkoutUrl}
@@ -728,7 +777,7 @@ export function UpgradePlanModal({ open, onOpenChange }: UpgradePlanModalProps) 
                       >
                         <Smartphone className="h-3.5 w-3.5" />
                         Hoặc mở trang Stripe ({formatVND(finalPrice)})
-                        <ExternalLink className="h-3 w-3 ml-1" />
+                        <ExternalLink className="h-3.5 w-3.5 ml-1" />
                       </a>
                     </div>
                   )}

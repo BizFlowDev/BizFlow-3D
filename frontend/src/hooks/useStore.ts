@@ -266,4 +266,22 @@ export function useSubscriptionOrderStatus(orderId: string | null, enabled: bool
   });
 }
 
+/**
+ * Hook hủy đơn hàng đăng ký gói (và hủy phiên Stripe) khi hết hạn 15 phút
+ */
+export function useCancelSubscriptionOrder() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (orderId: string) => {
+      const { data } = await apiClient.post<ApiResponseData<{ orderId: string; status: string }>>(
+        `/stores/subscription-orders/${orderId}/cancel`,
+      );
+      return data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["stores", "subscription-orders"] });
+    },
+  });
+}
+
 

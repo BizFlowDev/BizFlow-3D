@@ -11,6 +11,7 @@ router.use(authMiddleware);
 
 router.post('/stripe-session', orderController.createStripeSession);
 router.get('/stripe-session/:sessionId/status', orderController.getStripeSessionStatus);
+router.post('/stripe-session/:sessionId/cancel', orderController.cancelStripeSession);
 
 router.post('/', validate(createOrderSchema), orderController.create);
 router.get('/', orderController.list);

@@ -222,5 +222,34 @@ router.get('/subscription-orders/:orderId/status', async (req: Request, res: Res
   }
 });
 
+/**
+ * POST /api/v1/stores/subscription-orders/:orderId/cancel
+ * Hủy đơn hàng đăng ký gói (và hủy phiên Stripe) khi hết hạn 15 phút hoặc người dùng chủ động hủy
+ */
+router.post('/subscription-orders/:orderId/cancel', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const storeId = await getEffectiveStoreId(req);
+    const orderId = String(req.params.orderId);
+    const order = await controllers.subscriptionOrderRepo.findById(orderId);
+    if (!order) {
+      const response = ApiResponse.success({ orderId, status: 'cancelled' }, 'Đã xử lý hủy đơn hàng');
+      res.status(response.statusCode).json(response.toJSON());
+      return;
+    }
+
+    if (order.status === 'pending') {
+      if (order.stripeSessionId && controllers.stripeGateway) {
+        await controllers.stripeGateway.expireCheckoutSession(order.stripeSessionId);
+      }
+      await controllers.subscriptionOrderRepo.updateStatus(orderId, 'cancelled');
+    }
+
+    const response = ApiResponse.success({ orderId, status: 'cancelled' }, 'Đã hủy đơn hàng thành công');
+    res.status(response.statusCode).json(response.toJSON());
+  } catch (error) {
+    next(error);
+  }
+});
+
 export default router;
 

@@ -42,9 +42,14 @@ import {
   getOrderCode,
   useCreateOrderStripeSession,
   useOrderStripeSessionStatus,
+  useCancelOrderStripeSession,
   type Order,
   type OrderStripeSessionData,
 } from "@/hooks/useOrders";
+import {
+  StripeCountdownTimer,
+  StripeExpiredOverlay,
+} from "@/components/shared/StripeCountdownTimer";
 import { useCurrentStore } from "@/hooks/useStore";
 import { QRCodeSVG } from "qrcode.react";
 import { printInvoice } from "@/lib/invoice";
@@ -198,8 +203,10 @@ function POSMonitorScreenInner({
   const [stripeModalOpen, setStripeModalOpen] = useState(false);
   const [stripeSession, setStripeSession] = useState<OrderStripeSessionData | null>(null);
   const [stripeError, setStripeError] = useState<string | null>(null);
+  const [isStripeExpired, setIsStripeExpired] = useState(false);
 
   const createStripeSessionMutation = useCreateOrderStripeSession();
+  const cancelStripeSessionMutation = useCancelOrderStripeSession();
 
   // Tra cứu trạng thái thanh toán tự động qua Stripe
   const {
@@ -208,7 +215,7 @@ function POSMonitorScreenInner({
     isFetching: isCheckingStripe,
   } = useOrderStripeSessionStatus(
     stripeSession?.sessionId,
-    stripeModalOpen || paymentMethod === "stripe",
+    (stripeModalOpen || paymentMethod === "stripe") && !isStripeExpired,
   );
 
   // Khách hàng hiện tại
@@ -290,6 +297,7 @@ function POSMonitorScreenInner({
     if (orderLines.length === 0) return;
     hasAutoSubmittedStripeRef.current = false;
     setStripeError(null);
+    setIsStripeExpired(false);
     setStripeModalOpen(true);
 
     createStripeSessionMutation.mutate(
@@ -306,6 +314,7 @@ function POSMonitorScreenInner({
         onSuccess: (data) => {
           setStripeSession(data);
           setStripeError(null);
+          setIsStripeExpired(false);
         },
         onError: (err: any) => {
           const msg = err?.message || "Không thể khởi tạo cổng Stripe";
@@ -314,6 +323,21 @@ function POSMonitorScreenInner({
       },
     );
   }, [orderLines, finalAmount, selectedCustomer, createStripeSessionMutation]);
+
+  // Hủy phiên Stripe sau 15 phút
+  const handleStripeExpire = useCallback(() => {
+    setIsStripeExpired(true);
+    if (stripeSession?.sessionId) {
+      cancelStripeSessionMutation.mutate(stripeSession.sessionId);
+    }
+  }, [stripeSession?.sessionId, cancelStripeSessionMutation]);
+
+  // Lắng nghe trạng thái hết hạn từ server
+  useEffect(() => {
+    if (stripeStatus?.isExpired || stripeStatus?.status === "expired") {
+      setIsStripeExpired(true);
+    }
+  }, [stripeStatus?.isExpired, stripeStatus?.status]);
 
   const handleCopy = (text: string, field: string) => {
     navigator.clipboard.writeText(text);
@@ -435,11 +459,11 @@ function POSMonitorScreenInner({
   // Tự động hoàn tất đơn hàng khi khách thanh toán thành công qua Stripe
   const hasAutoSubmittedStripeRef = useRef(false);
   useEffect(() => {
-    if (paymentMethod === "stripe" && stripeStatus?.isPaid && !hasAutoSubmittedStripeRef.current) {
+    if (paymentMethod === "stripe" && stripeStatus?.isPaid && !isStripeExpired && !hasAutoSubmittedStripeRef.current) {
       hasAutoSubmittedStripeRef.current = true;
       handleCheckout();
     }
-  }, [paymentMethod, stripeStatus?.isPaid]);
+  }, [paymentMethod, stripeStatus?.isPaid, isStripeExpired]);
 
   const handlePrint = async (order: Order) => {
     try {
@@ -1201,6 +1225,11 @@ function POSMonitorScreenInner({
                         <CheckCircle2 className="h-3 w-3" />
                         Đã thanh toán
                       </span>
+                    ) : isStripeExpired ? (
+                      <span className="flex items-center gap-1 font-bold text-red-400">
+                        <AlertCircle className="h-3 w-3" />
+                        Hết hạn 15p
+                      </span>
                     ) : createStripeSessionMutation.isPending ? (
                       <span className="flex items-center gap-1 text-indigo-400">
                         <Loader2 className="h-3 w-3 animate-spin" />
@@ -1219,12 +1248,17 @@ function POSMonitorScreenInner({
                       type="button"
                       onClick={handleOpenStripeModal}
                       disabled={orderLines.length === 0}
-                      className="flex-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 py-1 px-2 text-center text-[10px] font-bold text-white flex items-center justify-center gap-1 transition-all disabled:opacity-50"
+                      className={cn(
+                        "flex-1 rounded-lg py-1 px-2 text-center text-[10px] font-bold text-white flex items-center justify-center gap-1 transition-all disabled:opacity-50",
+                        isStripeExpired
+                          ? "bg-red-600 hover:bg-red-500"
+                          : "bg-indigo-600 hover:bg-indigo-500"
+                      )}
                     >
                       <QrCode className="h-3 w-3" />
-                      {stripeSession ? "Xem mã QR Stripe" : "Mở mã QR Stripe"}
+                      {isStripeExpired ? "Tạo lại mã QR" : stripeSession ? "Xem mã QR Stripe" : "Mở mã QR Stripe"}
                     </button>
-                    {stripeSession?.checkoutUrl && (
+                    {stripeSession?.checkoutUrl && !isStripeExpired && (
                       <a
                         href={stripeSession.checkoutUrl}
                         target="_blank"
@@ -1391,9 +1425,16 @@ function POSMonitorScreenInner({
               </div>
             ) : stripeSession ? (
               <>
+                {/* Bộ đếm thời gian 15 phút chuyên nghiệp */}
+                <StripeCountdownTimer
+                  expiresAt={stripeSession.expiresAt}
+                  onExpire={handleStripeExpire}
+                  isExpiredState={isStripeExpired}
+                />
+
                 {/* QR Image */}
                 <div className="flex flex-col items-center justify-center rounded-xl border border-white/10 bg-slate-950 p-4 text-center">
-                  <div className="relative rounded-xl bg-white p-2.5 shadow-lg ring-2 ring-indigo-500/20">
+                  <div className="relative rounded-xl bg-white p-2.5 shadow-lg ring-2 ring-indigo-500/20 overflow-hidden">
                     {stripeSession.qrCodeUrl ? (
                       <img
                         src={stripeSession.qrCodeUrl}
@@ -1408,6 +1449,14 @@ function POSMonitorScreenInner({
                         className="rounded"
                       />
                     )}
+
+                    {/* Lớp phủ khi hết hạn 15 phút */}
+                    {isStripeExpired && (
+                      <StripeExpiredOverlay
+                        onRefresh={handleOpenStripeModal}
+                        isRefreshing={createStripeSessionMutation.isPending}
+                      />
+                    )}
                   </div>
                   {/* Trạng thái real-time */}
                   <div className="mt-2.5 flex items-center gap-1.5 text-[11px] font-semibold">
@@ -1415,6 +1464,11 @@ function POSMonitorScreenInner({
                       <div className="flex items-center gap-1 text-emerald-400 animate-pulse">
                         <CheckCircle2 className="h-3.5 w-3.5" />
                         <span>Đã nhận thanh toán! Đang hoàn tất đơn...</span>
+                      </div>
+                    ) : isStripeExpired ? (
+                      <div className="flex items-center gap-1 text-red-400 font-medium">
+                        <AlertCircle className="h-3.5 w-3.5" />
+                        <span>Mã thanh toán đã hết hạn (15 phút)</span>
                       </div>
                     ) : (
                       <div className="flex items-center gap-1 text-indigo-400">
@@ -1448,25 +1502,29 @@ function POSMonitorScreenInner({
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-slate-400">Liên kết thanh toán:</span>
-                    <a
-                      href={stripeSession.checkoutUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-[11px] text-indigo-400 hover:text-indigo-300 font-semibold underline underline-offset-2"
-                    >
-                      <span>Mở trang Checkout</span>
-                      <ExternalLink className="h-3 w-3" />
-                    </a>
+                    {isStripeExpired ? (
+                      <span className="text-[11px] text-slate-500 line-through">Liên kết đã hết hạn</span>
+                    ) : (
+                      <a
+                        href={stripeSession.checkoutUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-[11px] text-indigo-400 hover:text-indigo-300 font-semibold underline underline-offset-2"
+                      >
+                        <span>Mở trang Checkout</span>
+                        <ExternalLink className="h-3 w-3" />
+                      </a>
+                    )}
                   </div>
                 </div>
 
                 {/* Nút thao tác */}
                 <div className="grid gap-2 pt-1">
-                  {/* Nút xác nhận: KHÓA KHI CHƯA THANH TOÁN */}
+                  {/* Nút xác nhận: KHÓA KHI CHƯA THANH TOÁN HOẶC ĐÃ HẾT HẠN */}
                   <button
                     type="button"
                     onClick={() => handleCheckout()}
-                    disabled={!stripeStatus?.isPaid || createOrderMutation.isPending}
+                    disabled={!stripeStatus?.isPaid || createOrderMutation.isPending || isStripeExpired}
                     className={cn(
                       "w-full flex items-center justify-center gap-2 rounded-xl py-3 font-bold text-xs shadow-lg transition-all",
                       stripeStatus?.isPaid
@@ -1484,6 +1542,11 @@ function POSMonitorScreenInner({
                         <CheckCircle2 className="h-4 w-4 mr-1 text-white" />
                         Đã nhận thanh toán · Hoàn tất đơn ngay
                       </>
+                    ) : isStripeExpired ? (
+                      <>
+                        <AlertCircle className="h-4 w-4 mr-1 text-red-400" />
+                        Mã đã hết hạn (Vui lòng tạo lại)
+                      </>
                     ) : (
                       <>
                         <Clock className="h-4 w-4 mr-1 text-amber-400 animate-pulse" />
@@ -1493,15 +1556,27 @@ function POSMonitorScreenInner({
                   </button>
 
                   <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => refetchStripeStatus()}
-                      disabled={isCheckingStripe || stripeStatus?.isPaid}
-                      className="flex-1 flex items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 py-1.5 text-[11px] font-semibold text-slate-300 transition-colors disabled:opacity-50"
-                    >
-                      <RefreshCw className={cn("h-3 w-3", isCheckingStripe && "animate-spin")} />
-                      Kiểm tra trạng thái
-                    </button>
+                    {isStripeExpired ? (
+                      <button
+                        type="button"
+                        onClick={handleOpenStripeModal}
+                        disabled={createStripeSessionMutation.isPending}
+                        className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 py-1.5 text-[11px] font-semibold text-white shadow transition-colors disabled:opacity-50"
+                      >
+                        <RefreshCw className={cn("h-3 w-3", createStripeSessionMutation.isPending && "animate-spin")} />
+                        Tạo lại mã QR mới
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => refetchStripeStatus()}
+                        disabled={isCheckingStripe || stripeStatus?.isPaid}
+                        className="flex-1 flex items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 py-1.5 text-[11px] font-semibold text-slate-300 transition-colors disabled:opacity-50"
+                      >
+                        <RefreshCw className={cn("h-3 w-3", isCheckingStripe && "animate-spin")} />
+                        Kiểm tra trạng thái
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => setStripeModalOpen(false)}

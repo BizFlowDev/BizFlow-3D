@@ -25,6 +25,7 @@ export class GetSubscriptionOrderStatusUseCase {
     if (order.status === 'pending' && order.stripeSessionId && this.stripeGateway && this.webhookUseCase) {
       try {
         const session = await this.stripeGateway.retrieveCheckoutSession(order.stripeSessionId);
+        const isOver15Minutes = (Date.now() - order.createdAt.getTime()) >= 15 * 60 * 1000;
         if (session.payment_status === 'paid') {
           console.log(`[AutoSync] Phát hiện đơn hàng ${order.id} đã hoàn tất trên Stripe. Tự động kích hoạt.`);
           await this.webhookUseCase.handleCheckoutSessionCompleted(session);
@@ -32,8 +33,12 @@ export class GetSubscriptionOrderStatusUseCase {
           if (updated) {
             order = updated;
           }
-        } else if (session.status === 'expired') {
+        } else if (session.status === 'expired' || isOver15Minutes) {
+          if (session.status === 'open' && isOver15Minutes) {
+            await this.stripeGateway.expireCheckoutSession(order.stripeSessionId);
+          }
           await this.webhookUseCase.handleCheckoutSessionExpired(session);
+          await this.orderRepo.updateStatus(order.id, 'cancelled');
           const updated = await this.orderRepo.findById(orderId);
           if (updated) {
             order = updated;

@@ -47,13 +47,19 @@ import { useCurrentStore } from "@/hooks/useStore";
 import {
   useCreateOrderStripeSession,
   useOrderStripeSessionStatus,
+  useCancelOrderStripeSession,
   type OrderStripeSessionData,
 } from "@/hooks/useOrders";
+import {
+  StripeCountdownTimer,
+  StripeExpiredOverlay,
+} from "@/components/shared/StripeCountdownTimer";
 import {
   printDebtReceiptPDF,
   printDebtReceiptThermal,
   type DebtReceiptData,
 } from "@/lib/debtReceipt";
+import { cn } from "@/lib/utils";
 
 // ── Helper ────────────────────────────────────────────────────────────────────
 
@@ -121,13 +127,15 @@ export function DebtPaymentDialog({
   const [stripeModalOpen, setStripeModalOpen] = useState(false);
   const [stripeSession, setStripeSession] = useState<OrderStripeSessionData | null>(null);
   const [stripeError, setStripeError] = useState<string | null>(null);
+  const [isStripeExpired, setIsStripeExpired] = useState(false);
 
   const createStripeSessionMutation = useCreateOrderStripeSession();
+  const cancelStripeSessionMutation = useCancelOrderStripeSession();
   const {
     data: stripeStatus,
     refetch: refetchStripeStatus,
     isFetching: isCheckingStripe,
-  } = useOrderStripeSessionStatus(stripeSession?.sessionId, stripeModalOpen);
+  } = useOrderStripeSessionStatus(stripeSession?.sessionId, stripeModalOpen && !isStripeExpired);
 
   const autoSubmittedRef = useRef(false);
 
@@ -161,6 +169,7 @@ export function DebtPaymentDialog({
       setStripeModalOpen(false);
       setStripeSession(null);
       setStripeError(null);
+      setIsStripeExpired(false);
       autoSubmittedRef.current = false;
     }
   }, [open, reset]);
@@ -173,6 +182,7 @@ export function DebtPaymentDialog({
       return;
     }
     setStripeError(null);
+    setIsStripeExpired(false);
     setStripeModalOpen(true);
 
     try {
@@ -189,10 +199,26 @@ export function DebtPaymentDialog({
         ],
       });
       setStripeSession(session);
+      setIsStripeExpired(false);
     } catch (err: any) {
       setStripeError(err?.message || "Không thể khởi tạo phiên thanh toán Stripe");
     }
   }, [customer, watchAmount, createStripeSessionMutation]);
+
+  // Hủy phiên Stripe sau 15 phút
+  const handleStripeExpire = useCallback(() => {
+    setIsStripeExpired(true);
+    if (stripeSession?.sessionId) {
+      cancelStripeSessionMutation.mutate(stripeSession.sessionId);
+    }
+  }, [stripeSession?.sessionId, cancelStripeSessionMutation]);
+
+  // Lắng nghe trạng thái hết hạn từ server
+  useEffect(() => {
+    if (stripeStatus?.isExpired || stripeStatus?.status === "expired") {
+      setIsStripeExpired(true);
+    }
+  }, [stripeStatus?.isExpired, stripeStatus?.status]);
 
   const onSubmit = async (data: PaymentFormValues) => {
     if (!customer) return;
@@ -240,13 +266,14 @@ export function DebtPaymentDialog({
       stripeStatus?.isPaid &&
       watchMethod === "stripe" &&
       stripeModalOpen &&
+      !isStripeExpired &&
       !autoSubmittedRef.current &&
       !paymentMutation.isPending
     ) {
       autoSubmittedRef.current = true;
       handleSubmit(onSubmit)();
     }
-  }, [stripeStatus?.isPaid, watchMethod, stripeModalOpen]);
+  }, [stripeStatus?.isPaid, watchMethod, stripeModalOpen, isStripeExpired]);
 
   const handlePrintPDF = () => {
     if (!customer || !lastPayment) return;
@@ -549,6 +576,10 @@ export function DebtPaymentDialog({
                                 <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-bold">
                                   <CheckCircle2 className="h-3.5 w-3.5" /> Đã nhận thanh toán
                                 </span>
+                              ) : isStripeExpired ? (
+                                <span className="inline-flex items-center gap-1 text-red-600 dark:text-red-400 font-bold">
+                                  <AlertTriangle className="h-3.5 w-3.5" /> Mã đã hết hạn (15p)
+                                </span>
                               ) : (
                                 <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400 font-medium">
                                   <Clock className="h-3.5 w-3.5 animate-spin" /> Chờ khách quét mã / thanh toán
@@ -562,14 +593,23 @@ export function DebtPaymentDialog({
                             size="sm"
                             onClick={handleOpenStripeModal}
                             disabled={createStripeSessionMutation.isPending || !watchAmount || watchAmount < 1000}
-                            className="shrink-0 gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium shadow-sm"
+                            className={cn(
+                              "shrink-0 gap-1.5 font-medium shadow-sm text-white",
+                              isStripeExpired
+                                ? "bg-red-600 hover:bg-red-700"
+                                : "bg-indigo-600 hover:bg-indigo-700"
+                            )}
                           >
                             {createStripeSessionMutation.isPending ? (
                               <Loader2 className="h-4 w-4 animate-spin" />
                             ) : (
                               <QrCode className="h-4 w-4" />
                             )}
-                            {stripeSession ? "Xem mã QR Stripe" : "Mở mã QR Stripe"}
+                            {isStripeExpired
+                              ? "Tạo lại mã QR mới"
+                              : stripeSession
+                                ? "Xem mã QR Stripe"
+                                : "Mở mã QR Stripe"}
                           </Button>
                         </div>
 
@@ -688,7 +728,17 @@ export function DebtPaymentDialog({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex flex-col items-center justify-center space-y-4 py-2">
+          <div className="flex flex-col items-center justify-center space-y-3.5 py-2">
+            {/* Bộ đếm thời gian hiệu lực 15 phút */}
+            {stripeSession && (
+              <StripeCountdownTimer
+                expiresAt={stripeSession.expiresAt}
+                onExpire={handleStripeExpire}
+                isExpiredState={isStripeExpired}
+                className="w-full"
+              />
+            )}
+
             {/* Amount Banner */}
             <div className="w-full text-center bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/50 py-2.5 px-4 rounded-xl">
               <span className="text-xs text-muted-foreground block">Số tiền cần thu</span>
@@ -701,7 +751,7 @@ export function DebtPaymentDialog({
             </div>
 
             {/* QR Code Container */}
-            <div className="relative p-3.5 bg-white rounded-2xl border-2 border-dashed border-indigo-300 dark:border-indigo-700 shadow-md">
+            <div className="relative p-3.5 bg-white rounded-2xl border-2 border-dashed border-indigo-300 dark:border-indigo-700 shadow-md overflow-hidden">
               {createStripeSessionMutation.isPending ? (
                 <div className="h-56 w-56 flex flex-col items-center justify-center gap-2 text-indigo-600">
                   <Loader2 className="h-8 w-8 animate-spin" />
@@ -743,6 +793,14 @@ export function DebtPaymentDialog({
                       <span className="text-[11px] text-emerald-100">Đang lưu phiếu thu...</span>
                     </div>
                   )}
+
+                  {/* Lớp phủ hết hạn 15 phút */}
+                  {isStripeExpired && (
+                    <StripeExpiredOverlay
+                      onRefresh={handleOpenStripeModal}
+                      isRefreshing={createStripeSessionMutation.isPending}
+                    />
+                  )}
                 </div>
               ) : null}
             </div>
@@ -754,12 +812,20 @@ export function DebtPaymentDialog({
                   <span className="relative flex h-2 w-2">
                     <span
                       className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
-                        stripeStatus?.isPaid ? "bg-emerald-400" : "bg-amber-400"
+                        stripeStatus?.isPaid
+                          ? "bg-emerald-400"
+                          : isStripeExpired
+                            ? "bg-red-400"
+                            : "bg-amber-400"
                       }`}
                     />
                     <span
                       className={`relative inline-flex rounded-full h-2 w-2 ${
-                        stripeStatus?.isPaid ? "bg-emerald-500" : "bg-amber-500"
+                        stripeStatus?.isPaid
+                          ? "bg-emerald-500"
+                          : isStripeExpired
+                            ? "bg-red-500"
+                            : "bg-amber-500"
                       }`}
                     />
                   </span>
@@ -770,10 +836,16 @@ export function DebtPaymentDialog({
                     className={`font-bold ${
                       stripeStatus?.isPaid
                         ? "text-emerald-600 dark:text-emerald-400"
-                        : "text-amber-600 dark:text-amber-400"
+                        : isStripeExpired
+                          ? "text-red-600 dark:text-red-400"
+                          : "text-amber-600 dark:text-amber-400"
                     }`}
                   >
-                    {stripeStatus?.isPaid ? "Thành công (Paid)" : "Chờ thanh toán..."}
+                    {stripeStatus?.isPaid
+                      ? "Thành công (Paid)"
+                      : isStripeExpired
+                        ? "Hết hạn (15 phút)"
+                        : "Chờ thanh toán..."}
                   </span>
                   <Button
                     type="button"
@@ -781,7 +853,7 @@ export function DebtPaymentDialog({
                     size="icon"
                     className="h-6 w-6 text-muted-foreground hover:text-foreground"
                     onClick={() => refetchStripeStatus()}
-                    disabled={isCheckingStripe}
+                    disabled={isCheckingStripe || isStripeExpired}
                     title="Kiểm tra trạng thái ngay"
                   >
                     <RefreshCw
@@ -791,7 +863,7 @@ export function DebtPaymentDialog({
                 </div>
               </div>
 
-              {stripeSession?.checkoutUrl && (
+              {stripeSession?.checkoutUrl && !isStripeExpired && (
                 <a
                   href={stripeSession.checkoutUrl}
                   target="_blank"
@@ -811,7 +883,7 @@ export function DebtPaymentDialog({
                     ? "bg-gradient-to-r from-emerald-600 to-teal-500 text-white hover:from-emerald-500 hover:to-teal-400 shadow-emerald-500/25"
                     : "bg-muted text-muted-foreground cursor-not-allowed hover:bg-muted"
                 }`}
-                disabled={!stripeStatus?.isPaid || paymentMutation.isPending}
+                disabled={!stripeStatus?.isPaid || paymentMutation.isPending || isStripeExpired}
                 onClick={handleSubmit(onSubmit)}
               >
                 {paymentMutation.isPending ? (
@@ -824,6 +896,11 @@ export function DebtPaymentDialog({
                     <CheckCircle2 className="h-4 w-4 mr-1.5" />
                     Đã nhận thanh toán · Hoàn tất thu nợ ngay
                   </>
+                ) : isStripeExpired ? (
+                  <>
+                    <AlertTriangle className="h-4 w-4 mr-1.5 text-red-500" />
+                    Mã đã hết hạn (Vui lòng tạo lại)
+                  </>
                 ) : (
                   <>
                     <Clock className="h-4 w-4 mr-1.5 animate-spin" />
@@ -832,14 +909,28 @@ export function DebtPaymentDialog({
                 )}
               </Button>
 
-              <Button
-                type="button"
-                variant="ghost"
-                className="w-full text-xs text-muted-foreground"
-                onClick={() => setStripeModalOpen(false)}
-              >
-                Đóng cửa sổ mã QR
-              </Button>
+              <div className="flex gap-2 w-full">
+                {isStripeExpired && (
+                  <Button
+                    type="button"
+                    variant="default"
+                    className="flex-1 text-xs bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5"
+                    onClick={handleOpenStripeModal}
+                    disabled={createStripeSessionMutation.isPending}
+                  >
+                    <RefreshCw className={cn("h-3.5 w-3.5", createStripeSessionMutation.isPending && "animate-spin")} />
+                    Tạo lại mã thanh toán
+                  </Button>
+                )}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className={cn("text-xs text-muted-foreground", isStripeExpired ? "flex-1" : "w-full")}
+                  onClick={() => setStripeModalOpen(false)}
+                >
+                  Đóng cửa sổ
+                </Button>
+              </div>
             </div>
           </div>
         </DialogContent>

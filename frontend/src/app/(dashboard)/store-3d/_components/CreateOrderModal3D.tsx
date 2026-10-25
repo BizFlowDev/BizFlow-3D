@@ -39,9 +39,14 @@ import {
   useOrderList,
   useCreateOrderStripeSession,
   useOrderStripeSessionStatus,
+  useCancelOrderStripeSession,
   type Order,
   type OrderStripeSessionData,
 } from "@/hooks/useOrders";
+import {
+  StripeCountdownTimer,
+  StripeExpiredOverlay,
+} from "@/components/shared/StripeCountdownTimer";
 import { useCurrentStore } from "@/hooks/useStore";
 import { QRCodeSVG } from "qrcode.react";
 import type { CartItem3D } from "./ProductDetailModal3D";
@@ -118,10 +123,12 @@ export function CreateOrderModal3D({
   const [stripeModalOpen, setStripeModalOpen] = useState(false);
   const [stripeSession, setStripeSession] = useState<OrderStripeSessionData | null>(null);
   const [stripeError, setStripeError] = useState<string | null>(null);
+  const [isStripeExpired, setIsStripeExpired] = useState(false);
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
   const { data: store } = useCurrentStore();
 
   const createStripeSessionMutation = useCreateOrderStripeSession();
+  const cancelStripeSessionMutation = useCancelOrderStripeSession();
 
   // Tra cứu trạng thái thanh toán tự động qua cổng Stripe
   const {
@@ -130,7 +137,7 @@ export function CreateOrderModal3D({
     isFetching: isCheckingStripe,
   } = useOrderStripeSessionStatus(
     stripeSession?.sessionId,
-    stripeModalOpen || paymentMethod === "stripe",
+    (stripeModalOpen || paymentMethod === "stripe") && !isStripeExpired,
   );
 
   // Khách hàng hiện tại được chọn
@@ -237,6 +244,7 @@ export function CreateOrderModal3D({
     if (orderLines.length === 0) return;
     hasAutoSubmittedStripeRef.current = false;
     setStripeError(null);
+    setIsStripeExpired(false);
     setStripeModalOpen(true);
 
     createStripeSessionMutation.mutate(
@@ -253,6 +261,7 @@ export function CreateOrderModal3D({
         onSuccess: (data) => {
           setStripeSession(data);
           setStripeError(null);
+          setIsStripeExpired(false);
         },
         onError: (err: any) => {
           const msg = err?.message || "Không thể khởi tạo cổng Stripe";
@@ -261,6 +270,21 @@ export function CreateOrderModal3D({
       },
     );
   }, [orderLines, finalAmount, selectedCustomer, createStripeSessionMutation]);
+
+  // Hủy phiên Stripe sau 15 phút
+  const handleStripeExpire = useCallback(() => {
+    setIsStripeExpired(true);
+    if (stripeSession?.sessionId) {
+      cancelStripeSessionMutation.mutate(stripeSession.sessionId);
+    }
+  }, [stripeSession?.sessionId, cancelStripeSessionMutation]);
+
+  // Lắng nghe trạng thái hết hạn từ server
+  useEffect(() => {
+    if (stripeStatus?.isExpired || stripeStatus?.status === "expired") {
+      setIsStripeExpired(true);
+    }
+  }, [stripeStatus?.isExpired, stripeStatus?.status]);
 
   // Xử lý tạo đơn hàng
   const handleCreateOrder = async () => {
@@ -326,11 +350,11 @@ export function CreateOrderModal3D({
   // Tự động hoàn tất đơn hàng khi khách thanh toán thành công qua Stripe
   const hasAutoSubmittedStripeRef = useRef(false);
   useEffect(() => {
-    if (paymentMethod === "stripe" && stripeStatus?.isPaid && !hasAutoSubmittedStripeRef.current) {
+    if (paymentMethod === "stripe" && stripeStatus?.isPaid && !isStripeExpired && !hasAutoSubmittedStripeRef.current) {
       hasAutoSubmittedStripeRef.current = true;
       handleCreateOrder();
     }
-  }, [paymentMethod, stripeStatus?.isPaid]);
+  }, [paymentMethod, stripeStatus?.isPaid, isStripeExpired]);
 
   if (!isOpen) return null;
 
@@ -1161,9 +1185,16 @@ export function CreateOrderModal3D({
               </div>
             ) : stripeSession ? (
               <>
+                {/* Thanh đếm ngược 15 phút chuyên nghiệp */}
+                <StripeCountdownTimer
+                  expiresAt={stripeSession.expiresAt}
+                  onExpire={handleStripeExpire}
+                  isExpiredState={isStripeExpired}
+                />
+
                 {/* QR Code Container */}
                 <div className="flex flex-col items-center justify-center rounded-2xl border border-white/10 bg-slate-950 p-5 text-center shadow-inner">
-                  <div className="relative rounded-2xl bg-white p-3 shadow-xl ring-4 ring-indigo-500/20">
+                  <div className="relative rounded-2xl bg-white p-3 shadow-xl ring-4 ring-indigo-500/20 overflow-hidden">
                     {stripeSession.qrCodeUrl ? (
                       <img
                         src={stripeSession.qrCodeUrl}
@@ -1178,6 +1209,14 @@ export function CreateOrderModal3D({
                         className="rounded"
                       />
                     )}
+
+                    {/* Lớp phủ khi hết hạn 15 phút */}
+                    {isStripeExpired && (
+                      <StripeExpiredOverlay
+                        onRefresh={handleOpenStripeModal}
+                        isRefreshing={createStripeSessionMutation.isPending}
+                      />
+                    )}
                   </div>
 
                   {/* Trạng thái real-time */}
@@ -1186,6 +1225,11 @@ export function CreateOrderModal3D({
                       <div className="flex items-center gap-1.5 text-emerald-400 animate-pulse">
                         <CheckCircle2 className="h-4 w-4" />
                         <span>Đã nhận thanh toán! Đang hoàn tất đơn...</span>
+                      </div>
+                    ) : isStripeExpired ? (
+                      <div className="flex items-center gap-1.5 text-red-400 font-medium">
+                        <AlertCircle className="h-4 w-4" />
+                        <span>Mã thanh toán đã hết hạn (15 phút)</span>
                       </div>
                     ) : (
                       <div className="flex items-center gap-1.5 text-indigo-400">
@@ -1219,25 +1263,29 @@ export function CreateOrderModal3D({
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-slate-400">Liên kết thanh toán:</span>
-                    <a
-                      href={stripeSession.checkoutUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 font-semibold underline underline-offset-2"
-                    >
-                      <span>Mở trang Checkout</span>
-                      <ExternalLink className="h-3 w-3" />
-                    </a>
+                    {isStripeExpired ? (
+                      <span className="text-xs text-slate-500 line-through">Liên kết đã hết hạn</span>
+                    ) : (
+                      <a
+                        href={stripeSession.checkoutUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 font-semibold underline underline-offset-2"
+                      >
+                        <span>Mở trang Checkout</span>
+                        <ExternalLink className="h-3 w-3" />
+                      </a>
+                    )}
                   </div>
                 </div>
 
                 {/* Nút hành động */}
                 <div className="grid gap-2 pt-1">
-                  {/* Nút xác nhận: KHÓA KHI CHƯA THANH TOÁN */}
+                  {/* Nút xác nhận: KHÓA KHI CHƯA THANH TOÁN HOẶC ĐÃ HẾT HẠN */}
                   <button
                     type="button"
                     onClick={() => handleCreateOrder()}
-                    disabled={!stripeStatus?.isPaid || createOrderMutation.isPending}
+                    disabled={!stripeStatus?.isPaid || createOrderMutation.isPending || isStripeExpired}
                     className={cn(
                       "w-full flex items-center justify-center gap-2 rounded-2xl py-3.5 font-bold text-sm shadow-xl transition-all",
                       stripeStatus?.isPaid
@@ -1255,6 +1303,11 @@ export function CreateOrderModal3D({
                         <CheckCircle2 className="h-4 w-4 mr-1 text-white" />
                         Đã nhận thanh toán · Hoàn tất đơn ngay
                       </>
+                    ) : isStripeExpired ? (
+                      <>
+                        <AlertCircle className="h-4 w-4 mr-1 text-red-400" />
+                        Mã đã hết hạn (Vui lòng tạo lại)
+                      </>
                     ) : (
                       <>
                         <Clock className="h-4 w-4 mr-1 text-amber-400 animate-pulse" />
@@ -1264,15 +1317,27 @@ export function CreateOrderModal3D({
                   </button>
 
                   <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => refetchStripeStatus()}
-                      disabled={isCheckingStripe || stripeStatus?.isPaid}
-                      className="flex-1 flex items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 py-2 text-xs font-semibold text-slate-300 transition-colors disabled:opacity-50"
-                    >
-                      <RefreshCw className={cn("h-3.5 w-3.5", isCheckingStripe && "animate-spin")} />
-                      Kiểm tra trạng thái
-                    </button>
+                    {isStripeExpired ? (
+                      <button
+                        type="button"
+                        onClick={handleOpenStripeModal}
+                        disabled={createStripeSessionMutation.isPending}
+                        className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 py-2 text-xs font-semibold text-white shadow transition-colors disabled:opacity-50"
+                      >
+                        <RefreshCw className={cn("h-3.5 w-3.5", createStripeSessionMutation.isPending && "animate-spin")} />
+                        Tạo lại mã QR mới
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => refetchStripeStatus()}
+                        disabled={isCheckingStripe || stripeStatus?.isPaid}
+                        className="flex-1 flex items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 py-2 text-xs font-semibold text-slate-300 transition-colors disabled:opacity-50"
+                      >
+                        <RefreshCw className={cn("h-3.5 w-3.5", isCheckingStripe && "animate-spin")} />
+                        Kiểm tra trạng thái
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => setStripeModalOpen(false)}

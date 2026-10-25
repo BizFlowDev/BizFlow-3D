@@ -217,19 +217,62 @@ export class OrderController {
         throw new ValidationError('Cổng thanh toán Stripe chưa được cấu hình');
       }
 
-      const session = await this.stripeGateway.retrieveCheckoutSession(sessionId);
+      let session = await this.stripeGateway.retrieveCheckoutSession(sessionId);
+
+      // Bộ đếm 15 phút: Nếu phiên vẫn đang 'open' nhưng đã quá 15 phút kể từ lúc tạo -> Tự động hủy
+      const isOver15Minutes = (Date.now() - session.created * 1000) >= 15 * 60 * 1000;
+      if (session.status === 'open' && isOver15Minutes) {
+        const expiredSession = await this.stripeGateway.expireCheckoutSession(sessionId);
+        if (expiredSession) {
+          session = expiredSession;
+        }
+      }
+
       const isPaid = session.payment_status === 'paid';
+      const isExpired = session.status === 'expired' || (session.status !== 'complete' && isOver15Minutes);
 
       const response = ApiResponse.success(
         {
           sessionId: session.id,
-          status: session.status,
+          status: isExpired ? 'expired' : session.status,
           paymentStatus: session.payment_status,
           isPaid,
+          isExpired,
           amountTotal: session.amount_total,
           currency: session.currency,
         },
         'Lấy trạng thái phiên thanh toán Stripe thành công',
+      );
+      res.status(response.statusCode).json(response.toJSON());
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * POST /api/orders/stripe-session/:sessionId/cancel
+   * Hủy phiên thanh toán Stripe khi hết hạn hoặc người dùng chủ động hủy
+   */
+  cancelStripeSession = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const sessionId = req.params.sessionId as string;
+      if (!sessionId) {
+        throw new ValidationError('Thiếu sessionId phiên Stripe');
+      }
+
+      if (!this.stripeGateway) {
+        throw new ValidationError('Cổng thanh toán Stripe chưa được cấu hình');
+      }
+
+      await this.stripeGateway.expireCheckoutSession(sessionId);
+
+      const response = ApiResponse.success(
+        {
+          sessionId,
+          status: 'expired',
+          isExpired: true,
+        },
+        'Đã hủy phiên thanh toán Stripe thành công',
       );
       res.status(response.statusCode).json(response.toJSON());
     } catch (error) {

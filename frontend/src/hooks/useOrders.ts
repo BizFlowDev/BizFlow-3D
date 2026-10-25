@@ -79,6 +79,7 @@ export interface OrderStripeSessionStatus {
   status: string;
   paymentStatus: string;
   isPaid: boolean;
+  isExpired?: boolean;
   amountTotal?: number;
   currency?: string;
 }
@@ -661,8 +662,20 @@ export function useOrderStripeSessionStatus(sessionId?: string | null, enabled =
     enabled: Boolean(sessionId && enabled),
     refetchInterval: (query) => {
       const status = query.state.data;
-      if (status?.isPaid) return false;
+      if (status?.isPaid || status?.isExpired || status?.status === 'expired') return false;
       return 2000;
+    },
+  });
+}
+
+/** Hủy phiên thanh toán Stripe khi hết hạn hoặc người dùng chủ động đóng */
+export function useCancelOrderStripeSession() {
+  return useMutation({
+    mutationFn: async (sessionId: string) => {
+      const { data } = await apiClient.post<ApiResponseData<{ sessionId: string; status: string; isExpired: boolean }>>(
+        `/orders/stripe-session/${sessionId}/cancel`,
+      );
+      return data.data;
     },
   });
 }

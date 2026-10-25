@@ -78,8 +78,13 @@ import { useCurrentStore } from "@/hooks/useStore";
 import {
   useCreateOrderStripeSession,
   useOrderStripeSessionStatus,
+  useCancelOrderStripeSession,
   type OrderStripeSessionData,
 } from "@/hooks/useOrders";
+import {
+  StripeCountdownTimer,
+  StripeExpiredOverlay,
+} from "@/components/shared/StripeCountdownTimer";
 import {
   printDebtReceiptPDF,
   printDebtReceiptThermal,
@@ -308,14 +313,16 @@ export default function CustomerDetailPage({
   const [stripeModalOpen, setStripeModalOpen] = useState(false);
   const [stripeSession, setStripeSession] = useState<OrderStripeSessionData | null>(null);
   const [stripeError, setStripeError] = useState<string | null>(null);
+  const [isStripeExpired, setIsStripeExpired] = useState(false);
 
   const paymentMutation = useRecordDebtPayment();
   const createStripeSessionMutation = useCreateOrderStripeSession();
+  const cancelStripeSessionMutation = useCancelOrderStripeSession();
   const {
     data: stripeStatus,
     refetch: refetchStripeStatus,
     isFetching: isCheckingStripe,
-  } = useOrderStripeSessionStatus(stripeSession?.sessionId, stripeModalOpen);
+  } = useOrderStripeSessionStatus(stripeSession?.sessionId, stripeModalOpen && !isStripeExpired);
 
   const autoSubmittedRef = useRef(false);
 
@@ -332,6 +339,7 @@ export default function CustomerDetailPage({
       return;
     }
     setStripeError(null);
+    setIsStripeExpired(false);
     setStripeModalOpen(true);
 
     try {
@@ -348,10 +356,26 @@ export default function CustomerDetailPage({
         ],
       });
       setStripeSession(session);
+      setIsStripeExpired(false);
     } catch (err: any) {
       setStripeError(err?.message || "Không thể khởi tạo phiên thanh toán Stripe");
     }
   }, [customer, payAmount, createStripeSessionMutation, showToast]);
+
+  // Hủy phiên Stripe sau 15 phút
+  const handleStripeExpire = useCallback(() => {
+    setIsStripeExpired(true);
+    if (stripeSession?.sessionId) {
+      cancelStripeSessionMutation.mutate(stripeSession.sessionId);
+    }
+  }, [stripeSession?.sessionId, cancelStripeSessionMutation]);
+
+  // Lắng nghe trạng thái hết hạn từ server
+  useEffect(() => {
+    if (stripeStatus?.isExpired || stripeStatus?.status === "expired") {
+      setIsStripeExpired(true);
+    }
+  }, [stripeStatus?.isExpired, stripeStatus?.status]);
 
   const handleInlinePayment = async () => {
     if (!customer || !payAmount) return;
@@ -402,6 +426,7 @@ export default function CustomerDetailPage({
       stripeStatus?.isPaid &&
       payMethod === "stripe" &&
       stripeModalOpen &&
+      !isStripeExpired &&
       !autoSubmittedRef.current &&
       !paymentMutation.isPending
     ) {
@@ -1219,7 +1244,11 @@ export default function CustomerDetailPage({
                               </p>
                               <div className="flex items-center gap-1.5">
                                 <span className="text-muted-foreground">Trạng thái:</span>
-                                {stripeStatus?.isPaid ? (
+                                {isStripeExpired ? (
+                                  <span className="inline-flex items-center gap-1 text-red-600 dark:text-red-400 font-semibold">
+                                    <AlertTriangle className="h-3.5 w-3.5" /> Mã QR đã hết hạn (15 phút)
+                                  </span>
+                                ) : stripeStatus?.isPaid ? (
                                   <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-bold">
                                     <CheckCircle2 className="h-3.5 w-3.5" /> Đã nhận thanh toán
                                   </span>
@@ -1236,14 +1265,22 @@ export default function CustomerDetailPage({
                               size="sm"
                               onClick={handleOpenStripeModal}
                               disabled={createStripeSessionMutation.isPending || !payAmount || Number(payAmount) < 1000}
-                              className="shrink-0 gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium shadow-sm"
+                              className={`shrink-0 gap-1.5 font-medium shadow-sm ${
+                                isStripeExpired
+                                  ? "bg-amber-600 hover:bg-amber-700 text-white"
+                                  : "bg-indigo-600 hover:bg-indigo-700 text-white"
+                              }`}
                             >
                               {createStripeSessionMutation.isPending ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />
                               ) : (
                                 <QrCode className="h-4 w-4" />
                               )}
-                              {stripeSession ? "Xem mã QR Stripe" : "Mở mã QR Stripe"}
+                              {isStripeExpired
+                                ? "Tạo lại mã QR mới"
+                                : stripeSession
+                                ? "Xem mã QR Stripe"
+                                : "Mở mã QR Stripe"}
                             </Button>
                           </div>
 
@@ -1405,51 +1442,65 @@ export default function CustomerDetailPage({
               </span>
             </div>
 
+            {/* Countdown Timer */}
+            {stripeSession && !stripeError && !stripeStatus?.isPaid && (
+              <StripeCountdownTimer
+                initialSeconds={900}
+                onExpire={handleStripeExpire}
+                isPaused={!!stripeStatus?.isPaid}
+              />
+            )}
+
             {/* QR Code Container */}
             <div className="relative p-3.5 bg-white rounded-2xl border-2 border-dashed border-indigo-300 dark:border-indigo-700 shadow-md">
-              {createStripeSessionMutation.isPending ? (
-                <div className="h-56 w-56 flex flex-col items-center justify-center gap-2 text-indigo-600">
-                  <Loader2 className="h-8 w-8 animate-spin" />
-                  <span className="text-xs font-medium">Đang khởi tạo phiên Stripe...</span>
-                </div>
-              ) : stripeError ? (
-                <div className="h-56 w-56 flex flex-col items-center justify-center gap-2 text-red-500 text-center p-3">
-                  <AlertTriangle className="h-8 w-8 text-red-500" />
-                  <span className="text-xs font-semibold">{stripeError}</span>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={handleOpenStripeModal}
-                    className="mt-2 text-xs"
-                  >
-                    Thử lại
-                  </Button>
-                </div>
-              ) : stripeSession ? (
-                <div className="relative group">
-                  {stripeSession.qrCodeUrl ? (
-                    <img
-                      src={stripeSession.qrCodeUrl}
-                      alt="Stripe Checkout QR"
-                      className="h-56 w-56 object-contain rounded-lg"
-                    />
-                  ) : (
-                    <QRCodeSVG
-                      value={stripeSession.checkoutUrl}
-                      size={224}
-                      level="H"
-                      className="rounded-lg"
-                    />
-                  )}
-                  {stripeStatus?.isPaid && (
-                    <div className="absolute inset-0 bg-emerald-500/90 backdrop-blur-sm rounded-lg flex flex-col items-center justify-center text-white gap-2">
-                      <CheckCircle2 className="h-12 w-12" />
-                      <span className="font-bold text-sm">Đã Nhận Thanh Toán!</span>
-                      <span className="text-[11px] text-emerald-100">Đang lưu phiếu thu...</span>
-                    </div>
-                  )}
-                </div>
-              ) : null}
+              <StripeExpiredOverlay
+                isExpired={isStripeExpired}
+                onRegenerate={handleOpenStripeModal}
+              >
+                {createStripeSessionMutation.isPending ? (
+                  <div className="h-56 w-56 flex flex-col items-center justify-center gap-2 text-indigo-600">
+                    <Loader2 className="h-8 w-8 animate-spin" />
+                    <span className="text-xs font-medium">Đang khởi tạo phiên Stripe...</span>
+                  </div>
+                ) : stripeError ? (
+                  <div className="h-56 w-56 flex flex-col items-center justify-center gap-2 text-red-500 text-center p-3">
+                    <AlertTriangle className="h-8 w-8 text-red-500" />
+                    <span className="text-xs font-semibold">{stripeError}</span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleOpenStripeModal}
+                      className="mt-2 text-xs"
+                    >
+                      Thử lại
+                    </Button>
+                  </div>
+                ) : stripeSession ? (
+                  <div className="relative group">
+                    {stripeSession.qrCodeUrl ? (
+                      <img
+                        src={stripeSession.qrCodeUrl}
+                        alt="Stripe Checkout QR"
+                        className="h-56 w-56 object-contain rounded-lg"
+                      />
+                    ) : (
+                      <QRCodeSVG
+                        value={stripeSession.checkoutUrl}
+                        size={224}
+                        level="H"
+                        className="rounded-lg"
+                      />
+                    )}
+                    {stripeStatus?.isPaid && (
+                      <div className="absolute inset-0 bg-emerald-500/90 backdrop-blur-sm rounded-lg flex flex-col items-center justify-center text-white gap-2">
+                        <CheckCircle2 className="h-12 w-12" />
+                        <span className="font-bold text-sm">Đã Nhận Thanh Toán!</span>
+                        <span className="text-[11px] text-emerald-100">Đang lưu phiếu thu...</span>
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+              </StripeExpiredOverlay>
             </div>
 
             {/* Status & Actions */}
@@ -1459,12 +1510,20 @@ export default function CustomerDetailPage({
                   <span className="relative flex h-2 w-2">
                     <span
                       className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
-                        stripeStatus?.isPaid ? "bg-emerald-400" : "bg-amber-400"
+                        stripeStatus?.isPaid
+                          ? "bg-emerald-400"
+                          : isStripeExpired
+                          ? "bg-red-400"
+                          : "bg-amber-400"
                       }`}
                     />
                     <span
                       className={`relative inline-flex rounded-full h-2 w-2 ${
-                        stripeStatus?.isPaid ? "bg-emerald-500" : "bg-amber-500"
+                        stripeStatus?.isPaid
+                          ? "bg-emerald-500"
+                          : isStripeExpired
+                          ? "bg-red-500"
+                          : "bg-amber-500"
                       }`}
                     />
                   </span>
@@ -1475,10 +1534,16 @@ export default function CustomerDetailPage({
                     className={`font-bold ${
                       stripeStatus?.isPaid
                         ? "text-emerald-600 dark:text-emerald-400"
+                        : isStripeExpired
+                        ? "text-red-600 dark:text-red-400"
                         : "text-amber-600 dark:text-amber-400"
                     }`}
                   >
-                    {stripeStatus?.isPaid ? "Thành công (Paid)" : "Chờ thanh toán..."}
+                    {stripeStatus?.isPaid
+                      ? "Thành công (Paid)"
+                      : isStripeExpired
+                      ? "Đã hủy do hết hạn (15 phút)"
+                      : "Chờ thanh toán..."}
                   </span>
                   <Button
                     type="button"
@@ -1486,7 +1551,7 @@ export default function CustomerDetailPage({
                     size="icon"
                     className="h-6 w-6 text-muted-foreground hover:text-foreground"
                     onClick={() => refetchStripeStatus()}
-                    disabled={isCheckingStripe}
+                    disabled={isCheckingStripe || isStripeExpired}
                     title="Kiểm tra trạng thái ngay"
                   >
                     <RefreshCw
@@ -1496,7 +1561,7 @@ export default function CustomerDetailPage({
                 </div>
               </div>
 
-              {stripeSession?.checkoutUrl && (
+              {stripeSession?.checkoutUrl && !isStripeExpired && (
                 <a
                   href={stripeSession.checkoutUrl}
                   target="_blank"
@@ -1508,6 +1573,20 @@ export default function CustomerDetailPage({
                 </a>
               )}
 
+              {/* Regenerate Button if Expired */}
+              {isStripeExpired && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full text-xs font-semibold text-amber-700 border-amber-300 hover:bg-amber-50 dark:text-amber-300 dark:border-amber-800 dark:hover:bg-amber-950/40"
+                  onClick={handleOpenStripeModal}
+                  disabled={createStripeSessionMutation.isPending}
+                >
+                  <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+                  Tạo lại mã QR Stripe (15 phút mới)
+                </Button>
+              )}
+
               {/* Locked Confirmation Button until Paid */}
               <Button
                 type="button"
@@ -1516,7 +1595,7 @@ export default function CustomerDetailPage({
                     ? "bg-gradient-to-r from-emerald-600 to-teal-500 text-white hover:from-emerald-500 hover:to-teal-400 shadow-emerald-500/25"
                     : "bg-muted text-muted-foreground cursor-not-allowed hover:bg-muted"
                 }`}
-                disabled={!stripeStatus?.isPaid || paymentMutation.isPending}
+                disabled={!stripeStatus?.isPaid || isStripeExpired || paymentMutation.isPending}
                 onClick={handleInlinePayment}
               >
                 {paymentMutation.isPending ? (
@@ -1528,6 +1607,11 @@ export default function CustomerDetailPage({
                   <>
                     <CheckCircle2 className="h-4 w-4 mr-1.5" />
                     Đã nhận thanh toán · Hoàn tất thu nợ ngay
+                  </>
+                ) : isStripeExpired ? (
+                  <>
+                    <AlertTriangle className="h-4 w-4 mr-1.5 text-red-500" />
+                    Mã QR đã hết hạn (Cần tạo mã mới)
                   </>
                 ) : (
                   <>
