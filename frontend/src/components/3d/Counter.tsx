@@ -305,7 +305,7 @@ export default function Counter({
         position={[-0.85, COUNTER_H + 0.35, 0.45]}
         center
         distanceFactor={4.8}
-        zIndexRange={[40, 0]}
+        zIndexRange={[40, 20]}
         style={{ pointerEvents: "none" }}
       >
         <div className="flex select-none items-center gap-2 rounded-xl border border-white/20 bg-slate-900/90 px-3.5 py-2 shadow-2xl backdrop-blur-md">
@@ -330,7 +330,7 @@ export default function Counter({
           position={[0.55, COUNTER_H + 0.95, 0]}
           center
           distanceFactor={5.2}
-          zIndexRange={[50, 0]}
+          zIndexRange={[45, 25]}
           style={{ pointerEvents: "none" }}
         >
           <div className="animate-bounce flex items-center gap-1.5 rounded-full border border-red-400/40 bg-red-600 px-3 py-1 text-xs font-bold text-white shadow-xl shadow-red-500/40">

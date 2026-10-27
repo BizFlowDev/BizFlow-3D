@@ -24,6 +24,7 @@ import {
   useUpdateProduct,
   useCategoryList,
   type Product,
+  type ProductCategory,
 } from "@/hooks/useProducts";
 import { ImageUpload } from "@/components/ui/image-upload";
 import { useQueryClient } from "@tanstack/react-query";
@@ -122,6 +123,8 @@ const productFormSchema = z
 
 type ProductFormValues = z.infer<typeof productFormSchema>;
 
+const EMPTY_CATEGORIES: ProductCategory[] = [];
+
 export function ProductFormModal3D({
   isOpen,
   onClose,
@@ -129,7 +132,7 @@ export function ProductFormModal3D({
 }: ProductFormModal3DProps) {
   const isEdit = !!product;
   const queryClient = useQueryClient();
-  const { data: categories = [] } = useCategoryList();
+  const { data: categories = EMPTY_CATEGORIES } = useCategoryList();
   const createProduct = useCreateProduct();
   const updateProduct = useUpdateProduct();
 
@@ -167,6 +170,8 @@ export function ProductFormModal3D({
   });
 
   useEffect(() => {
+    if (!isOpen) return;
+
     if (product) {
       const units = product.units || [];
       const isMulti = units.length > 1;
@@ -203,7 +208,7 @@ export function ProductFormModal3D({
       });
     }
     setShowSuccess(false);
-  }, [product, reset, categories, isOpen]);
+  }, [isOpen, product, reset]);
 
   useEffect(() => {
     if (!isOpen) return;

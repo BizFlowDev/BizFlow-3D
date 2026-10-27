@@ -21,6 +21,8 @@ interface WarehouseSceneProps {
   highlightCategoryId?: string | null;
   onReturnToHallway?: () => void;
   openDoor?: DoorId | null;
+  isVisible?: boolean;
+  isAnyModalOpen?: boolean;
 }
 
 // ── Kích thước & tọa độ phòng kho ─────────────────────────────────────────────
@@ -901,9 +903,11 @@ function FloorWeighingScale({ position }: { position: [number, number, number] }
 function InspectionDesk({
   position,
   onClick,
+  showHotspot = true,
 }: {
   position: [number, number, number];
   onClick: () => void;
+  showHotspot?: boolean;
 }) {
   const [hovered, setHovered] = useState(false);
   const laserRef = useRef<THREE.Mesh>(null);
@@ -1002,23 +1006,29 @@ function InspectionDesk({
       <StationFloorRing radius={1.4} color="#38bdf8" />
 
       {/* Nút hành động nổi tương tác */}
-      <group position={[0, 1.85, 0]}>
-        <Html center distanceFactor={11}>
-          <button
-            type="button"
-            onClick={onClick}
-            className={`pointer-events-auto flex items-center gap-1.5 rounded-full border px-3 py-1 shadow-2xl backdrop-blur-md transition-all ${hovered
-              ? "border-sky-400 bg-sky-600/90 text-white scale-110 shadow-sky-500/40"
-              : "border-sky-400/40 bg-slate-950/85 text-slate-200"
-              }`}
+      {showHotspot && (
+        <group position={[0, 1.85, 0]}>
+          <Html
+            center
+            distanceFactor={11}
+            zIndexRange={hovered ? [40, 25] : [25, 10]}
           >
-            <span className="h-2 w-2 rounded-full bg-sky-400 animate-ping" />
-            <span className="whitespace-nowrap text-[11px] font-bold">
-              Bàn Kiểm Hàng
-            </span>
-          </button>
-        </Html>
-      </group>
+            <button
+              type="button"
+              onClick={onClick}
+              className={`pointer-events-auto flex items-center gap-1.5 rounded-full border px-3 py-1 shadow-2xl backdrop-blur-md transition-all ${hovered
+                ? "border-sky-400 bg-sky-600/90 text-white scale-110 shadow-sky-500/40"
+                : "border-sky-400/40 bg-slate-950/85 text-slate-200"
+                }`}
+            >
+              <span className="h-2 w-2 rounded-full bg-sky-400 animate-ping" />
+              <span className="whitespace-nowrap text-[11px] font-bold">
+                Bàn Kiểm Hàng
+              </span>
+            </button>
+          </Html>
+        </group>
+      )}
     </group>
   );
 }
@@ -1027,9 +1037,11 @@ function InspectionDesk({
 function PalletImportZone({
   position,
   onClick,
+  showHotspot = true,
 }: {
   position: [number, number, number];
   onClick: () => void;
+  showHotspot?: boolean;
 }) {
   const [hovered, setHovered] = useState(false);
 
@@ -1102,23 +1114,29 @@ function PalletImportZone({
       </group>
 
       {/* Nút hành động nổi tương tác */}
-      <group position={[0, 1.85, 0]}>
-        <Html center distanceFactor={11}>
-          <button
-            type="button"
-            onClick={onClick}
-            className={`pointer-events-auto flex items-center gap-1.5 rounded-full border px-3 py-1 shadow-2xl backdrop-blur-md transition-all ${hovered
-              ? "border-amber-400 bg-amber-600/90 text-white scale-110 shadow-amber-500/40"
-              : "border-amber-400/40 bg-slate-950/85 text-slate-200"
-              }`}
+      {showHotspot && (
+        <group position={[0, 1.85, 0]}>
+          <Html
+            center
+            distanceFactor={11}
+            zIndexRange={hovered ? [40, 25] : [25, 10]}
           >
-            <span className="h-2 w-2 rounded-full bg-amber-400 animate-ping" />
-            <span className="whitespace-nowrap text-[11px] font-bold">
-              Khu Nhập Hàng
-            </span>
-          </button>
-        </Html>
-      </group>
+            <button
+              type="button"
+              onClick={onClick}
+              className={`pointer-events-auto flex items-center gap-1.5 rounded-full border px-3 py-1 shadow-2xl backdrop-blur-md transition-all ${hovered
+                ? "border-amber-400 bg-amber-600/90 text-white scale-110 shadow-amber-500/40"
+                : "border-amber-400/40 bg-slate-950/85 text-slate-200"
+                }`}
+            >
+              <span className="h-2 w-2 rounded-full bg-amber-400 animate-ping" />
+              <span className="whitespace-nowrap text-[11px] font-bold">
+                Khu Nhập Hàng
+              </span>
+            </button>
+          </Html>
+        </group>
+      )}
     </group>
   );
 }
@@ -1128,10 +1146,12 @@ function CategoryBoard({
   position,
   rotation,
   onClick,
+  showHotspot = true,
 }: {
   position: [number, number, number];
   rotation?: [number, number, number];
   onClick: () => void;
+  showHotspot?: boolean;
 }) {
   const [hovered, setHovered] = useState(false);
 
@@ -1170,18 +1190,24 @@ function CategoryBoard({
         Click để xem & phân loai
       </Text>
 
-      <group position={[0, -0.4, 0.1]}>
-        <Html center distanceFactor={8}>
-          <button
-            type="button"
-            onClick={onClick}
-            className={`pointer-events-auto rounded-lg border border-sky-400/40 bg-sky-600/80 px-3 py-1.5 text-xs font-bold text-white shadow-lg backdrop-blur-md transition-all ${hovered ? "scale-105 bg-sky-500" : ""
-              }`}
+      {showHotspot && (
+        <group position={[0, -0.4, 0.1]}>
+          <Html
+            center
+            distanceFactor={9}
+            zIndexRange={hovered ? [40, 25] : [25, 10]}
           >
-            Mở Danh Mục
-          </button>
-        </Html>
-      </group>
+            <button
+              type="button"
+              onClick={onClick}
+              className={`pointer-events-auto rounded-lg border border-sky-400/40 bg-sky-600/80 px-3 py-1.5 text-xs font-bold text-white shadow-lg backdrop-blur-md transition-all ${hovered ? "scale-105 bg-sky-500" : ""
+                }`}
+            >
+              Mở Danh Mục
+            </button>
+          </Html>
+        </group>
+      )}
     </group>
   );
 }
@@ -1395,7 +1421,10 @@ export function WarehouseScene({
   highlightCategoryId = null,
   onReturnToHallway = () => { },
   openDoor = null,
+  isVisible = true,
+  isAnyModalOpen = false,
 }: WarehouseSceneProps) {
+  const showHotspots = Boolean(isVisible && !isAnyModalOpen);
   // Tạo dữ liệu mẫu phong phú nếu chưa có dữ liệu thật từ backend
   const displayItems: StockLevelRow[] = useMemo(() => {
     if (stockItems && stockItems.length > 0) return stockItems;
@@ -1586,12 +1615,14 @@ export function WarehouseScene({
       <InspectionDesk
         position={[-11.0, 0, -22.8]}
         onClick={onOpenProductForm}
+        showHotspot={showHotspots}
       />
 
       {/* Khu tiếp nhận & Nhập kho nhanh */}
       <PalletImportZone
         position={[-4.5, 0, -22.8]}
         onClick={() => onOpenImportStock()}
+        showHotspot={showHotspots}
       />
 
       {/* Bảng phân loại danh mục treo trên tường trái (Góc xoay hướng về trung tâm kho) */}
@@ -1599,6 +1630,7 @@ export function WarehouseScene({
         position={[-15.0, 2.3, -23.5]}
         rotation={[0, Math.PI / 2 - 0.38, 0]}
         onClick={onOpenCategoryManage}
+        showHotspot={showHotspots}
       />
 
       {/* Trang bị an toàn PCCC, Hộp cứu thương & Camera giám sát */}

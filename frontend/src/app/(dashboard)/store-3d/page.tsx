@@ -1033,6 +1033,19 @@ export default function Store3DPage() {
 
   // ── Render ─────────────────────────────────────────────────
 
+  const isAnyModalOpen = Boolean(
+    selectedProductForDetail ||
+    (createdOrder && !isPOSActive) ||
+    upgradeModalOpen ||
+    warehouseImportModalOpen ||
+    warehouseInspectionModalOpen ||
+    productFormModal3DOpen ||
+    categoryManageModal3DOpen ||
+    cargoDetailModalOpen ||
+    employeeFormOpen ||
+    officeSettingsOpen
+  );
+
   return (
     <>
       {/* Animation loading CSS */}
@@ -1061,6 +1074,7 @@ export default function Store3DPage() {
             onEnterRoom={handleSelectRoom}
             currentPreset={cameraPreset}
             isPOSActive={isPOSActive}
+            isAnyModalOpen={isAnyModalOpen}
             targetFocusPoint={targetFocusPoint}
             stockItems={stockData || []}
             onOpenProductForm={() => handleOpenInspectionDesk()}

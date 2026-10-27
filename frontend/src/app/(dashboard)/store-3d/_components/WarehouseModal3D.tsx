@@ -76,6 +76,7 @@ export function WarehouseModal3D({
 
   // Khi modal mở hoặc đổi preselectedProductId
   useEffect(() => {
+    if (!isOpen) return;
     if (preselectedProductId) {
       setSelectedProductId(preselectedProductId);
     } else if (catalog.length > 0 && !selectedProductId) {

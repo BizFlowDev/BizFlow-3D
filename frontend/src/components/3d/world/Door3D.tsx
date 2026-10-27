@@ -458,6 +458,7 @@ export function Door3D({
           position={[0, DOOR_HEIGHT / 2, 0.6]}
           center
           distanceFactor={9}
+          zIndexRange={[35, 15]}
           style={{ pointerEvents: "none" }}
         >
           <div className="flex items-center gap-2 rounded-xl border border-white/20 bg-slate-950/90 px-3.5 py-1.5 shadow-2xl backdrop-blur-md animate-in fade-in zoom-in-95 duration-200">

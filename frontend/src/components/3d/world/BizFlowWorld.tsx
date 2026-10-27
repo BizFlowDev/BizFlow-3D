@@ -59,6 +59,7 @@ interface BizFlowWorldProps {
   onOpenSettings?: () => void;
   onOpenEmployeeDialog?: () => void;
   onOpenReports?: () => void;
+  isAnyModalOpen?: boolean;
 }
 
 export function BizFlowWorld({
@@ -66,6 +67,7 @@ export function BizFlowWorld({
   onEnterRoom,
   currentPreset,
   isPOSActive = false,
+  isAnyModalOpen = false,
   targetFocusPoint = null,
   showroomChildren,
   stockItems = [],
@@ -257,6 +259,8 @@ export function BizFlowWorld({
               highlightCategoryId={highlightCategoryId}
               openDoor={activeOpenDoor}
               onReturnToHallway={() => handleRequestRoomTransition("hallway")}
+              isVisible={isWarehouseVisible}
+              isAnyModalOpen={isAnyModalOpen}
             />
           </group>
 
@@ -272,6 +276,8 @@ export function BizFlowWorld({
               onOpenReports={onOpenReports}
               openDoor={activeOpenDoor}
               onReturnToHallway={() => handleRequestRoomTransition("hallway")}
+              isVisible={isOfficeVisible}
+              isAnyModalOpen={isAnyModalOpen}
             />
           </group>
         </Suspense>

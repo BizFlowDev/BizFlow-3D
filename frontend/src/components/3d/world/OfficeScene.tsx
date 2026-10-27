@@ -18,6 +18,8 @@ interface OfficeSceneProps {
   onOpenReports?: () => void;
   onReturnToHallway?: () => void;
   openDoor?: DoorId | null;
+  isVisible?: boolean;
+  isAnyModalOpen?: boolean;
 }
 
 const OFFICE_WIDTH = 15;
@@ -43,11 +45,13 @@ function WallMountedTV({
   revenue,
   ordersCount,
   onClick,
+  showHotspot = true,
 }: {
   position: [number, number, number];
   revenue: number;
   ordersCount: number;
   onClick: () => void;
+  showHotspot?: boolean;
 }) {
   const [hovered, setHovered] = useState(false);
 
@@ -167,22 +171,28 @@ function WallMountedTV({
       </group>
 
       {/* Nút hành động tương tác */}
-      <group position={[0, -0.9, 0.08]}>
-        <Html center distanceFactor={8}>
-          <button
-            type="button"
-            onClick={onClick}
-            className={`pointer-events-auto flex items-center gap-1.5 whitespace-nowrap rounded-lg border px-3 py-1 text-xs font-bold shadow-xl backdrop-blur-md transition-all ${
-              hovered
-                ? "border-sky-400 bg-sky-600 text-white scale-110 shadow-sky-500/40"
-                : "border-white/20 bg-slate-900/85 text-slate-200"
-            }`}
+      {showHotspot && (
+        <group position={[0, -0.9, 0.08]}>
+          <Html
+            center
+            distanceFactor={8}
+            zIndexRange={hovered ? [40, 25] : [25, 10]}
           >
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            Xem Chi Tiết Báo Cáo
-          </button>
-        </Html>
-      </group>
+            <button
+              type="button"
+              onClick={onClick}
+              className={`pointer-events-auto flex items-center gap-1.5 whitespace-nowrap rounded-lg border px-3 py-1 text-xs font-bold shadow-xl backdrop-blur-md transition-all ${
+                hovered
+                  ? "border-sky-400 bg-sky-600 text-white scale-110 shadow-sky-500/40"
+                  : "border-white/20 bg-slate-900/85 text-slate-200"
+              }`}
+            >
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              Xem Chi Tiết Báo Cáo
+            </button>
+          </Html>
+        </group>
+      )}
     </group>
   );
 }
@@ -193,9 +203,11 @@ function WallMountedTV({
 function DirectorDesk({
   position,
   onClick,
+  showHotspot = true,
 }: {
   position: [number, number, number];
   onClick: () => void;
+  showHotspot?: boolean;
 }) {
   const [hovered, setHovered] = useState(false);
 
@@ -285,24 +297,30 @@ function DirectorDesk({
       </group>
 
       {/* Nút hành động nổi */}
-      <group position={[0, 1.6, 0]}>
-        <Html center distanceFactor={8}>
-          <button
-            type="button"
-            onClick={onClick}
-            className={`pointer-events-auto flex items-center gap-2 rounded-xl border px-3 py-1.5 shadow-2xl backdrop-blur-md transition-all ${
-              hovered
-                ? "border-emerald-400 bg-emerald-600/90 text-white scale-110 shadow-emerald-500/40"
-                : "border-white/20 bg-slate-900/85 text-slate-200"
-            }`}
+      {showHotspot && (
+        <group position={[0, 1.6, 0]}>
+          <Html
+            center
+            distanceFactor={8}
+            zIndexRange={hovered ? [40, 25] : [25, 10]}
           >
-            <span className="h-2 w-2 rounded-full bg-emerald-400 animate-ping" />
-            <span className="whitespace-nowrap text-xs font-bold">
-              Bàn Giám Đốc &bull; Cài Đặt Cửa Hàng
-            </span>
-          </button>
-        </Html>
-      </group>
+            <button
+              type="button"
+              onClick={onClick}
+              className={`pointer-events-auto flex items-center gap-2 rounded-xl border px-3 py-1.5 shadow-2xl backdrop-blur-md transition-all ${
+                hovered
+                  ? "border-emerald-400 bg-emerald-600/90 text-white scale-110 shadow-emerald-500/40"
+                  : "border-white/20 bg-slate-900/85 text-slate-200"
+              }`}
+            >
+              <span className="h-2 w-2 rounded-full bg-emerald-400 animate-ping" />
+              <span className="whitespace-nowrap text-xs font-bold">
+                Bàn Giám Đốc &bull; Cài Đặt Cửa Hàng
+              </span>
+            </button>
+          </Html>
+        </group>
+      )}
     </group>
   );
 }
@@ -314,10 +332,12 @@ function EmployeeFilingCabinet({
   position,
   employeeCount,
   onClick,
+  showHotspot = true,
 }: {
   position: [number, number, number];
   employeeCount?: number;
   onClick: () => void;
+  showHotspot?: boolean;
 }) {
   const [hovered, setHovered] = useState(false);
 
@@ -362,24 +382,30 @@ function EmployeeFilingCabinet({
       ))}
 
       {/* Biển hiệu trên tủ */}
-      <group position={[0, 3.0, 0]}>
-        <Html center distanceFactor={8}>
-          <button
-            type="button"
-            onClick={onClick}
-            className={`pointer-events-auto flex items-center gap-2 rounded-xl border px-3 py-1.5 shadow-2xl backdrop-blur-md transition-all ${
-              hovered
-                ? "border-sky-400 bg-sky-600/90 text-white scale-110 shadow-sky-500/40"
-                : "border-white/20 bg-slate-900/85 text-slate-200"
-            }`}
+      {showHotspot && (
+        <group position={[0, 3.0, 0]}>
+          <Html
+            center
+            distanceFactor={8}
+            zIndexRange={hovered ? [40, 25] : [25, 10]}
           >
-            <span className="h-2 w-2 rounded-full bg-sky-400 animate-ping" />
-            <span className="whitespace-nowrap text-xs font-bold">
-              Tủ Hồ Sơ &bull; {employeeCount ?? 1} Nhân Viên
-            </span>
-          </button>
-        </Html>
-      </group>
+            <button
+              type="button"
+              onClick={onClick}
+              className={`pointer-events-auto flex items-center gap-2 rounded-xl border px-3 py-1.5 shadow-2xl backdrop-blur-md transition-all ${
+                hovered
+                  ? "border-sky-400 bg-sky-600/90 text-white scale-110 shadow-sky-500/40"
+                  : "border-white/20 bg-slate-900/85 text-slate-200"
+              }`}
+            >
+              <span className="h-2 w-2 rounded-full bg-sky-400 animate-ping" />
+              <span className="whitespace-nowrap text-xs font-bold">
+                Tủ Hồ Sơ &bull; {employeeCount ?? 1} Nhân Viên
+              </span>
+            </button>
+          </Html>
+        </group>
+      )}
     </group>
   );
 }
@@ -507,7 +533,10 @@ export function OfficeScene({
   onOpenReports = () => {},
   onReturnToHallway = () => {},
   openDoor = null,
+  isVisible = true,
+  isAnyModalOpen = false,
 }: OfficeSceneProps) {
+  const showHotspots = Boolean(isVisible && !isAnyModalOpen);
   return (
     <group position={[0, 0, 0]}>
       {/* ── 1. SÀN GỖ VĂN PHÒNG EXECUTIVE ───────────────────────────── */}
@@ -634,12 +663,14 @@ export function OfficeScene({
         revenue={todayRevenue}
         ordersCount={pendingCount}
         onClick={onOpenReports}
+        showHotspot={showHotspots}
       />
 
       {/* Bàn làm việc Giám Đốc */}
       <DirectorDesk
         position={[6.2, 0, -25.5]}
         onClick={onOpenSettings}
+        showHotspot={showHotspots}
       />
 
       {/* Tủ hồ sơ nhân viên */}
@@ -647,6 +678,7 @@ export function OfficeScene({
         position={[9.8, 0, -25.0]}
         employeeCount={employeeCount}
         onClick={onOpenEmployeeDialog}
+        showHotspot={showHotspots}
       />
 
       {/* Bảng kính KPI trên tường */}

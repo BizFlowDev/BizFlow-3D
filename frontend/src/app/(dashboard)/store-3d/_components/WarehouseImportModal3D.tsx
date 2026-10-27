@@ -57,6 +57,7 @@ export function WarehouseImportModal3D({
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   useEffect(() => {
+    if (!isOpen) return;
     if (preselectedProductId) {
       setSelectedProductId(preselectedProductId);
     } else if (catalog.length > 0 && !selectedProductId) {

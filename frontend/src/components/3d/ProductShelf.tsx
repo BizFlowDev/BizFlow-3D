@@ -394,7 +394,7 @@ function ProductBoxItem({
           position={[0, position[1] + PRODUCT_SIZE[1] / 2 + 0.4, 0.3]}
           center
           distanceFactor={5.2}
-          zIndexRange={[15, 0]}
+          zIndexRange={[45, 30]}
           style={{ pointerEvents: "none" }}
         >
           <div className="animate-in fade-in zoom-in-95 pointer-events-none flex min-w-[190px] flex-col rounded-xl border border-white/20 bg-slate-900/95 p-3 text-white shadow-2xl backdrop-blur-xl">
