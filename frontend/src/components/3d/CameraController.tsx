@@ -27,23 +27,23 @@ export const CAMERA_PRESETS: Record<CameraPreset, CameraPresetConfig> = {
     label: "Toàn cảnh Showroom",
   },
   shelfLeft: {
-    position: [-3.7, 2.4, 2],
-    target: [-3.5, 1.8, -5.5],
+    position: [-3.5, 2.30, 1.3],
+    target: [-3.5, 2.15, -4.5],
     label: "Kệ hàng Trái (A)",
   },
   shelfRight: {
-    position: [3.7, 2.4, 2],
-    target: [3.5, 1.8, -5.5],
+    position: [3.5, 2.30, 1.3],
+    target: [3.5, 2.15, -4.5],
     label: "Kệ hàng Phải (B)",
   },
   shelfSideLeft: {
-    position: [0, 2.2, -0.5],
-    target: [-7.0, 1.8, -0.5],
+    position: [-1.2, 2.30, -0.5],
+    target: [-7.0, 2.15, -0.5],
     label: "Kệ Hông Trái (C)",
   },
   shelfSideRight: {
-    position: [0, 2.2, -0.5],
-    target: [7.0, 1.8, -0.5],
+    position: [1.2, 2.30, -0.5],
+    target: [7.0, 2.15, -0.5],
     label: "Kệ Hông Phải (D)",
   },
   counter: {
@@ -52,7 +52,7 @@ export const CAMERA_PRESETS: Record<CameraPreset, CameraPresetConfig> = {
     label: "Quầy Thu Ngân",
   },
   posScreen: {
-    position: [0.45, 2.2, 2.95],
+    position: [0.45, 2.35, 3.0],
     target: [0.45, 1.85, 1.95],
     label: "Màn hình POS",
   },

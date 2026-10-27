@@ -221,7 +221,7 @@ export function BizFlowWorld({
           enableRotate={false}
           enablePan={false}
           enableZoom={!isInteractingWithPOS}
-          minDistance={2.0}
+          minDistance={isInteractingWithPOS ? 0.1 : 0.8}
           maxDistance={25}
           enableDamping
           dampingFactor={0.08}
