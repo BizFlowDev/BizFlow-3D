@@ -70,9 +70,7 @@ export function WarehouseInspectionModal3D({
   });
 
   const stockNow = currentStockRow?.currentStock ?? currentProduct?.currentStock ?? 0;
-  const maxCap = currentStockRow?.maxStock ?? currentProduct?.maxStock ?? 100;
   const minSafe = currentStockRow?.minStock ?? 10;
-  const fillRatio = Math.min(1, Math.max(0, stockNow / (maxCap || 1)));
 
   return (
     <div className="pointer-events-none fixed inset-0 z-[100] flex items-center justify-center sm:justify-end sm:pr-10 md:pr-14 p-4 overflow-hidden animate-in fade-in duration-300">

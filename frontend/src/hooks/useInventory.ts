@@ -165,18 +165,7 @@ export function useInventoryCatalog() {
         );
         const stockMap = new Map((stockRes.data ?? []).map((s) => [s.productId, s.totalQuantity]));
 
-        const { data: productRes } = await apiClient.get<
-          ApiResponseData<{
-            items: {
-              id: string;
-              code: string;
-              name: string;
-              categoryId: string | null;
-              units?: { id: string; unitName: string; conversionFactor: number; price?: number; isDefault: boolean }[];
-            }[];
-          }>
-        >("/products", { params: { limit: 500 } });
-        const items = productRes.data?.items ?? [];
+        const items = await fetchInventoryProducts();
 
         const categories = new Map<string, string>();
         try {
@@ -227,56 +216,51 @@ export function useStockLevel(params: StockLevelParams = {}) {
     queryKey: inventoryKeys.stock,
     queryFn: async (): Promise<StockLevelRow[]> => {
       let rows: StockLevelRow[] = [];
-      try {
-        const [stockRes, transRes] = await Promise.all([
-          apiClient.get<ApiResponseData<{ productId: string; totalQuantity: number }[]>>(
-            "/inventory/stock",
-          ),
-          apiClient.get<ApiResponseData<{ productId: string; createdAt: string }[]>>(
-            "/inventory/transactions",
-          ),
-        ]);
-        const stockList = stockRes.data?.data ?? [];
-        const stockMap = new Map(stockList.map((s) => [s.productId, s.totalQuantity]));
-        // Ngày cập nhật gần nhất = createdAt lớn nhất của giao dịch theo sản phẩm
-        const lastUpdatedMap = new Map<string, string>();
-        for (const t of transRes.data?.data ?? []) {
-          const cur = lastUpdatedMap.get(t.productId);
-          if (!cur || new Date(t.createdAt) > new Date(cur)) {
-            lastUpdatedMap.set(t.productId, t.createdAt);
-          }
+      const [stockRes, transRes] = await Promise.all([
+        apiClient.get<ApiResponseData<{ productId: string; totalQuantity: number }[]>>(
+          "/inventory/stock",
+        ),
+        apiClient.get<ApiResponseData<{ productId: string; createdAt: string }[]>>(
+          "/inventory/transactions",
+        ).catch(() => null),
+      ]);
+      const stockList = stockRes.data?.data ?? [];
+      // Ngày cập nhật gần nhất = createdAt lớn nhất của giao dịch theo sản phẩm
+      const lastUpdatedMap = new Map<string, string>();
+      for (const t of transRes?.data?.data ?? []) {
+        const cur = lastUpdatedMap.get(t.productId);
+        if (!cur || new Date(t.createdAt) > new Date(cur)) {
+          lastUpdatedMap.set(t.productId, t.createdAt);
         }
+      }
 
-        if (stockList.length > 0) {
-          const catalog = await getCatalogReal();
-          rows = stockList.map((s) => {
-            const product = catalog.get(s.productId);
-            if (!product) {
-              return {
-                productId: s.productId,
-                productName: "Sản phẩm",
-                code: "—",
-                categoryId: null,
-                categoryName: null,
-                productUnitId: "",
-                unitName: "Cái",
-                currentStock: s.totalQuantity,
-                maxStock: 100,
-                minStock: LOW_STOCK_THRESHOLD,
-                lastUpdated: lastUpdatedMap.get(s.productId) ?? new Date().toISOString(),
-                status: computeStockStatus(s.totalQuantity),
-                stockRatio: clampRatio(s.totalQuantity / 100),
-              };
-            }
-            return toStockLevelRow(
-              product,
-              s.totalQuantity,
-              lastUpdatedMap.get(s.productId) ?? new Date().toISOString(),
-            );
-          });
-        }
-      } catch {
-        // Fallback mock
+      if (stockList.length > 0) {
+        const catalog = await getCatalogReal();
+        rows = stockList.map((s) => {
+          const product = catalog.get(s.productId);
+          if (!product) {
+            return {
+              productId: s.productId,
+              productName: "Sản phẩm",
+              code: "—",
+              categoryId: null,
+              categoryName: null,
+              productUnitId: "",
+              unitName: "Cái",
+              currentStock: s.totalQuantity,
+              maxStock: 100,
+              minStock: LOW_STOCK_THRESHOLD,
+              lastUpdated: lastUpdatedMap.get(s.productId) ?? new Date().toISOString(),
+              status: computeStockStatus(s.totalQuantity),
+              stockRatio: clampRatio(s.totalQuantity / 100),
+            };
+          }
+          return toStockLevelRow(
+            product,
+            s.totalQuantity,
+            lastUpdatedMap.get(s.productId) ?? new Date().toISOString(),
+          );
+        });
       }
       return filterStockRows(rows, params);
     },
@@ -284,26 +268,29 @@ export function useStockLevel(params: StockLevelParams = {}) {
   });
 }
 
-/** Lấy danh mục thật (1 lần) phục vụ gộp tên — không gây vòng lặp query */
-async function getCatalogReal(): Promise<Map<string, InventoryProduct>> {
-  const map = new Map<string, InventoryProduct>();
-  try {
-    const { data } = await apiClient.get<ApiResponseData<{ items: InventoryProduct[] }>>(
-      "/products",
-      { params: { limit: 500 } },
+/** Fetch every server page: /products caps the requested limit at 100. */
+async function fetchInventoryProducts(): Promise<InventoryProduct[]> {
+  const products: InventoryProduct[] = [];
+  for (let page = 1; ; page++) {
+    const { data } = await apiClient.get<ApiResponseData<{ items: InventoryProduct[]; total: number; limit: number }>>(
+      "/products", { params: { page, limit: 100 } },
     );
-    for (const p of data.data?.items ?? []) {
-      map.set(p.id, {
-        ...p,
-        units: p.units?.length
-          ? p.units
-          : [{ id: `${p.id}-u1`, unitName: "Cái", conversionFactor: 1, isDefault: true }],
-      });
-    }
-  } catch {
-    // Bỏ qua
+    const result = data.data;
+    const items = result?.items ?? [];
+    products.push(...items);
+    if (!items.length || products.length >= (result?.total ?? products.length)) break;
   }
-  return map;
+  return products;
+}
+
+/** Full product catalog for joining stock rows; fail visibly if unavailable. */
+async function getCatalogReal(): Promise<Map<string, InventoryProduct>> {
+  const products = await fetchInventoryProducts();
+  return new Map(products.map(p => [p.id, {
+    ...p,
+    maxStock: p.maxStock ?? 100,
+    units: p.units?.length ? p.units : [{ id: `${p.id}-u1`, unitName: "Cái", conversionFactor: 1, isDefault: true }],
+  }]));
 }
 
 /**

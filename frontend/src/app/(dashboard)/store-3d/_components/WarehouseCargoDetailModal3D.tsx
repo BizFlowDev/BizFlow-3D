@@ -61,11 +61,8 @@ export function WarehouseCargoDetailModal3D({
   if (!isOpen || !cargoItem) return null;
 
   const current = cargoItem.currentStock ?? 0;
-  const max = cargoItem.maxStock ?? 100;
   const min = cargoItem.minStock ?? 10;
-  const fillRatio = Math.min(1, Math.max(0, current / (max || 1)));
-  const isLow = current <= min || fillRatio < 0.15;
-  const isHealthy = fillRatio >= 0.5;
+  const isLow = current <= min;
 
   return (
     <div className="pointer-events-none fixed inset-0 z-[100] flex items-center justify-center sm:justify-end sm:pr-10 md:pr-14 p-4 overflow-hidden animate-in fade-in duration-300">
@@ -138,12 +135,10 @@ export function WarehouseCargoDetailModal3D({
                   className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase shrink-0 border ${
                     isLow
                       ? "bg-red-500/20 text-red-400 border-red-500/40"
-                      : isHealthy
-                      ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/40"
-                      : "bg-amber-500/20 text-amber-400 border-amber-500/40"
+                      : "bg-emerald-500/20 text-emerald-400 border-emerald-500/40"
                   }`}
                 >
-                  {isLow ? "Tồn thấp" : isHealthy ? "Đủ hàng" : "Mức vừa"}
+                  {current <= 0 ? "Hết hàng" : isLow ? "Tồn thấp" : "Còn hàng"}
                 </span>
               </div>
 
@@ -152,7 +147,7 @@ export function WarehouseCargoDetailModal3D({
                 <div className="flex items-center gap-2 rounded-xl bg-slate-950/60 px-3 py-1.5 border border-white/5 text-[11px] text-slate-300">
                   <MapPin className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
                   <span>
-                    Tọa độ: <strong className="text-white">{location.aisle}</strong> &bull; Tầng{" "}
+                    Ô hiển thị ảo: <strong className="text-white">{location.aisle}</strong> &bull; Tầng{" "}
                     <strong className="text-white">{location.level + 1}</strong> &bull; Cột{" "}
                     <strong className="text-white">{location.col + 1}</strong>
                   </span>
@@ -164,22 +159,11 @@ export function WarehouseCargoDetailModal3D({
                 <div className="flex justify-between text-xs">
                   <span className="text-slate-400">Tồn kho tại vị trí:</span>
                   <span className="font-bold text-white font-mono">
-                    {current} / {max} {cargoItem.unitName || "Đơn vị"}
+                    {current} {cargoItem.unitName || "Đơn vị"}
                   </span>
-                </div>
-                <div className="h-2 w-full overflow-hidden rounded-full bg-slate-800">
-                  <div
-                    className={`h-full rounded-full transition-all duration-500 ${
-                      isLow ? "bg-red-500" : isHealthy ? "bg-emerald-400" : "bg-amber-400"
-                    }`}
-                    style={{ width: `${Math.round(fillRatio * 100)}%` }}
-                  />
                 </div>
                 <div className="flex justify-between text-[10px] text-slate-400 font-mono">
                   <span>Mức tối thiểu: {min}</span>
-                  <span className="text-emerald-300 font-semibold">
-                    Độ lấp đầy: {Math.round(fillRatio * 100)}%
-                  </span>
                 </div>
               </div>
             </div>

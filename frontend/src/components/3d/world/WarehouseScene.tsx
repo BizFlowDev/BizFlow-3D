@@ -1,7 +1,7 @@
 "use client";
 
-import { useRef, useState, useMemo } from "react";
-import { useFrame, useThree } from "@react-three/fiber";
+import { useRef, useState } from "react";
+import { useFrame } from "@react-three/fiber";
 import { Text, Html } from "@react-three/drei";
 import * as THREE from "three";
 import { Door3D } from "./Door3D";
@@ -11,6 +11,7 @@ import type { StockLevelRow } from "@/hooks/useInventory";
 
 interface WarehouseSceneProps {
   stockItems?: StockLevelRow[];
+  visibleStockItems?: StockLevelRow[];
   onOpenProductForm?: () => void;
   onOpenImportStock?: (productId?: string) => void;
   onOpenCategoryManage?: () => void;
@@ -72,31 +73,18 @@ function RealisticCargoItem({
   type = "carton",
   onSelect,
   isHighlighted = false,
-  isDimmed = false,
 }: {
   item: StockLevelRow;
   position: [number, number, number];
   type?: CargoType;
   onSelect: (item: StockLevelRow) => void;
   isHighlighted?: boolean;
-  isDimmed?: boolean;
 }) {
   const [hovered, setHovered] = useState(false);
   const indicatorRef = useRef<THREE.Mesh>(null);
 
-  // Tính tỷ lệ tồn kho
-  let ratio = 0.5;
-  if (typeof item.stockRatio === "number" && !isNaN(item.stockRatio) && item.stockRatio > 0) {
-    ratio = Math.min(1, Math.max(0, item.stockRatio));
-  } else if (item.maxStock && item.maxStock > 0) {
-    ratio = Math.min(1, Math.max(0, item.currentStock / item.maxStock));
-  } else {
-    ratio = item.currentStock > 30 ? 0.85 : item.currentStock > 10 ? 0.45 : 0.08;
-  }
-
-  const isLowStock = ratio < 0.15 || (item.currentStock ?? 0) <= (item.minStock ?? 5);
-  const isHealthy = ratio >= 0.5;
-  const statusColor = isLowStock ? "#ef4444" : isHealthy ? "#10b981" : "#f59e0b";
+  const isLowStock = (item.currentStock ?? 0) <= (item.minStock ?? 5);
+  const statusColor = isLowStock ? "#ef4444" : "#10b981";
 
   // Hiệu ứng nhấp nháy cảnh báo nếu hàng sắp hết
   useFrame(({ clock }) => {
@@ -107,7 +95,7 @@ function RealisticCargoItem({
     }
   });
 
-  const boxHeight = Math.max(0.35, Math.min(0.72, ratio * 0.8));
+  const boxHeight = 0.6;
 
   return (
     <group position={position}>
@@ -297,12 +285,10 @@ function RealisticCargoItem({
               <span
                 className={`rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase ${isLowStock
                   ? "bg-red-500/20 text-red-400 border border-red-500/40"
-                  : isHealthy
-                    ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40"
-                    : "bg-amber-500/20 text-amber-400 border border-amber-500/40"
+                  : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40"
                   }`}
               >
-                {isLowStock ? "Sắp hết" : isHealthy ? "Đủ hàng" : "Mức vừa"}
+                {item.currentStock <= 0 ? "Hết hàng" : isLowStock ? "Sắp hết" : "Còn hàng"}
               </span>
             </div>
 
@@ -313,28 +299,6 @@ function RealisticCargoItem({
                   {item.currentStock} {item.unitName || "Đơn vị"}
                 </span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">Định mức tối đa:</span>
-                <span className="text-slate-200">{item.maxStock || 100}</span>
-              </div>
-
-              {/* Thanh tiến trình tồn kho */}
-              <div className="mt-1.5">
-                <div className="flex justify-between text-[10px] text-slate-400 mb-0.5">
-                  <span>Tỷ lệ lấp đầy:</span>
-                  <span className="font-semibold text-amber-300">{Math.round(ratio * 100)}%</span>
-                </div>
-                <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
-                  <div
-                    className="h-full rounded-full transition-all duration-300"
-                    style={{
-                      width: `${Math.round(ratio * 100)}%`,
-                      backgroundColor: statusColor,
-                    }}
-                  />
-                </div>
-              </div>
-
               <div className="pt-2 text-center text-[10px] text-sky-400 font-medium border-t border-white/5">
                 💡 Click để xem chi tiết ô kệ & kiểm định 3D
               </div>
@@ -448,7 +412,6 @@ function HeavyDutyWarehouseRack({
         const posY = LEVELS[levelIdx] + 0.07;
 
         const isHighlighted = !!highlightCategoryId && it.categoryId === highlightCategoryId;
-        const isDimmed = !!highlightCategoryId && it.categoryId !== highlightCategoryId;
 
         // Xoay vòng các loại kiện hàng để tạo sự đa dạng chân thực
         const cargoTypes: CargoType[] = ["carton", "plastic_tote", "wooden_crate", "pallet_bundle"];
@@ -456,12 +419,11 @@ function HeavyDutyWarehouseRack({
 
         return (
           <RealisticCargoItem
-            key={it.productId || `cargo-${idx}`}
+            key={`${it.productId}-${it.productUnitId}`}
             item={it}
             position={[posX, posY, 0]}
             type={chosenType}
             isHighlighted={isHighlighted}
-            isDimmed={isDimmed}
             onSelect={(selected) =>
               onSelectItem(selected, { aisle: aisleName, level: levelIdx, col: colIdx })
             }
@@ -514,10 +476,8 @@ function WarehouseWMSDashboard({
   const totalSku = items.length;
   const totalStock = items.reduce((acc, it) => acc + (it.currentStock || 0), 0);
   const lowStockCount = items.filter(
-    (it) => (it.currentStock || 0) <= (it.minStock || 5) || (it.stockRatio || 0) < 0.15,
+    (it) => (it.currentStock || 0) <= (it.minStock ?? 5),
   ).length;
-
-  const occupancyRatio = Math.min(100, Math.round((totalStock / (totalSku * 60 || 1)) * 100));
 
   const pulseRef = useRef<THREE.Mesh>(null);
   useFrame(({ clock }) => {
@@ -614,34 +574,16 @@ function WarehouseWMSDashboard({
         </Text>
       </group>
 
-      {/* Thanh đo Sức chứa kho (Warehouse Occupancy) */}
       <group position={[0, -0.32, 0.07]}>
-        <mesh>
-          <planeGeometry args={[3.9, 0.5]} />
-          <meshStandardMaterial color="#0f172a" />
-        </mesh>
-        <Text position={[-1.7, 0.12, 0.01]} fontSize={0.09} color="#cbd5e1" anchorX="left" anchorY="middle">
-          SUC CHUA KHO (CAPACITY)
+        <Text fontSize={0.13} color="#cbd5e1" anchorX="center" anchorY="middle">
+          {`CON HANG: ${items.filter(item => item.currentStock > 0).length}  |  HET HANG: ${items.filter(item => item.currentStock <= 0).length}`}
         </Text>
-        <Text position={[1.7, 0.12, 0.01]} fontSize={0.11} color="#fbbf24" anchorX="right" anchorY="middle">
-          {occupancyRatio}%
-        </Text>
-
-        {/* Khung thanh tiến trình */}
-        <mesh position={[0, -0.08, 0.01]}>
-          <planeGeometry args={[3.5, 0.1]} />
-          <meshStandardMaterial color="#1e293b" />
-        </mesh>
-        <mesh position={[-1.75 + (3.5 * (occupancyRatio / 100)) / 2, -0.08, 0.015]}>
-          <planeGeometry args={[Math.max(0.01, 3.5 * (occupancyRatio / 100)), 0.1]} />
-          <meshStandardMaterial color="#38bdf8" emissive="#0284c7" emissiveIntensity={0.6} />
-        </mesh>
       </group>
 
       {/* Dòng ticker trạng thái đáy màn hình */}
       <group position={[0, -0.78, 0.07]}>
         <Text fontSize={0.08} color="#64748b" anchorX="center" anchorY="middle">
-          NHIET DO: 23.8 C  |  DO AM: 54%  |  DOCK 01: READY  |  PCCC: OK
+          DU LIEU TON KHO  |  VI TRI KE LA MO PHONG
         </Text>
       </group>
     </group>
@@ -1193,14 +1135,16 @@ function CategoryBoard({
       {showHotspot && (
         <group position={[0, -0.4, 0.1]}>
           <Html
+            transform
+            distanceFactor={8}
+            occlude
             center
-            distanceFactor={9}
             zIndexRange={hovered ? [40, 25] : [25, 10]}
           >
             <button
               type="button"
               onClick={onClick}
-              className={`pointer-events-auto rounded-lg border border-sky-400/40 bg-sky-600/80 px-3 py-1.5 text-xs font-bold text-white shadow-lg backdrop-blur-md transition-all ${hovered ? "scale-105 bg-sky-500" : ""
+              className={`pointer-events-auto whitespace-nowrap rounded-lg border border-sky-400/40 bg-sky-600/80 px-3 py-1.5 text-xs font-bold text-white shadow-lg backdrop-blur-md transition-all ${hovered ? "scale-105 bg-sky-500" : ""
                 }`}
             >
               Mở Danh Mục
@@ -1307,7 +1251,7 @@ function IndustrialRoofStructure() {
       ))}
 
       {/* ── DẦM THÉP CHỮ I PHÍA TRƯỚC (Tự động ẩn khi camera xem từ trên cao) ── */}
-      <SmartOcclusionGroup checkOcclusion={(pos) => pos.y > 4.9}>
+      <SmartOcclusionGroup checkOcclusion={(pos) => pos.y > 4.3}>
         {[-23, -19.5].map((z, i) => (
           <group key={`front-beam-${i}`} position={[CENTER_X, WAREHOUSE_HEIGHT - 0.2, z]}>
             <mesh castShadow>
@@ -1355,13 +1299,6 @@ function IndustrialRoofStructure() {
               <coneGeometry args={[0.42, 0.4, 16]} />
               <meshStandardMaterial color="#475569" metalness={0.8} />
             </mesh>
-            {/* Điểm sáng ấm nón rọi xuống sàn */}
-            <pointLight
-              position={[0, -0.25, 0]}
-              intensity={28}
-              distance={9.5}
-              color="#fef3c7"
-            />
           </group>
         )),
       )}
@@ -1414,6 +1351,7 @@ function FloorSafetyMarkings() {
 // ── MAIN: WAREHOUSE SCENE NÂNG CẤP TRỌN GÓI ──────────────────────────────────
 export function WarehouseScene({
   stockItems = [],
+  visibleStockItems = stockItems.slice(0, 30),
   onOpenProductForm = () => { },
   onOpenImportStock = () => { },
   onOpenCategoryManage = () => { },
@@ -1425,36 +1363,9 @@ export function WarehouseScene({
   isAnyModalOpen = false,
 }: WarehouseSceneProps) {
   const showHotspots = Boolean(isVisible && !isAnyModalOpen);
-  // Tạo dữ liệu mẫu phong phú nếu chưa có dữ liệu thật từ backend
-  const displayItems: StockLevelRow[] = useMemo(() => {
-    if (stockItems && stockItems.length > 0) return stockItems;
-    return Array.from({ length: 30 }).map((_, idx) => {
-      const current = idx % 5 === 0 ? 3 : Math.floor(Math.random() * 85) + 8;
-      const max = 100;
-      return {
-        productId: `fallback-${idx}`,
-        productName: `Vật Phẩm Kho #${idx + 1}`,
-        code: `WH-${100 + idx}`,
-        categoryId: null,
-        categoryName: idx % 2 === 0 ? "Gia Dụng & Điện Tử" : "Hàng Tiêu Dùng",
-        productUnitId: `unit-${idx}`,
-        unitName: idx % 3 === 0 ? "Thùng" : idx % 3 === 1 ? "Kiện" : "Hộp",
-        currentStock: current,
-        maxStock: max,
-        minStock: 10,
-        lastUpdated: new Date().toISOString(),
-        status: current <= 5 ? "out_of_stock" : current <= 15 ? "low_stock" : "in_stock",
-        stockRatio: current / max,
-      };
-    });
-  }, [stockItems]);
-
-  // Chia danh sách sản phẩm thành 2 nửa cho Dãy Kệ A và Dãy Kệ B
-  const itemsAisleA = useMemo(() => displayItems.slice(0, 15), [displayItems]);
-  const itemsAisleB = useMemo(
-    () => (displayItems.length > 15 ? displayItems.slice(15, 30) : displayItems.slice(0, 15)),
-    [displayItems],
-  );
+  // Only the current page is mounted; the dashboard always uses the full inventory.
+  const itemsAisleA = visibleStockItems.slice(0, 15);
+  const itemsAisleB = visibleStockItems.slice(15, 30);
 
   return (
     <group position={[0, 0, 0]}>
@@ -1519,7 +1430,7 @@ export function WarehouseScene({
       </SmartOcclusionGroup>
 
       {/* Trần nhà kho (y = 5.4) — Tự động làm mờ/biến mất khi camera ở trên cao nhìn xuống (Overview / Sa bàn) */}
-      <SmartOcclusionGroup checkOcclusion={(pos) => pos.y > 4.9}>
+      <SmartOcclusionGroup checkOcclusion={(pos) => pos.y > 4.3}>
         <mesh
           rotation={[Math.PI / 2, 0, 0]}
           position={[CENTER_X, WAREHOUSE_HEIGHT, CENTER_Z]}
@@ -1552,10 +1463,16 @@ export function WarehouseScene({
       </SmartOcclusionGroup>
 
       {/* ── 3. HỆ THỐNG KẾT CẤU TRẦN THÉP & ÁNH SÁNG ─────────────────── */}
-      <IndustrialRoofStructure />
+      <SmartOcclusionGroup checkOcclusion={(pos) => pos.y > WAREHOUSE_HEIGHT - 1.1}>
+        <IndustrialRoofStructure />
+      </SmartOcclusionGroup>
 
+      {/* Keep operational lighting active when the roof is cut away. */}
+      {[-12, -8, -4].flatMap(x => [-28, -22].map(z => (
+        <pointLight key={`warehouse-light-${x}-${z}`} position={[x, 4.7, z]} intensity={28} distance={9.5} color="#fef3c7" />
+      )))}
       {/* Ánh sáng tổng thể phòng kho */}
-      <ambientLight intensity={0.55} color="#e2e8f0" />
+      <ambientLight intensity={0.8} color="#e2e8f0" />
       <directionalLight
         position={[-8, WAREHOUSE_HEIGHT - 0.5, -22]}
         intensity={1.2}
@@ -1567,39 +1484,38 @@ export function WarehouseScene({
       {/* ── 4. TRANG THIẾT BỊ & NỘI THẤT KHO THÔNG MINH ────────────────── */}
 
       {/* Màn hình LED Dashboard Giám sát Kho WMS trên tường sau */}
-      <WarehouseWMSDashboard
-        position={[-7.8, 3.2, -31.85]}
-        items={displayItems}
-      />
+      <group scale={0.75} position={[-8, 2.9, -31.85]}>
+        <WarehouseWMSDashboard position={[0, 0, 0]} items={stockItems} />
+      </group>
 
       {/* DÃY KỆ THÔNG MINH A (Bên trái tường sau) */}
       <HeavyDutyWarehouseRack
-        position={[-11.2, 0, -28.2]}
+        position={[-12, 0, -28.2]}
         aisleName="DÃY KỆ A"
-        aisleSub="HÀNG GIA DỤNG & ĐIỆN TỬ"
+        aisleSub={`${itemsAisleA.length}/15 VỊ TRÍ · TRANG HIỆN TẠI`}
         accentColor="#38bdf8"
         items={itemsAisleA}
         highlightCategoryId={highlightCategoryId}
         onSelectItem={(item, loc) => onSelectCargoItem(item, loc)}
-        rackWidth={5.6}
+        rackWidth={4.8}
       />
 
       {/* DÃY KỆ THÔNG MINH B (Bên phải tường sau) */}
       <HeavyDutyWarehouseRack
-        position={[-4.5, 0, -28.2]}
+        position={[-4, 0, -28.2]}
         aisleName="DÃY KỆ B"
-        aisleSub="HÀNG TIÊU DÙNG & THỰC PHẨM"
+        aisleSub={`${itemsAisleB.length}/15 VỊ TRÍ · TRANG HIỆN TẠI`}
         accentColor="#f59e0b"
         items={itemsAisleB}
         highlightCategoryId={highlightCategoryId}
         onSelectItem={(item, loc) => onSelectCargoItem(item, loc)}
-        rackWidth={5.6}
+        rackWidth={4.8}
       />
 
-      {/* Xe nâng hàng Forklift 3D chi tiết ở làn giữa giữa 2 dãy kệ */}
+      {/* Xe nâng đỗ cạnh khu nhập hàng, chừa lối nhìn vào hai kệ */}
       <WarehouseForklift3D
-        position={[-7.8, 0, -26.0]}
-        rotation={[0, 0.15, 0]}
+        position={[-2.3, 0, -25.0]}
+        rotation={[0, Math.PI / 2, 0]}
       />
 
       {/* Cửa cuốn công nghiệp tiếp nhận hàng Dock 01 (Tường trái) */}
@@ -1613,7 +1529,7 @@ export function WarehouseScene({
 
       {/* Bàn kiểm hàng & quét mã sản phẩm */}
       <InspectionDesk
-        position={[-11.0, 0, -22.8]}
+        position={[-12, 0, -22.8]}
         onClick={onOpenProductForm}
         showHotspot={showHotspots}
       />
@@ -1625,13 +1541,24 @@ export function WarehouseScene({
         showHotspot={showHotspots}
       />
 
-      {/* Bảng phân loại danh mục treo trên tường trái (Góc xoay hướng về trung tâm kho) */}
-      <CategoryBoard
-        position={[-15.0, 2.3, -23.5]}
-        rotation={[0, Math.PI / 2 - 0.38, 0]}
-        onClick={onOpenCategoryManage}
-        showHotspot={showHotspots}
-      />
+      {/* Trụ danh mục cạnh bàn QC, bên ngoài làn xe nâng và phía trước kệ. */}
+      <group position={[-9.9, 0, -23.3]}>
+        <mesh position={[0, 0.42, 0]} castShadow>
+          <boxGeometry args={[0.1, 0.84, 0.1]} />
+          <meshStandardMaterial color="#334155" metalness={0.7} roughness={0.4} />
+        </mesh>
+        <mesh position={[0, 0.04, 0]} receiveShadow>
+          <boxGeometry args={[0.65, 0.08, 0.45]} />
+          <meshStandardMaterial color="#0f172a" metalness={0.7} />
+        </mesh>
+        <group scale={0.6}>
+          <CategoryBoard
+            position={[0, 2.25, 0]}
+            onClick={onOpenCategoryManage}
+            showHotspot={showHotspots}
+          />
+        </group>
+      </group>
 
       {/* Trang bị an toàn PCCC, Hộp cứu thương & Camera giám sát */}
       <WarehouseSafetyEquipment />

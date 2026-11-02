@@ -43,6 +43,7 @@ interface BizFlowWorldProps {
   showroomChildren: React.ReactNode;
   /** Dữ liệu tồn kho cho Phòng Kho */
   stockItems?: StockLevelRow[];
+  visibleStockItems?: StockLevelRow[];
   onOpenProductForm?: () => void;
   onOpenImportStock?: (productId?: string) => void;
   onOpenCategoryManage?: () => void;
@@ -71,6 +72,7 @@ export function BizFlowWorld({
   targetFocusPoint = null,
   showroomChildren,
   stockItems = [],
+  visibleStockItems,
   onOpenProductForm,
   onOpenImportStock,
   onOpenCategoryManage,
@@ -197,9 +199,10 @@ export function BizFlowWorld({
       >
         {/* Pre-warm WebGL Shaders loại bỏ 100% lag khi chuyển phòng */}
         <ScenePrewarmer />
+        <color attach="background" args={[activeRoom === "warehouse" ? "#101827" : "#070b14"]} />
 
         {/* Môi trường chiếu sáng nhẹ & sương mù chiều sâu */}
-        <fog attach="fog" args={["#070b14", 20, 48]} />
+        <fog attach="fog" args={activeRoom === "warehouse" ? ["#070b14", 38, 90] : ["#070b14", 20, 48]} />
         <Environment preset="city" environmentIntensity={0.25} />
 
         {/* ── BỘ ĐIỀU KHIỂN CAMERA ĐA PHÒNG & MOUSE PARALLAX ────────── */}
@@ -209,18 +212,19 @@ export function BizFlowWorld({
           controlsRef={controlsRef}
           targetFocusPoint={targetFocusPoint}
           isPOSActive={isInteractingWithPOS}
+          isAnyModalOpen={isAnyModalOpen}
           waypoints={transitionWaypoints}
           onWaypointChange={handleWaypointChange}
           onTransitionComplete={handleTransitionComplete}
         />
 
-        {/* OrbitControls: KHÓA XOAY TỰ DO, KHÓA CHUỘT PHẢI, CHỈ CHO PHÉP ZOOM AN TOÀN */}
+        {/* OrbitControls: KHÓA XOAY TỰ DO, KHÓA CHUỘT PHẢI, ZOOM NHẸ DO CAMERA CONTROLLER QUẢN LÝ */}
         <OrbitControls
           ref={controlsRef}
           target={[0, 1.2, 0]}
           enableRotate={false}
           enablePan={false}
-          enableZoom={!isInteractingWithPOS}
+          enableZoom={false}
           minDistance={isInteractingWithPOS ? 0.1 : 0.8}
           maxDistance={25}
           enableDamping
@@ -252,6 +256,7 @@ export function BizFlowWorld({
           <group visible={isWarehouseVisible}>
             <WarehouseScene
               stockItems={stockItems}
+              visibleStockItems={visibleStockItems}
               onOpenProductForm={onOpenProductForm}
               onOpenImportStock={onOpenImportStock}
               onOpenCategoryManage={onOpenCategoryManage}

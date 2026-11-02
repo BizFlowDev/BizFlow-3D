@@ -22,6 +22,7 @@ interface WorldCameraControllerProps {
   lerpSpeed?: number;
   /** Đang ở chế độ máy POS (tắt parallax) */
   isPOSActive?: boolean;
+  isAnyModalOpen?: boolean;
   /** Chuỗi waypoint chuyển phòng xuyên cửa */
   waypoints?: TransitionWaypoint[] | null;
   /** Callback khi bắt đầu waypoint mới (để mở cửa tương ứng) */
@@ -37,11 +38,31 @@ export function WorldCameraController({
   targetFocusPoint,
   lerpSpeed = 4.5,
   isPOSActive = false,
+  isAnyModalOpen = false,
   waypoints = null,
   onWaypointChange,
   onTransitionComplete,
 }: WorldCameraControllerProps) {
-  const { camera } = useThree();
+  const { camera, gl } = useThree();
+  const desiredZoomRef = useRef(1);
+
+  // Optical zoom stays independent of preset/parallax camera positions.
+  useEffect(() => {
+    desiredZoomRef.current = 1;
+  }, [currentPreset, activeRoom, targetFocusPoint, waypoints, isPOSActive]);
+
+  useEffect(() => {
+    const canvas = gl.domElement;
+    const handleWheel = (event: WheelEvent) => {
+      if (event.ctrlKey || event.metaKey || isPOSActive || isAnyModalOpen || targetFocusPoint || isTransitioningRef.current) return;
+      event.preventDefault();
+      const pixels = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? canvas.clientHeight : 1);
+      const step = THREE.MathUtils.clamp(pixels, -100, 100);
+      desiredZoomRef.current = THREE.MathUtils.clamp(desiredZoomRef.current * Math.exp(-step * 0.0007), 0.9, 1.2);
+    };
+    canvas.addEventListener("wheel", handleWheel, { passive: false });
+    return () => canvas.removeEventListener("wheel", handleWheel);
+  }, [gl, isPOSActive, isAnyModalOpen, targetFocusPoint]);
 
   // Vị trí gốc (Base position & target không có Parallax)
   const basePosRef = useRef(new THREE.Vector3(0, 4.8, 9.8));
@@ -153,10 +174,15 @@ export function WorldCameraController({
       desiredTargetRef.current.set(...cfg.target);
       isTransitioningRef.current = true;
     }
-  }, [currentPreset, targetFocusPoint, activeRoom]);
+  }, [currentPreset, targetFocusPoint, activeRoom, camera, waypoints]);
 
   // ── 3. Vòng lặp Render useFrame (Waypoints + Parallax + Safe Zoom) ───────────
   useFrame((state, delta) => {
+    const zoom = THREE.MathUtils.damp(camera.zoom, desiredZoomRef.current, 8, delta);
+    if (Math.abs(camera.zoom - zoom) > 0.00001) {
+      camera.zoom = zoom;
+      camera.updateProjectionMatrix();
+    }
     // --- PHẦN A: ĐIỀU KHIỂN CHUỖI WAYPOINT CHUYỂN PHÒNG ---
     if (waypointsRef.current && waypointsRef.current.length > 0) {
       const currentWp = waypointsRef.current[waypointIndexRef.current];

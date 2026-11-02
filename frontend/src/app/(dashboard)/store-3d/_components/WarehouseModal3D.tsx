@@ -119,11 +119,8 @@ export function WarehouseModal3D({
 
   // Tính toán số liệu tồn kho
   const stockNow = currentStockRow?.currentStock ?? currentProduct?.currentStock ?? 0;
-  const maxCap = currentStockRow?.maxStock ?? currentProduct?.maxStock ?? 100;
   const minSafe = currentStockRow?.minStock ?? 10;
-  const fillRatio = Math.min(1, Math.max(0, stockNow / (maxCap || 1)));
-  const isLowStock = fillRatio < 0.15 || stockNow <= minSafe;
-  const isHealthy = fillRatio >= 0.5;
+  const isLowStock = stockNow <= minSafe;
 
   const totalImportCost = (quantity || 0) * (unitCost || 0);
 
@@ -306,40 +303,23 @@ export function WarehouseModal3D({
                           className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase shrink-0 border ${
                             isLowStock
                               ? "bg-red-500/20 text-red-400 border-red-500/40"
-                              : isHealthy
-                              ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/40"
-                              : "bg-amber-500/20 text-amber-400 border-amber-500/40"
+                              : "bg-emerald-500/20 text-emerald-400 border-emerald-500/40"
                           }`}
                         >
-                          {isLowStock ? "Tồn thấp" : isHealthy ? "Đủ hàng" : "Mức vừa"}
+                          {stockNow <= 0 ? "Hết hàng" : isLowStock ? "Tồn thấp" : "Còn hàng"}
                         </span>
                       </div>
 
-                      {/* Thanh sức chứa & mức tồn hiện tại */}
+                      {/* Số lượng tồn hiện tại */}
                       <div className="space-y-1.5 pt-1 border-t border-white/5">
                         <div className="flex justify-between text-xs">
                           <span className="text-slate-400">Tồn kho hiện có:</span>
                           <span className="font-bold text-white font-mono">
-                            {stockNow} / {maxCap} {activeUnit?.unitName || "Đơn vị"}
+                            {stockNow} {activeUnit?.unitName || "Đơn vị"}
                           </span>
-                        </div>
-                        <div className="h-2 w-full overflow-hidden rounded-full bg-slate-800">
-                          <div
-                            className={`h-full rounded-full transition-all duration-500 ${
-                              isLowStock
-                                ? "bg-red-500"
-                                : isHealthy
-                                ? "bg-emerald-400"
-                                : "bg-amber-400"
-                            }`}
-                            style={{ width: `${Math.round(fillRatio * 100)}%` }}
-                          />
                         </div>
                         <div className="flex justify-between text-[10px] text-slate-400 font-mono">
                           <span>Mức tối thiểu: {minSafe}</span>
-                          <span className="text-amber-300 font-semibold">
-                            Tỷ lệ lấp đầy: {Math.round(fillRatio * 100)}%
-                          </span>
                         </div>
                       </div>
                     </div>

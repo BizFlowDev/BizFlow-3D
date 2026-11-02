@@ -22,11 +22,6 @@ import {
   Crown,
   Layers,
   Filter,
-  Compass,
-  BarChart3,
-  Plus,
-  ArrowDownToLine,
-  User,
 } from "lucide-react";
 import { useProductList, useCategoryList, type Product } from "@/hooks/useProducts";
 import { useOrderList, type Order } from "@/hooks/useOrders";
@@ -36,6 +31,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import type { ShelfProduct } from "@/components/3d/ProductShelf";
 import type { RoomId, CameraPreset } from "@/components/3d/world/types";
 import type { CameraFocusPoint } from "@/components/3d/world/WorldCameraController";
+import { getWarehousePage } from "@/components/3d/world/warehouseInventory";
 import { RoomNavigationHUD } from "@/components/3d/world/RoomNavigationHUD";
 import { OfficeSettingsModal } from "@/components/3d/world/OfficeSettingsModal";
 import { EmployeeFormDialog } from "../employees/_components/EmployeeFormDialog";
@@ -123,7 +119,13 @@ export default function Store3DPage() {
   const [cargoDetailModalOpen, setCargoDetailModalOpen] = useState(false);
   const [selectedCargoItem, setSelectedCargoItem] = useState<StockLevelRow | null>(null);
   const [selectedCargoLocation, setSelectedCargoLocation] = useState<CargoLocationInfo | null>(null);
-  const [highlightCategoryId, setHighlightCategoryId] = useState<string | null>(null);
+  const [warehouseQuery, setWarehouseQuery] = useState("");
+  const [warehousePage, setWarehousePage] = useState(0);
+  const [highlightCategoryId, setHighlightCategoryIdState] = useState<string | null>(null);
+  const setHighlightCategoryId = useCallback((id: string | null) => {
+    setHighlightCategoryIdState(id);
+    setWarehousePage(0);
+  }, []);
 
   const [officeSettingsOpen, setOfficeSettingsOpen] = useState(false);
   const [employeeFormOpen, setEmployeeFormOpen] = useState(false);
@@ -143,7 +145,12 @@ export default function Store3DPage() {
     limit: 200,
     status: "all",
   });
-  const { data: stockData } = useStockLevel();
+  const { data: stockData, isLoading: stockLoading, isError: stockError, refetch: refetchStock } = useStockLevel();
+  const warehouseDisplay = useMemo(
+    () => getWarehousePage(stockData || [], warehouseQuery, highlightCategoryId, warehousePage),
+    [stockData, warehouseQuery, highlightCategoryId, warehousePage],
+  );
+  useEffect(() => { setWarehousePage(warehouseDisplay.currentPage); }, [warehouseDisplay.currentPage]);
   const { data: ordersData } = useOrderList({ limit: 12 });
   const { data: categoriesData = [] } = useCategoryList();
   const { data: employeesData } = useEmployeeList({ limit: 50 });
@@ -829,8 +836,8 @@ export default function Store3DPage() {
   // ── Mở Bàn Kiểm Hàng QC & Soát Barcode 3D ───────────────────
   const handleOpenInspectionDesk = useCallback((productId?: string) => {
     setTargetFocusPoint({
-      target: [-11.0, 1.0, -22.8],
-      position: [-11.0, 2.3, -19.5],
+      target: [-12, 1.0, -22.8],
+      position: [-12, 2.3, -19.5],
     });
     setImportStockProductId(productId);
     setWarehouseInspectionModalOpen(true);
@@ -840,8 +847,8 @@ export default function Store3DPage() {
   const handleOpenProductForm3D = useCallback(
     (productOrId?: Product | string | null) => {
       setTargetFocusPoint({
-        target: [-11.0, 1.0, -22.8],
-        position: [-11.0, 2.3, -19.5],
+        target: [-12, 1.0, -22.8],
+        position: [-12, 2.3, -19.5],
       });
       if (typeof productOrId === "string") {
         const found = productsData?.items?.find((p) => p.id === productOrId) || null;
@@ -871,8 +878,8 @@ export default function Store3DPage() {
   // ── Mở Bảng Quản Lý Danh Mục Kho 3D ──────────────────────────
   const handleOpenCategoryManage = useCallback(() => {
     setTargetFocusPoint({
-      target: [-15.0, 2.3, -23.5],
-      position: [-11.5, 2.4, -22.8],
+      target: [-9.9, 1.35, -23.3],
+      position: [-9.9, 2.2, -19.3],
     });
     setCategoryManageModal3DOpen(true);
   }, []);
@@ -882,8 +889,8 @@ export default function Store3DPage() {
     (item: StockLevelRow, location: CargoLocationInfo) => {
       const isAisleA = location.aisle === "DÃY KỆ A";
       setTargetFocusPoint({
-        target: isAisleA ? [-11.2, 1.8, -28.2] : [-4.5, 1.8, -28.2],
-        position: isAisleA ? [-11.2, 2.5, -24.5] : [-4.5, 2.5, -24.5],
+        target: isAisleA ? [-12, 1.8, -28.2] : [-4, 1.8, -28.2],
+        position: isAisleA ? [-12, 2.5, -24.5] : [-4, 2.5, -24.5],
       });
       setSelectedCargoItem(item);
       setSelectedCargoLocation(location);
@@ -1077,6 +1084,7 @@ export default function Store3DPage() {
             isAnyModalOpen={isAnyModalOpen}
             targetFocusPoint={targetFocusPoint}
             stockItems={stockData || []}
+            visibleStockItems={warehouseDisplay.items}
             onOpenProductForm={() => handleOpenInspectionDesk()}
             onOpenImportStock={handleOpenImportStock}
             onOpenCategoryManage={handleOpenCategoryManage}
@@ -1253,159 +1261,29 @@ export default function Store3DPage() {
               : "translate-y-0 opacity-100 relative"
               }`}
           >
-            {/* ── BANNER PHÒNG HÀNH LANG (Hub) ── */}
-            {activeRoom === "hallway" && (
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 rounded-2xl border border-sky-500/30 bg-slate-950/85 p-3.5 shadow-2xl backdrop-blur-xl animate-in fade-in">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-500/20 text-sky-400">
-                    <Compass className="h-6 w-6" />
-                  </div>
-                  <div>
-                    <h2 className="text-sm font-bold text-white flex items-center gap-2">
-                      Hành Lang Trung Tâm
-                      <span className="rounded-full bg-sky-500/20 px-2 py-0.5 text-[10px] text-sky-300 font-semibold border border-sky-500/30">
-                        Connectivity Hub
-                      </span>
-                    </h2>
-                    <p className="text-xs text-slate-400">
-                      Click vào cánh cửa 3D hoặc dùng các nút chuyển phòng bên dưới để bước vào từng phòng
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    onClick={() => handleSelectRoom("showroom")}
-                    className="flex items-center gap-1.5 rounded-xl border border-indigo-500/40 bg-indigo-600/30 hover:bg-indigo-600/50 px-3 py-1.5 text-xs font-semibold text-indigo-200 transition-all hover:scale-105"
-                  >
-                    <Store className="h-4 w-4" />
-                    <span>Vào Showroom (P.1)</span>
-                  </button>
-                  <button
-                    onClick={() => handleSelectRoom("warehouse")}
-                    className="flex items-center gap-1.5 rounded-xl border border-amber-500/40 bg-amber-600/30 hover:bg-amber-600/50 px-3 py-1.5 text-xs font-semibold text-amber-200 transition-all hover:scale-105"
-                  >
-                    <Package className="h-4 w-4" />
-                    <span>Vào Kho Hàng (P.2)</span>
-                  </button>
-                  <button
-                    onClick={() => handleSelectRoom("office")}
-                    className="flex items-center gap-1.5 rounded-xl border border-emerald-500/40 bg-emerald-600/30 hover:bg-emerald-600/50 px-3 py-1.5 text-xs font-semibold text-emerald-200 transition-all hover:scale-105"
-                  >
-                    <BarChart3 className="h-4 w-4" />
-                    <span>Vào Văn Phòng (P.3)</span>
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* ── BANNER PHÒNG 2 (Kho Hàng & Sản Phẩm) ── */}
+            {/* Tìm kiếm và phân trang kho; các tác vụ mở tại trạm 3D. */}
             {activeRoom === "warehouse" && (
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 rounded-2xl border border-amber-500/30 bg-slate-950/85 p-3.5 shadow-2xl backdrop-blur-xl animate-in fade-in">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/20 text-amber-400">
-                    <Package className="h-6 w-6" />
-                  </div>
-                  <div>
-                    <h2 className="text-sm font-bold text-white flex items-center gap-2">
-                      Phòng 2: Kho Hàng & Quản Lý Sản Phẩm
-                      <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] text-amber-300 font-semibold border border-amber-500/30">
-                        Smart Warehouse 3D
-                      </span>
-                    </h2>
-                    <p className="text-xs text-slate-400">
-                      Giám sát tồn kho 3D &bull; Bàn kiểm hàng &bull; Khu nhập hàng &bull; Bảng danh mục
-                    </p>
-                  </div>
+              <div className="space-y-2">
+              <div className="flex flex-wrap items-center gap-2 rounded-xl border border-white/15 bg-slate-950/90 px-3 py-2 text-xs text-slate-200">
+                <label className="flex min-w-40 flex-1 items-center gap-2">
+                  <Search className="h-4 w-4 shrink-0 text-slate-400" />
+                  <input aria-label="Tìm hàng trong kho" placeholder="Tìm tên hoặc mã hàng…" value={warehouseQuery} onChange={(e) => { setWarehouseQuery(e.target.value); setWarehousePage(0); }} className="w-full bg-transparent py-1 outline-none focus:ring-1 focus:ring-sky-400 rounded" />
+                </label>
+                <select aria-label="Lọc danh mục kho" value={highlightCategoryId || ""} onChange={(e) => setHighlightCategoryId(e.target.value || null)} className="max-w-48 rounded-lg border border-white/20 bg-slate-900 px-2 py-1.5">
+                  <option value="">Tất cả danh mục</option>
+                  {categoriesData.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
+                </select>
+                <span role="status" aria-live="polite">
+                  {stockLoading ? "Đang tải tồn kho…" : stockError ? "Không tải được tồn kho" : warehouseDisplay.total === 0 ? "Không có mặt hàng phù hợp" : `${warehouseDisplay.start + 1}–${warehouseDisplay.start + warehouseDisplay.items.length} / ${warehouseDisplay.total} mặt hàng`}
+                </span>
+                {stockError && <button type="button" onClick={() => refetchStock()} className="text-sky-300 underline">Thử lại</button>}
+                <div className="flex items-center gap-2">
+                  <button type="button" aria-label="Trang kho trước" disabled={warehouseDisplay.currentPage === 0} onClick={() => setWarehousePage(warehouseDisplay.currentPage - 1)} className="rounded-lg border border-white/20 p-1.5 hover:bg-white/10 disabled:opacity-30"><ChevronLeft className="h-4 w-4" /></button>
+                  <label className="flex items-center gap-1">Trang <input aria-label="Đến trang kho" type="number" min={1} max={warehouseDisplay.pageCount} value={warehouseDisplay.currentPage + 1} onChange={(e) => { if (e.target.value) setWarehousePage(Math.max(0, Math.min(warehouseDisplay.pageCount - 1, Number(e.target.value) - 1))); }} className="w-12 rounded border border-white/20 bg-slate-900 px-1 py-1 text-center" /> / {warehouseDisplay.pageCount}</label>
+                  <button type="button" aria-label="Trang kho tiếp" disabled={warehouseDisplay.currentPage + 1 >= warehouseDisplay.pageCount} onClick={() => setWarehousePage(warehouseDisplay.currentPage + 1)} className="rounded-lg border border-white/20 p-1.5 hover:bg-white/10 disabled:opacity-30"><ChevronRight className="h-4 w-4" /></button>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    onClick={() => handleOpenProductForm3D(null)}
-                    className="flex items-center gap-1.5 rounded-xl border border-sky-500/40 bg-sky-600/30 hover:bg-sky-600/50 px-3 py-1.5 text-xs font-semibold text-sky-200 transition-all hover:scale-105"
-                  >
-                    <Plus className="h-4 w-4" />
-                    <span>Thêm Sản Phẩm 3D</span>
-                  </button>
-                  <button
-                    onClick={() => handleOpenImportStock()}
-                    className="flex items-center gap-1.5 rounded-xl border border-amber-500/40 bg-amber-600/30 hover:bg-amber-600/50 px-3 py-1.5 text-xs font-semibold text-amber-200 transition-all hover:scale-105"
-                  >
-                    <ArrowDownToLine className="h-4 w-4" />
-                    <span>Nhập Kho Nhanh</span>
-                  </button>
-                  <button
-                    onClick={() => handleOpenInspectionDesk()}
-                    className="flex items-center gap-1.5 rounded-xl border border-sky-500/30 bg-slate-900/80 hover:bg-slate-800 px-3 py-1.5 text-xs font-semibold text-sky-300 transition-all hover:scale-105"
-                  >
-                    <Package className="h-4 w-4" />
-                    <span>Bàn Kiểm Hàng QC</span>
-                  </button>
-                  <button
-                    onClick={handleOpenCategoryManage}
-                    className="flex items-center gap-1.5 rounded-xl border border-indigo-500/40 bg-indigo-600/25 hover:bg-indigo-600/40 px-3 py-1.5 text-xs font-semibold text-indigo-200 transition-all hover:scale-105"
-                  >
-                    <Layers className="h-4 w-4" />
-                    <span>Quản Lý Danh Mục 3D</span>
-                  </button>
-                  <button
-                    onClick={() => handleSelectRoom("hallway")}
-                    className="flex items-center gap-1.5 rounded-xl border border-sky-500/40 bg-sky-600/20 hover:bg-sky-600/40 px-3 py-1.5 text-xs font-semibold text-sky-200 transition-all"
-                  >
-                    <Compass className="h-4 w-4" />
-                    <span>Ra Hành Lang [ESC]</span>
-                  </button>
-                </div>
+                <span className="text-[10px] text-slate-400">Kệ A: 15 ô · Kệ B: 15 ô · Vị trí hiển thị ảo</span>
               </div>
-            )}
-
-            {/* ── BANNER PHÒNG 3 (Văn Phòng Quản Lý & Giám Đốc) ── */}
-            {activeRoom === "office" && (
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 rounded-2xl border border-emerald-500/30 bg-slate-950/85 p-3.5 shadow-2xl backdrop-blur-xl animate-in fade-in">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-400">
-                    <BarChart3 className="h-6 w-6" />
-                  </div>
-                  <div>
-                    <h2 className="text-sm font-bold text-white flex items-center gap-2">
-                      Phòng 3: Văn Phòng Quản Lý & Giám Đốc
-                      <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] text-emerald-300 font-semibold border border-emerald-500/30">
-                        Executive Office
-                      </span>
-                    </h2>
-                    <p className="text-xs text-slate-400">
-                      Báo cáo TV &bull; Bàn Giám Đốc &bull; Hồ sơ nhân sự &bull; Bảng chỉ số KPI
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    onClick={handleOpenSettings}
-                    className="flex items-center gap-1.5 rounded-xl border border-emerald-500/40 bg-emerald-600/30 hover:bg-emerald-600/50 px-3 py-1.5 text-xs font-semibold text-emerald-200 transition-all hover:scale-105"
-                  >
-                    <CreditCard className="h-4 w-4" />
-                    <span>Cài Đặt Cửa Hàng</span>
-                  </button>
-                  <button
-                    onClick={handleOpenEmployeeDialog}
-                    className="flex items-center gap-1.5 rounded-xl border border-sky-500/40 bg-sky-600/30 hover:bg-sky-600/50 px-3 py-1.5 text-xs font-semibold text-sky-200 transition-all hover:scale-105"
-                  >
-                    <User className="h-4 w-4" />
-                    <span>Hồ Sơ Nhân Viên</span>
-                  </button>
-                  <button
-                    onClick={handleOpenReports}
-                    className="flex items-center gap-1.5 rounded-xl border border-white/15 bg-white/10 hover:bg-white/20 px-3 py-1.5 text-xs font-semibold text-white transition-all hover:scale-105"
-                  >
-                    <BarChart3 className="h-4 w-4" />
-                    <span>Báo Cáo Doanh Thu</span>
-                  </button>
-                  <button
-                    onClick={() => handleSelectRoom("hallway")}
-                    className="flex items-center gap-1.5 rounded-xl border border-sky-500/40 bg-sky-600/20 hover:bg-sky-600/40 px-3 py-1.5 text-xs font-semibold text-sky-200 transition-all"
-                  >
-                    <Compass className="h-4 w-4" />
-                    <span>Ra Hành Lang [ESC]</span>
-                  </button>
-                </div>
               </div>
             )}
 
@@ -1840,8 +1718,8 @@ export default function Store3DPage() {
           }}
           cargoItem={selectedCargoItem}
           location={selectedCargoLocation}
-          onRestock={(id) => handleOpenImportStock(id)}
-          onInspect={(id) => handleOpenInspectionDesk(id)}
+          onRestock={(id) => { setCargoDetailModalOpen(false); handleOpenImportStock(id); }}
+          onInspect={(id) => { setCargoDetailModalOpen(false); handleOpenInspectionDesk(id); }}
         />
 
 

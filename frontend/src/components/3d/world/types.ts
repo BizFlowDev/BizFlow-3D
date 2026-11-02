@@ -173,14 +173,14 @@ export const CAMERA_PRESETS: Record<CameraPreset, CameraPresetConfig> = {
 
   // ── 📦 KHO HÀNG (Tọa độ trung tâm tại [-8, 0, -25]) ──
   warehouseOverview: {
-    position: [-7.8, 5.2, -17.0],
-    target: [-7.8, 1.0, -25.5],
+    position: [-8, 4.8, -15.4],
+    target: [-8, 1.4, -26.4],
     label: "Toàn cảnh Kho Hàng",
     room: "warehouse",
   },
   warehouseIsometric: {
-    position: [-1.8, 4.8, -17.2],
-    target: [-9.5, 1.0, -25.5],
+    position: [-1.8, 5.8, -16.2],
+    target: [-8, 1.8, -25],
     label: "Góc Nhìn Sa Bàn",
     room: "warehouse",
   },
@@ -191,20 +191,20 @@ export const CAMERA_PRESETS: Record<CameraPreset, CameraPresetConfig> = {
     room: "warehouse",
   },
   warehouseShelvesA: {
-    position: [-11.0, 2.6, -24.0],
-    target: [-11.0, 1.8, -28.2],
+    position: [-12, 2.6, -24.0],
+    target: [-12, 1.8, -28.2],
     label: "Dãy Kệ A",
     room: "warehouse",
   },
   warehouseShelvesB: {
-    position: [-4.5, 2.6, -24.0],
-    target: [-4.5, 1.8, -28.2],
+    position: [-4, 2.6, -24.0],
+    target: [-4, 1.8, -28.2],
     label: "Dãy Kệ B",
     room: "warehouse",
   },
   warehouseDesk: {
-    position: [-11.0, 2.3, -19.5],
-    target: [-11.0, 1.0, -22.8],
+    position: [-12, 2.3, -19.5],
+    target: [-12, 1.0, -22.8],
     label: "Bàn Kiểm Hàng",
     room: "warehouse",
   },
@@ -215,8 +215,8 @@ export const CAMERA_PRESETS: Record<CameraPreset, CameraPresetConfig> = {
     room: "warehouse",
   },
   warehouseCategory: {
-    position: [-11.5, 2.4, -22.8],
-    target: [-15.0, 2.3, -23.5],
+    position: [-9.9, 2.2, -19.3],
+    target: [-9.9, 1.35, -23.3],
     label: "Bảng Danh Mục",
     room: "warehouse",
   },

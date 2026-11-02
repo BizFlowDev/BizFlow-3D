@@ -22,11 +22,7 @@ const SHELF_HEIGHT = 2.3;
 const ROW_LEVELS = [0.62, 1.3, 1.98]; // y tâm của từng tầng kệ
 const BLOCK_WIDTH = 0.62;
 const BLOCK_DEPTH = 0.6;
-const MAX_BLOCK_HEIGHT = 0.52;
-
-// Ngưỡng đổi màu khối theo % tồn kho (đúng spec: >50% xanh, 10-50% vàng, <10% đỏ nhấp nháy)
-const RATIO_GREEN = 0.5;
-const RATIO_YELLOW = 0.1;
+const BLOCK_HEIGHT = 0.52;
 
 const COLOR_GREEN = "#10b981";
 const COLOR_YELLOW = "#f59e0b";
@@ -66,8 +62,7 @@ function buildCells(
     const shelfIndex = Math.floor(i / CELLS_PER_SHELF);
     const x = shelfIndex * SHELF_PITCH + (shelfCol + 0.5) * SLOT_WIDTH;
     const boardTop = ROW_LEVELS[row] - 0.1;
-    const ratio = item.stockRatio;
-    const h = Math.max(0.05, ratio * MAX_BLOCK_HEIGHT);
+    const h = BLOCK_HEIGHT;
     const y = boardTop + h / 2;
     const z = 0;
 
@@ -79,11 +74,14 @@ function buildCells(
 
     let base: string;
     let blink = false;
-    if (ratio >= RATIO_GREEN) base = COLOR_GREEN;
-    else if (ratio >= RATIO_YELLOW) base = COLOR_YELLOW;
-    else {
+    if (item.currentStock <= 0) {
       base = COLOR_RED;
       blink = true;
+    } else if (item.currentStock <= (item.minStock ?? 5)) {
+      base = COLOR_YELLOW;
+      blink = true;
+    } else {
+      base = COLOR_GREEN;
     }
 
     const color = new THREE.Color(base);
