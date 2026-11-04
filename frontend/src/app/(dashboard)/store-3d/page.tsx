@@ -1,5 +1,6 @@
 "use client";
 
+import { SpatialStoreContext } from "@/components/ui/spatial-portal";
 import { useState, useMemo, useCallback, Suspense, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
@@ -26,6 +27,8 @@ import {
 import { useProductList, useCategoryList, type Product } from "@/hooks/useProducts";
 import { useOrderList, type Order } from "@/hooks/useOrders";
 import { useStockLevel, type StockLevelRow } from "@/hooks/useInventory";
+import { toISODate } from "@/lib/report-utils";
+import { useDailyRevenue } from "@/hooks/useReports";
 import { useEmployeeList } from "@/hooks/useEmployees";
 import { useQueryClient } from "@tanstack/react-query";
 import type { ShelfProduct } from "@/components/3d/ProductShelf";
@@ -33,8 +36,8 @@ import type { RoomId, CameraPreset } from "@/components/3d/world/types";
 import type { CameraFocusPoint } from "@/components/3d/world/WorldCameraController";
 import { getWarehousePage } from "@/components/3d/world/warehouseInventory";
 import { RoomNavigationHUD } from "@/components/3d/world/RoomNavigationHUD";
-import { OfficeSettingsModal } from "@/components/3d/world/OfficeSettingsModal";
-import { EmployeeFormDialog } from "../employees/_components/EmployeeFormDialog";
+import { getOfficeScreenLayout } from "./_components/officeScreenLayout";
+import { OfficeWorkspace, OfficeLauncher, type OfficeSection } from "./_components/OfficeWorkspace";
 import {
   ProductDetailModal3D,
   type CartItem3D,
@@ -127,8 +130,18 @@ export default function Store3DPage() {
     setWarehousePage(0);
   }, []);
 
-  const [officeSettingsOpen, setOfficeSettingsOpen] = useState(false);
-  const [employeeFormOpen, setEmployeeFormOpen] = useState(false);
+  const [officeSection, setOfficeSection] = useState<OfficeSection | null>(null);
+  useEffect(() => {
+    if (!officeSection) return;
+    const focusScreen = () => {
+      const { cameraPosition, cameraTarget } = getOfficeScreenLayout(window.innerWidth, window.innerHeight, officeSection);
+      setTargetFocusPoint({ target: cameraTarget, position: cameraPosition });
+    };
+    focusScreen();
+    window.addEventListener("resize", focusScreen);
+    return () => { window.removeEventListener("resize", focusScreen); setTargetFocusPoint(null); };
+  }, [officeSection]);
+
 
   const { data: store } = useCurrentStore();
   const user = useAuthStore((state) => state.user);
@@ -153,8 +166,19 @@ export default function Store3DPage() {
   useEffect(() => { setWarehousePage(warehouseDisplay.currentPage); }, [warehouseDisplay.currentPage]);
   const { data: ordersData } = useOrderList({ limit: 12 });
   const { data: categoriesData = [] } = useCategoryList();
-  const { data: employeesData } = useEmployeeList({ limit: 50 });
-  const employeeCount = employeesData?.total ?? employeesData?.items?.length ?? 1;
+  const { data: employeesData } = useEmployeeList({ limit: 1 }, user?.role === "owner");
+  const officeDate = toISODate(new Date());
+  const officeRange = useMemo(() => {
+    const to = new Date(`${officeDate}T00:00:00`);
+    to.setHours(23, 59, 59, 999);
+    const from = new Date(to);
+    from.setDate(from.getDate() - 6);
+    from.setHours(0, 0, 0, 0);
+    return { from, to };
+  }, [officeDate]);
+  const { data: officeRevenue, isError: officeRevenueError } = useDailyRevenue(officeRange.from, officeRange.to, user?.role === "owner" && activeRoom === "office");
+  const officeToday = officeRevenue?.at(-1);
+  const employeeCount = employeesData?.total ?? employeesData?.items?.length ?? 0;
 
   // ── State Danh Mục & Lọc ─────────────────────────────────────
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
@@ -900,16 +924,20 @@ export default function Store3DPage() {
   );
 
   const handleOpenSettings = useCallback(() => {
-    setOfficeSettingsOpen(true);
-  }, []);
+    if (user?.role === "owner") setOfficeSection("settings");
+  }, [user?.role]);
 
   const handleOpenEmployeeDialog = useCallback(() => {
-    setEmployeeFormOpen(true);
-  }, []);
+    if (user?.role === "owner") setOfficeSection("employees");
+  }, [user?.role]);
 
   const handleOpenReports = useCallback(() => {
-    router.push("/reports");
-  }, [router]);
+    if (user?.role === "owner") setOfficeSection("reports");
+  }, [user?.role]);
+
+  const handleOpenAccounting = useCallback(() => {
+    if (user?.role === "owner") setOfficeSection("accounting");
+  }, [user?.role]);
 
   // ── Mở & Đóng Màn Hình Máy Tính POS ─────────────────────────
   const handleOpenPOS = useCallback(() => {
@@ -956,8 +984,7 @@ export default function Store3DPage() {
     setProductFormModal3DOpen(false);
     setCategoryManageModal3DOpen(false);
     setCargoDetailModalOpen(false);
-    setEmployeeFormOpen(false);
-    setOfficeSettingsOpen(false);
+    setOfficeSection(null);
     setUpgradeModalOpen(false);
     setTargetFocusPoint(null);
 
@@ -981,6 +1008,8 @@ export default function Store3DPage() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
+        // Let Radix close only the topmost office dialog (including nested forms).
+        if (officeSection) return;
         const isAnyModalOpen = Boolean(
           selectedProductForDetail ||
           warehouseImportModalOpen ||
@@ -988,8 +1017,7 @@ export default function Store3DPage() {
           productFormModal3DOpen ||
           categoryManageModal3DOpen ||
           cargoDetailModalOpen ||
-          employeeFormOpen ||
-          officeSettingsOpen ||
+          officeSection ||
           upgradeModalOpen ||
           targetFocusPoint
         );
@@ -1030,8 +1058,7 @@ export default function Store3DPage() {
     productFormModal3DOpen,
     categoryManageModal3DOpen,
     cargoDetailModalOpen,
-    employeeFormOpen,
-    officeSettingsOpen,
+    officeSection,
     upgradeModalOpen,
     handleExitPOS,
     handleReturnToOverview,
@@ -1049,12 +1076,11 @@ export default function Store3DPage() {
     productFormModal3DOpen ||
     categoryManageModal3DOpen ||
     cargoDetailModalOpen ||
-    employeeFormOpen ||
-    officeSettingsOpen
+    officeSection
   );
 
   return (
-    <>
+    <SpatialStoreContext.Provider value={true}>
       {/* Animation loading CSS */}
       <style jsx global>{`
         @keyframes loading {
@@ -1082,6 +1108,7 @@ export default function Store3DPage() {
             currentPreset={cameraPreset}
             isPOSActive={isPOSActive}
             isAnyModalOpen={isAnyModalOpen}
+            officeWorkspace={user?.role === "owner" && activeRoom === "office" ? <OfficeWorkspace queryClient={queryClient} section={officeSection} onSectionChange={setOfficeSection} /> : null}
             targetFocusPoint={targetFocusPoint}
             stockItems={stockData || []}
             visibleStockItems={warehouseDisplay.items}
@@ -1090,13 +1117,17 @@ export default function Store3DPage() {
             onOpenCategoryManage={handleOpenCategoryManage}
             onSelectCargoItem={handleSelectCargoItem}
             highlightCategoryId={highlightCategoryId}
-            todayRevenue={todayRevenue}
-            pendingCount={pendingCount}
-            totalProductsCount={enrichedProducts.length}
+            todayRevenue={officeToday?.totalRevenue ?? 0}
+            completedOrdersCount={officeToday?.orderCount ?? 0}
+            revenueSeries={user?.role === "owner" && !officeRevenueError ? officeRevenue?.map((point) => point.totalRevenue) ?? [] : []}
+            metricsStatus={user?.role !== "owner" ? "Chỉ dành cho chủ cửa hàng" : officeRevenueError ? "Không tải được số liệu" : !officeRevenue ? "Đang tải số liệu…" : undefined}
+            totalProductsCount={productsData?.total ?? 0}
             employeeCount={employeeCount}
             onOpenSettings={handleOpenSettings}
             onOpenEmployeeDialog={handleOpenEmployeeDialog}
             onOpenReports={handleOpenReports}
+            onOpenAccounting={handleOpenAccounting}
+            canManageOffice={user?.role === "owner"}
             showroomChildren={
               <>
                 {/* Kệ hàng A — bên trái tường sau */}
@@ -1724,31 +1755,11 @@ export default function Store3DPage() {
 
 
 
-        {/* ── Employee Form Dialog (Từ Tủ Hồ Sơ Văn Phòng) ─ */}
-        <EmployeeFormDialog
-          open={employeeFormOpen}
-          onOpenChange={(open) => {
-            setEmployeeFormOpen(open);
-            if (!open) {
-              setTargetFocusPoint(null);
-              setCameraPreset("officeOverview");
-            }
-          }}
-          currentEmployeeCount={employeeCount}
-        />
+        {activeRoom === "office" && !isAnyModalOpen && (
+          <OfficeLauncher canManage={user?.role === "owner"} onSelect={setOfficeSection} />
+        )}
 
-        {/* ── Office Settings Modal (Từ Bàn Giám Đốc) ───── */}
-        <OfficeSettingsModal
-          open={officeSettingsOpen}
-          onOpenChange={(open) => {
-            setOfficeSettingsOpen(open);
-            if (!open) {
-              setTargetFocusPoint(null);
-              setCameraPreset("officeOverview");
-            }
-          }}
-        />
       </div>
-    </>
+    </SpatialStoreContext.Provider>
   );
 }

@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import type { Product, ProductUnit } from "@/hooks/useProducts";
 import { LOW_STOCK_THRESHOLD } from "@/lib/dashboard-keys";
+import { useSpatialModalClose } from "./useSpatialModalClose";
 import { Modal3DCard } from "./Modal3DCard";
 
 export interface CartItem3D {
@@ -49,10 +50,11 @@ function formatVND(amount: number): string {
 export function ProductDetailModal3D({
   product,
   isOpen,
-  onClose,
+  onClose: requestClose,
   onAddToCart,
   onBuyNow,
 }: ProductDetailModal3DProps) {
+  const { close: onClose, closing } = useSpatialModalClose(isOpen, requestClose);
   const [selectedUnitId, setSelectedUnitId] = useState<string>("");
   const [quantity, setQuantity] = useState<number>(1);
   const [addedAnimation, setAddedAnimation] = useState(false);
@@ -145,7 +147,7 @@ export function ProductDetailModal3D({
 
       {/* ── BẢNG HOLOGRAM LƠ LỬNG TRONG KHÔNG GIAN (SPATIAL FLOATING CARD) ── */}
       <div className="pointer-events-auto w-full max-w-lg">
-        <Modal3DCard
+        <Modal3DCard closing={closing}
           className="w-full my-auto"
           accentGlowColor="rgba(56, 189, 248, 0.45)"
           isFloating={true}

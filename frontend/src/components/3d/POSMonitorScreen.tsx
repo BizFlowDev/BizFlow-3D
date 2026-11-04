@@ -1,5 +1,7 @@
 "use client";
 
+import { Modal3DCard } from "@/app/(dashboard)/store-3d/_components/Modal3DCard";
+
 import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import {
   CreditCard,
@@ -1375,8 +1377,8 @@ function POSMonitorScreenInner({
 
       {/* ── Modal Thanh Toán Stripe Cao Cấp (Màn Hình Quầy POS 3D) ── */}
       {stripeModalOpen && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm p-6 animate-in fade-in duration-150">
-          <div className="relative w-full max-w-md rounded-2xl border border-white/20 bg-slate-900 p-5 shadow-2xl space-y-3">
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-950/45 backdrop-blur-[2px] p-6 animate-in fade-in duration-150">
+          <Modal3DCard className="mx-auto max-w-md"><div className="relative w-full max-w-md rounded-2xl border border-white/20 bg-slate-900 p-5 shadow-2xl space-y-3">
             {/* Header */}
             <div className="flex items-center justify-between pb-2.5 border-b border-white/10">
               <div className="flex items-center gap-2.5">
@@ -1588,7 +1590,7 @@ function POSMonitorScreenInner({
                 </div>
               </>
             ) : null}
-          </div>
+          </div></Modal3DCard>
         </div>
       )}
     </div>

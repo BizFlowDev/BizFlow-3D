@@ -1,5 +1,8 @@
 "use client";
 
+import { useSpatialModalClose } from "./useSpatialModalClose";
+import { Modal3DCard } from "./Modal3DCard";
+
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import Image from "next/image";
 import {
@@ -76,7 +79,7 @@ const CASH_PRESETS = [10000, 20000, 50000, 100000, 200000, 500000];
 
 export function CreateOrderModal3D({
   isOpen,
-  onClose,
+  onClose: requestClose,
   orderLines,
   onAddProduct,
   onUpdateQuantity,
@@ -85,6 +88,7 @@ export function CreateOrderModal3D({
   onOrderSuccess,
   activeOrdersCount = 0,
 }: CreateOrderModal3DProps) {
+  const { close: onClose, closing } = useSpatialModalClose(isOpen, requestClose);
   // Tabs: 'create' hoặc 'history'
   const [activeTab, setActiveTab] = useState<"create" | "history">("create");
 
@@ -359,8 +363,8 @@ export function CreateOrderModal3D({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-3 sm:p-5 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="relative flex h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-3xl border border-white/20 bg-slate-900 text-white shadow-2xl backdrop-blur-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 p-3 sm:p-5 backdrop-blur-[2px] animate-in fade-in duration-200">
+      <Modal3DCard closing={closing} className="mx-auto max-w-6xl"><div className="relative flex h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-3xl border border-white/20 bg-slate-900 text-white shadow-2xl backdrop-blur-2xl">
         {/* ── Header Terminal POS ──────────────────────────────── */}
         <div className="flex items-center justify-between border-b border-white/10 bg-slate-800/90 px-6 py-3.5">
           <div className="flex items-center gap-3">
@@ -1131,12 +1135,12 @@ export function CreateOrderModal3D({
             )}
           </div>
         )}
-      </div>
+      </div></Modal3DCard>
 
       {/* ── Modal Thanh Toán Stripe Cao Cấp (Showroom 3D) ── */}
       {stripeModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-in fade-in duration-200">
-          <div className="relative w-full max-w-md rounded-3xl border border-white/20 bg-slate-900/95 p-6 shadow-2xl space-y-4">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/45 backdrop-blur-[2px] p-4 animate-in fade-in duration-200">
+          <Modal3DCard className="mx-auto max-w-md"><div className="relative w-full max-w-md rounded-3xl border border-white/20 bg-slate-900/95 p-6 shadow-2xl space-y-4">
             {/* Header */}
             <div className="flex items-center justify-between pb-3 border-b border-white/10">
               <div className="flex items-center gap-3">
@@ -1349,7 +1353,7 @@ export function CreateOrderModal3D({
                 </div>
               </>
             ) : null}
-          </div>
+          </div></Modal3DCard>
         </div>
       )}
       {/* Modal Nâng cấp gói dịch vụ với tích hợp thanh toán Stripe */}

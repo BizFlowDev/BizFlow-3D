@@ -138,7 +138,7 @@ export function BrandShowcase() {
 
       {/* Dashboard illustration with floating cards */}
       <div className="relative w-full max-w-lg">
-        {/* Floating analytics cards */}
+        Floating analytics cards
         <FloatingCard
           icon={BarChart3}
           title="Doanh thu hôm nay"

@@ -31,6 +31,7 @@ import {
 } from "@/hooks/useInventory";
 import { useCategoryList } from "@/hooks/useProducts";
 import { useQueryClient } from "@tanstack/react-query";
+import { useSpatialModalClose } from "./useSpatialModalClose";
 import { Modal3DCard } from "./Modal3DCard";
 
 interface WarehouseModal3DProps {
@@ -52,12 +53,13 @@ function formatVND(amount: number): string {
 
 export function WarehouseModal3D({
   isOpen,
-  onClose,
+  onClose: requestClose,
   preselectedProductId,
   defaultTab = "import",
   onOpenProductFormAdvanced,
   onOpenCategoryManageAdvanced,
 }: WarehouseModal3DProps) {
+  const { close: onClose, closing } = useSpatialModalClose(isOpen, requestClose);
   const queryClient = useQueryClient();
   const { data: catalog = [], isLoading: isCatalogLoading } = useInventoryCatalog();
   const { data: stockItems = [], refetch: refetchStock } = useStockLevel();
@@ -171,7 +173,7 @@ export function WarehouseModal3D({
 
       {/* ── BẢNG HOLOGRAM KHO HÀNG 3D LƠ LỬNG TRONG KHÔNG GIAN ── */}
       <div className="pointer-events-auto w-full max-w-lg">
-        <Modal3DCard
+        <Modal3DCard closing={closing}
           className="w-full my-auto border-amber-500/35 shadow-[0_20px_60px_rgba(0,0,0,0.75),0_0_40px_rgba(245,158,11,0.2)]"
           accentGlowColor="rgba(245, 158, 11, 0.45)"
           isFloating={true}

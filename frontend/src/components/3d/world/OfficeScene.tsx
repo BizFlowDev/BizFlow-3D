@@ -1,21 +1,23 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { useFrame } from "@react-three/fiber";
+import { useState } from "react";
 import { Text, Html } from "@react-three/drei";
-import * as THREE from "three";
 import { Door3D } from "./Door3D";
-import { type RoomId, ROOMS, type DoorId } from "./types";
+import { ROOMS, type DoorId } from "./types";
 import { SmartOcclusionGroup } from "./SmartOcclusion";
 
 interface OfficeSceneProps {
   todayRevenue?: number;
-  pendingCount?: number;
+  revenueSeries?: number[];
+  metricsStatus?: string;
+  completedOrdersCount?: number;
   totalProductsCount?: number;
   employeeCount?: number;
   onOpenSettings?: () => void;
   onOpenEmployeeDialog?: () => void;
   onOpenReports?: () => void;
+  onOpenAccounting?: () => void;
+  canManage?: boolean;
   onReturnToHallway?: () => void;
   openDoor?: DoorId | null;
   isVisible?: boolean;
@@ -44,19 +46,23 @@ function WallMountedTV({
   position,
   revenue,
   ordersCount,
+  revenueSeries,
+  metricsStatus,
   onClick,
   showHotspot = true,
 }: {
   position: [number, number, number];
   revenue: number;
   ordersCount: number;
+  revenueSeries: number[];
+  metricsStatus?: string;
   onClick: () => void;
   showHotspot?: boolean;
 }) {
   const [hovered, setHovered] = useState(false);
 
-  // Dữ liệu biểu đồ cột mini trên màn hình TV (7 ngày gần nhất)
-  const chartBars = [35, 52, 45, 68, 80, 72, 95];
+  const chartBars = revenueSeries;
+  const chartMax = Math.max(1, ...chartBars);
 
   return (
     <group
@@ -105,7 +111,7 @@ function WallMountedTV({
         anchorX="left"
         anchorY="middle"
       >
-        BIZFLOW EXECUTIVE DASHBOARD
+        BIZFLOW / TỔNG QUAN KINH DOANH
       </Text>
 
       {/* Thẻ Doanh thu hôm nay trên TV */}
@@ -126,7 +132,7 @@ function WallMountedTV({
         anchorY="middle"
         letterSpacing={0.02}
       >
-        {formatVND(revenue)}
+        {metricsStatus ? "—" : formatVND(revenue)}
       </Text>
 
       {/* Thẻ Số đơn hàng */}
@@ -137,7 +143,7 @@ function WallMountedTV({
         anchorX="left"
         anchorY="middle"
       >
-        Đơn hàng
+        Đơn hoàn tất hôm nay
       </Text>
       <Text
         position={[0.8, 0.3, 0.05]}
@@ -146,13 +152,13 @@ function WallMountedTV({
         anchorX="left"
         anchorY="middle"
       >
-        {ordersCount} đơn
+        {metricsStatus ? "—" : `${ordersCount} đơn`}
       </Text>
 
       {/* Biểu đồ cột 3D mini vẽ trực tiếp trên màn hình TV */}
       <group position={[-1.4, -0.55, 0.05]}>
         {chartBars.map((val, idx) => {
-          const barH = (val / 100) * 0.7;
+          const barH = (val / chartMax) * 0.6;
           const barW = 0.32;
           const barX = idx * 0.44;
           return (
@@ -170,6 +176,9 @@ function WallMountedTV({
         })}
       </group>
 
+      <Text position={[0, -0.72, 0.06]} fontSize={0.09} color="#94a3b8" anchorX="center">
+        {metricsStatus || "DOANH THU 7 NGÀY GẦN NHẤT"}
+      </Text>
       {/* Nút hành động tương tác */}
       {showHotspot && (
         <group position={[0, -0.9, 0.08]}>
@@ -181,13 +190,12 @@ function WallMountedTV({
             <button
               type="button"
               onClick={onClick}
-              className={`pointer-events-auto flex items-center gap-1.5 whitespace-nowrap rounded-lg border px-3 py-1 text-xs font-bold shadow-xl backdrop-blur-md transition-all ${
-                hovered
-                  ? "border-sky-400 bg-sky-600 text-white scale-110 shadow-sky-500/40"
-                  : "border-white/20 bg-slate-900/85 text-slate-200"
-              }`}
+              className={`pointer-events-auto flex items-center gap-1.5 whitespace-nowrap rounded-lg border px-3 py-1 text-xs font-bold shadow-xl backdrop-blur-md transition-all ${hovered
+                ? "border-sky-400 bg-sky-600 text-white scale-110 shadow-sky-500/40"
+                : "border-white/20 bg-slate-900/85 text-slate-200"
+                }`}
             >
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
               Xem Chi Tiết Báo Cáo
             </button>
           </Html>
@@ -247,14 +255,14 @@ function DirectorDesk({
       </mesh>
 
       {/* Màn hình cong siêu rộng Ultra-Wide trên bàn */}
-      <group position={[0, 1.25, -0.2]}>
+      <group position={[0, 1.5, -0.2]}>
         <mesh castShadow>
-          <boxGeometry args={[1.2, 0.46, 0.04]} />
+          <boxGeometry args={[1.2, 0.7, 0.04]} />
           <meshStandardMaterial color="#0f172a" metalness={0.8} />
         </mesh>
         {/* Màn hình phát sáng hiển thị bảng quản trị */}
         <mesh position={[0, 0, 0.022]}>
-          <planeGeometry args={[1.16, 0.42]} />
+          <planeGeometry args={[1.16, 0.65]} />
           <meshStandardMaterial
             color="#059669"
             emissive="#10b981"
@@ -262,7 +270,7 @@ function DirectorDesk({
           />
         </mesh>
         {/* Chân đế màn hình */}
-        <mesh position={[0, -0.26, 0]}>
+        <mesh position={[0, -0.42, 0]}>
           <cylinderGeometry args={[0.03, 0.03, 0.16, 12]} />
           <meshStandardMaterial color="#64748b" metalness={0.9} />
         </mesh>
@@ -298,7 +306,7 @@ function DirectorDesk({
 
       {/* Nút hành động nổi */}
       {showHotspot && (
-        <group position={[0, 1.6, 0]}>
+        <group position={[0, 2.2, 0]}>
           <Html
             center
             distanceFactor={8}
@@ -307,13 +315,12 @@ function DirectorDesk({
             <button
               type="button"
               onClick={onClick}
-              className={`pointer-events-auto flex items-center gap-2 rounded-xl border px-3 py-1.5 shadow-2xl backdrop-blur-md transition-all ${
-                hovered
-                  ? "border-emerald-400 bg-emerald-600/90 text-white scale-110 shadow-emerald-500/40"
-                  : "border-white/20 bg-slate-900/85 text-slate-200"
-              }`}
+              className={`pointer-events-auto flex items-center gap-2 rounded-xl border px-3 py-1.5 shadow-2xl backdrop-blur-md transition-all ${hovered
+                ? "border-emerald-400 bg-emerald-600/90 text-white scale-110 shadow-emerald-500/40"
+                : "border-white/20 bg-slate-900/85 text-slate-200"
+                }`}
             >
-              <span className="h-2 w-2 rounded-full bg-emerald-400 animate-ping" />
+              <span className="h-2 w-2 rounded-full bg-emerald-400" />
               <span className="whitespace-nowrap text-xs font-bold">
                 Bàn Giám Đốc &bull; Cài Đặt Cửa Hàng
               </span>
@@ -392,15 +399,14 @@ function EmployeeFilingCabinet({
             <button
               type="button"
               onClick={onClick}
-              className={`pointer-events-auto flex items-center gap-2 rounded-xl border px-3 py-1.5 shadow-2xl backdrop-blur-md transition-all ${
-                hovered
-                  ? "border-sky-400 bg-sky-600/90 text-white scale-110 shadow-sky-500/40"
-                  : "border-white/20 bg-slate-900/85 text-slate-200"
-              }`}
+              className={`pointer-events-auto flex items-center gap-2 rounded-xl border px-3 py-1.5 shadow-2xl backdrop-blur-md transition-all ${hovered
+                ? "border-sky-400 bg-sky-600/90 text-white scale-110 shadow-sky-500/40"
+                : "border-white/20 bg-slate-900/85 text-slate-200"
+                }`}
             >
-              <span className="h-2 w-2 rounded-full bg-sky-400 animate-ping" />
+              <span className="h-2 w-2 rounded-full bg-sky-400" />
               <span className="whitespace-nowrap text-xs font-bold">
-                Tủ Hồ Sơ &bull; {employeeCount ?? 1} Nhân Viên
+                Tủ Hồ Sơ &bull; {employeeCount ?? 0} Nhân Viên
               </span>
             </button>
           </Html>
@@ -419,12 +425,14 @@ function KPIGlassBoard({
   revenue,
   orders,
   productsCount,
+  metricsStatus,
 }: {
   position: [number, number, number];
   rotation?: [number, number, number];
   revenue: number;
   orders: number;
   productsCount: number;
+  metricsStatus?: string;
 }) {
   return (
     <group position={position} rotation={rotation}>
@@ -476,7 +484,7 @@ function KPIGlassBoard({
         anchorX="left"
         anchorY="middle"
       >
-        {formatVND(revenue)}
+        {metricsStatus ? "—" : formatVND(revenue)}
       </Text>
 
       <Text
@@ -495,7 +503,7 @@ function KPIGlassBoard({
         anchorX="left"
         anchorY="middle"
       >
-        {orders} đơn
+        {metricsStatus ? "—" : `${orders} đơn`}
       </Text>
 
       <Text
@@ -525,18 +533,22 @@ function KPIGlassBoard({
  */
 export function OfficeScene({
   todayRevenue = 0,
-  pendingCount = 0,
+  revenueSeries = [],
+  metricsStatus,
+  completedOrdersCount = 0,
   totalProductsCount = 0,
-  employeeCount = 1,
-  onOpenSettings = () => {},
-  onOpenEmployeeDialog = () => {},
-  onOpenReports = () => {},
-  onReturnToHallway = () => {},
+  employeeCount = 0,
+  onOpenSettings = () => { },
+  onOpenEmployeeDialog = () => { },
+  onOpenReports = () => { },
+  onOpenAccounting = () => { },
+  canManage = false,
+  onReturnToHallway = () => { },
   openDoor = null,
   isVisible = true,
   isAnyModalOpen = false,
 }: OfficeSceneProps) {
-  const showHotspots = Boolean(isVisible && !isAnyModalOpen);
+  const showHotspots = Boolean(isVisible && !isAnyModalOpen && canManage);
   return (
     <group position={[0, 0, 0]}>
       {/* ── 1. SÀN GỖ VĂN PHÒNG EXECUTIVE ───────────────────────────── */}
@@ -547,7 +559,7 @@ export function OfficeScene({
       >
         <planeGeometry args={[OFFICE_WIDTH, OFFICE_DEPTH]} />
         <meshStandardMaterial
-          color="#1e1815"
+          color="#695345"
           roughness={0.3}
           metalness={0.15}
         />
@@ -569,18 +581,18 @@ export function OfficeScene({
       {/* Tường sau (z = -32) */}
       <mesh position={[CENTER_X, OFFICE_HEIGHT / 2, -32]}>
         <boxGeometry args={[OFFICE_WIDTH, OFFICE_HEIGHT, WALL_THICKNESS]} />
-        <meshStandardMaterial color="#0f172a" roughness={0.75} />
+        <meshStandardMaterial color="#253444" roughness={0.75} />
       </mesh>
 
       {/* Tường trước giáp hành lang (z = -18.1) — Tự động làm mờ khi camera nhìn từ ngoài/hành lang */}
       <SmartOcclusionGroup preset="wall-front" threshold={-18.4}>
         <mesh position={[1.45, OFFICE_HEIGHT / 2, -18.1]}>
           <boxGeometry args={[1.9, OFFICE_HEIGHT, WALL_THICKNESS]} />
-          <meshStandardMaterial color="#0f172a" roughness={0.75} />
+          <meshStandardMaterial color="#253444" roughness={0.75} />
         </mesh>
         <mesh position={[9.75, OFFICE_HEIGHT / 2, -18.1]}>
           <boxGeometry args={[11.5, OFFICE_HEIGHT, WALL_THICKNESS]} />
-          <meshStandardMaterial color="#0f172a" roughness={0.75} />
+          <meshStandardMaterial color="#253444" roughness={0.75} />
         </mesh>
         {/* Mảng tường trên cửa ra hành lang */}
         <mesh
@@ -591,7 +603,7 @@ export function OfficeScene({
           ]}
         >
           <boxGeometry args={[1.6, OFFICE_HEIGHT - 2.8, WALL_THICKNESS]} />
-          <meshStandardMaterial color="#0f172a" roughness={0.75} />
+          <meshStandardMaterial color="#253444" roughness={0.75} />
         </mesh>
 
         {/* ── CỬA THÔNG RA HÀNH LANG (x = 3.2, z = -18.1, quay mặt vào trong văn phòng) ── */}
@@ -615,7 +627,7 @@ export function OfficeScene({
           rotation={[0, Math.PI / 2, 0]}
         >
           <boxGeometry args={[OFFICE_DEPTH, OFFICE_HEIGHT, WALL_THICKNESS]} />
-          <meshStandardMaterial color="#0f172a" roughness={0.75} />
+          <meshStandardMaterial color="#253444" roughness={0.75} />
         </mesh>
       </SmartOcclusionGroup>
 
@@ -626,7 +638,7 @@ export function OfficeScene({
           rotation={[0, Math.PI / 2, 0]}
         >
           <boxGeometry args={[OFFICE_DEPTH, OFFICE_HEIGHT, WALL_THICKNESS]} />
-          <meshStandardMaterial color="#0f172a" roughness={0.75} />
+          <meshStandardMaterial color="#253444" roughness={0.75} />
         </mesh>
       </SmartOcclusionGroup>
 
@@ -656,20 +668,34 @@ export function OfficeScene({
         color="#bae6fd"
       />
 
+      <OfficeFinishes />
+      <group position={[3.0, 0, -28.6]}>
+        <mesh position={[0, 0.82, 0]} castShadow><boxGeometry args={[2.4, 0.12, 1.15]} /><meshStandardMaterial color="#9b7958" roughness={0.55} /></mesh>
+        {[-0.95, 0.95].map((x) => <mesh key={x} position={[x, 0.4, 0]} castShadow><boxGeometry args={[0.12, 0.8, 0.9]} /><meshStandardMaterial color="#334155" metalness={0.5} roughness={0.4} /></mesh>)}
+        {[0, 1, 2].map((i) => <mesh key={i} position={[-0.7, 0.94 + i * 0.075, 0]}><boxGeometry args={[0.45, 0.065, 0.58]} /><meshStandardMaterial color={["#64748b", "#c8a878", "#e2e8f0"][i]} /></mesh>)}
+        <group position={[0.35, 1.25, -0.24]} onClick={(e) => { e.stopPropagation(); if (showHotspots) onOpenAccounting(); }}>
+          <mesh><boxGeometry args={[1.05, 0.63, 0.07]} /><meshStandardMaterial color="#0f172a" /></mesh>
+          <mesh position={[0, 0, 0.04]}><planeGeometry args={[0.96, 0.54]} /><meshStandardMaterial color="#134e4a" emissive="#0d9488" emissiveIntensity={0.4} /></mesh>
+          <Text position={[0, 0, 0.05]} fontSize={0.1} color="#ccfbf1">SỔ KẾ TOÁN</Text>
+        </group>
+        {showHotspots && <Html center position={[0, 1.95, 0]} distanceFactor={8} zIndexRange={[25, 10]}><button type="button" onClick={onOpenAccounting} className="whitespace-nowrap rounded-xl border border-teal-300/40 bg-slate-900/90 px-3 py-2 text-xs font-bold text-teal-200 shadow-xl hover:bg-teal-800 focus-visible:outline focus-visible:outline-2">Bàn kế toán · Sổ sách & công nợ</button></Html>}
+      </group>
       {/* ── 4. TRANG THIẾT BỊ NỘI THẤT VĂN PHÒNG ───────────────────── */}
       {/* TV treo tường 85 inch hiển thị Dashboard */}
       <WallMountedTV
         position={[CENTER_X, 2.4, -31.85]}
         revenue={todayRevenue}
-        ordersCount={pendingCount}
-        onClick={onOpenReports}
+        ordersCount={completedOrdersCount}
+        revenueSeries={revenueSeries}
+        metricsStatus={metricsStatus}
+        onClick={() => { if (showHotspots) onOpenReports(); }}
         showHotspot={showHotspots}
       />
 
       {/* Bàn làm việc Giám Đốc */}
       <DirectorDesk
         position={[6.2, 0, -25.5]}
-        onClick={onOpenSettings}
+        onClick={() => { if (showHotspots) onOpenSettings(); }}
         showHotspot={showHotspots}
       />
 
@@ -677,7 +703,7 @@ export function OfficeScene({
       <EmployeeFilingCabinet
         position={[9.8, 0, -25.0]}
         employeeCount={employeeCount}
-        onClick={onOpenEmployeeDialog}
+        onClick={() => { if (showHotspots) onOpenEmployeeDialog(); }}
         showHotspot={showHotspots}
       />
 
@@ -686,8 +712,9 @@ export function OfficeScene({
         position={[15.35, 2.3, -24.5]}
         rotation={[0, -Math.PI / 2, 0]}
         revenue={todayRevenue}
-        orders={pendingCount}
+        orders={completedOrdersCount}
         productsCount={totalProductsCount}
+        metricsStatus={metricsStatus}
       />
 
       {/* Ghế sofa tiếp khách & bàn trà */}
@@ -709,4 +736,21 @@ export function OfficeScene({
       </group>
     </group>
   );
+}
+
+/** Low-poly architectural details; no additional lights or animation loops. */
+function OfficeFinishes() {
+  return <group>
+    {Array.from({ length: 15 }, (_, i) => <mesh key={`floor-${i}`} position={[0.65 + i, 0.006, -25]} rotation={[-Math.PI / 2, 0, 0]}><planeGeometry args={[0.018, 13.8]} /><meshStandardMaterial color="#382c26" /></mesh>)}
+    {Array.from({ length: 19 }, (_, i) => <mesh key={`slat-${i}`} position={[4.3 + i * 0.41, 2.7, -31.84]}><boxGeometry args={[0.12, 5.1, 0.08]} /><meshStandardMaterial color="#83654c" roughness={0.65} /></mesh>)}
+    <Text position={[8, 4.42, -31.7]} fontSize={0.26} letterSpacing={0.12} color="#e5d0a8">BIZFLOW / VĂN PHÒNG</Text>
+    <Text position={[8, 4.02, -31.7]} fontSize={0.11} letterSpacing={0.08} color="#cbd5e1">BÁO CÁO   /   NHÂN SỰ   /   KẾ TOÁN   /   ĐIỀU HÀNH</Text>
+    {[-30.6, -24, -19].map((z) => <mesh key={z} position={[8, 5.12, z]} rotation={[Math.PI / 2, 0, 0]}><planeGeometry args={[9, 0.08]} /><meshStandardMaterial color="#fff1d6" emissive="#fff1d6" emissiveIntensity={1.5} side={2} /></mesh>)}
+    {[[1.6, -30.8], [14.3, -30.8], [14.2, -19.5]].map(([x, z]) => <group key={`${x}-${z}`} position={[x, 0, z]}>
+      <mesh position={[0, 0.3, 0]} castShadow><cylinderGeometry args={[0.35, 0.25, 0.6, 12]} /><meshStandardMaterial color="#d6c8b5" roughness={0.8} /></mesh>
+      <mesh position={[0, 0.95, 0]}><cylinderGeometry args={[0.035, 0.05, 1.2, 6]} /><meshStandardMaterial color="#70553c" /></mesh>
+      {[[-0.22, 1.1, 0], [0.2, 1.4, 0.05], [0, 1.7, 0]].map(([lx, ly, lz], i) => <mesh key={i} position={[lx, ly, lz]} scale={[0.45, 0.55, 0.35]} castShadow><icosahedronGeometry args={[0.8, 1]} /><meshStandardMaterial color={i % 2 ? "#527d52" : "#396849"} roughness={0.9} /></mesh>)}
+    </group>)}
+    <mesh position={[11.5, 0.01, -20.5]} rotation={[-Math.PI / 2, 0, 0]}><planeGeometry args={[3.8, 3]} /><meshStandardMaterial color="#737c7c" roughness={1} /></mesh>
+  </group>;
 }

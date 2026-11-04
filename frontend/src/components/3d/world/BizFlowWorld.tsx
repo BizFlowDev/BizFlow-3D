@@ -34,6 +34,7 @@ function ScenePrewarmer() {
 }
 
 interface BizFlowWorldProps {
+  officeWorkspace?: React.ReactNode;
   activeRoom: RoomId;
   onEnterRoom: (room: RoomId) => void;
   currentPreset: CameraPreset;
@@ -54,16 +55,21 @@ interface BizFlowWorldProps {
   highlightCategoryId?: string | null;
   /** Dữ liệu số liệu cho Phòng Văn Phòng */
   todayRevenue?: number;
-  pendingCount?: number;
+  revenueSeries?: number[];
+  metricsStatus?: string;
+  completedOrdersCount?: number;
   totalProductsCount?: number;
   employeeCount?: number;
   onOpenSettings?: () => void;
   onOpenEmployeeDialog?: () => void;
   onOpenReports?: () => void;
+  onOpenAccounting?: () => void;
+  canManageOffice?: boolean;
   isAnyModalOpen?: boolean;
 }
 
 export function BizFlowWorld({
+  officeWorkspace,
   activeRoom,
   onEnterRoom,
   currentPreset,
@@ -79,12 +85,16 @@ export function BizFlowWorld({
   onSelectCargoItem,
   highlightCategoryId = null,
   todayRevenue = 0,
-  pendingCount = 0,
+  revenueSeries,
+  metricsStatus,
+  completedOrdersCount = 0,
   totalProductsCount = 0,
-  employeeCount = 1,
+  employeeCount = 0,
   onOpenSettings,
   onOpenEmployeeDialog,
   onOpenReports,
+  onOpenAccounting,
+  canManageOffice = false,
 }: BizFlowWorldProps) {
   const controlsRef = useRef<OrbitControlsImpl>(null);
   const isInteractingWithPOS = isPOSActive || currentPreset === "posScreen";
@@ -269,16 +279,21 @@ export function BizFlowWorld({
             />
           </group>
 
+          {officeWorkspace}
           {/* PHÒNG 3: VĂN PHÒNG QUẢN LÝ */}
           <group visible={isOfficeVisible}>
             <OfficeScene
               todayRevenue={todayRevenue}
-              pendingCount={pendingCount}
+              revenueSeries={revenueSeries}
+              metricsStatus={metricsStatus}
+              completedOrdersCount={completedOrdersCount}
               totalProductsCount={totalProductsCount}
               employeeCount={employeeCount}
               onOpenSettings={onOpenSettings}
               onOpenEmployeeDialog={onOpenEmployeeDialog}
               onOpenReports={onOpenReports}
+              onOpenAccounting={onOpenAccounting}
+              canManage={canManageOffice}
               openDoor={activeOpenDoor}
               onReturnToHallway={() => handleRequestRoomTransition("hallway")}
               isVisible={isOfficeVisible}

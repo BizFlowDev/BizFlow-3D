@@ -165,3 +165,59 @@
 }
 
 
+
+/* Shared physical display language for the 3D store only. */
+@keyframes storeSpatialReveal {
+  from { opacity: 0; transform: perspective(1600px) translate3d(0, 22px, -120px) rotateX(-9deg) rotateY(7deg) scale(.88); }
+  to { opacity: 1; transform: perspective(1600px) translate3d(0, 0, 0) rotateX(-1deg) rotateY(-1.4deg) scale(1); }
+}
+@keyframes storeSpatialSweep {
+  from { transform: translateY(-100%); opacity: 0; }
+  20% { opacity: .5; }
+  to { transform: translateY(650%); opacity: 0; }
+}
+[data-spatial-shell] { perspective: 1600px; isolation: isolate; }
+[data-spatial-card] {
+  transform: perspective(1600px) rotateX(calc(-1deg + var(--spatial-x, 0deg))) rotateY(calc(-1.4deg + var(--spatial-y, 0deg)));
+  transition: transform 180ms ease-out;
+  animation: storeSpatialReveal 480ms cubic-bezier(.16, 1, .3, 1) backwards;
+  box-shadow: 3px 3px 0 #17383d, 7px 7px 0 #071820, 16px 25px 45px #0008, 0 0 30px var(--spatial-glow);
+}
+[data-spatial-card]::after {
+  content: ""; position: absolute; inset: 0; z-index: 35; pointer-events: none; border-radius: inherit;
+  box-shadow: inset 0 1px 0 #ffffff30, inset 1px 0 0 #ffffff20;
+  background: radial-gradient(ellipse at var(--spatial-glare-x, 25%) var(--spatial-glare-y, 10%), #a7f3d915, transparent 45%);
+}
+[data-spatial-rails] { border-left: 2px solid #5eead480; border-right: 2px solid #5eead480; box-shadow: 0 0 12px #14b8a630; }
+[data-spatial-sweep] { height: 20%; background: linear-gradient(transparent, #a7f3d920, transparent); animation: storeSpatialSweep 850ms ease-out both; }
+@media (prefers-reduced-motion: reduce) {
+  [data-spatial-card] { animation: none; transition: none; transform: none; }
+  [data-spatial-sweep] { display: none; }
+}
+
+@keyframes storeSpatialDialogIn {
+  from { opacity: 0; transform: translate(-50%, -47%) perspective(1600px) rotateX(-8deg) rotateY(6deg) scale(.9); }
+  to { opacity: 1; transform: translate(-50%, -50%) perspective(1600px) rotateX(-1deg) rotateY(-1.4deg) scale(1); }
+}
+@keyframes storeSpatialDialogOut {
+  from { opacity: 1; transform: translate(-50%, -50%) perspective(1600px) scale(1); }
+  to { opacity: 0; transform: translate(-50%, -47%) perspective(1600px) rotateY(5deg) scale(.92); }
+}
+[data-store-spatial] {
+  border: 1px solid #6ee7b766; border-radius: 12px;
+  box-shadow: 3px 3px 0 #17383d, 7px 7px 0 #071820, 16px 25px 45px #0008, 0 0 30px #34d39920;
+}
+[data-store-spatial][data-state="open"] { animation: storeSpatialDialogIn 480ms cubic-bezier(.16,1,.3,1) both; }
+[data-store-spatial][data-state="closed"] { animation: storeSpatialDialogOut 220ms ease-in both; }
+@media (prefers-reduced-motion: reduce) {
+  [data-store-spatial][data-state] { animation: none; }
+}
+
+@keyframes storeSpatialRetract {
+  from { opacity: 1; transform: perspective(1600px) rotateX(-1deg) rotateY(-1.4deg) scale(1); }
+  to { opacity: 0; transform: perspective(1600px) translate3d(0, 18px, -100px) rotateX(-7deg) rotateY(6deg) scale(.9); }
+}
+[data-spatial-card][data-closing="true"] { animation: storeSpatialRetract 220ms ease-in both; pointer-events: none; }
+@media (prefers-reduced-motion: reduce) { [data-spatial-card][data-closing="true"] { animation: none; } }
+
+[data-spatial-sheet] { border-color: #6ee7b766; box-shadow: -5px 0 0 #17383d, -9px 0 0 #071820, -18px 0 45px #0008, 0 0 30px #34d39920; }

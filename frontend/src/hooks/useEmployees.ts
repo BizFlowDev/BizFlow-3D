@@ -54,9 +54,10 @@ interface PaginatedResponse<T> {
 // ── Hooks ─────────────────────────────────────────────────────────────────────
 
 /** Lấy danh sách nhân viên (Owner) */
-export function useEmployeeList(params: EmployeeListParams = {}) {
+export function useEmployeeList(params: EmployeeListParams = {}, enabled = true) {
   return useQuery({
     queryKey: ["employees", params],
+    enabled,
     queryFn: async (): Promise<PaginatedResponse<Employee>> => {
       const { data } = await apiClient.get<
         ApiResponseData<PaginatedResponse<Employee>>

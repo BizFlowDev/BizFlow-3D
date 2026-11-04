@@ -299,29 +299,6 @@ export default function Counter({
         </mesh>
       </group>
 
-      {/* ── Màn Hình Phụ Hướng Ra Khách Hàng (Customer Display) ─────── */}
-      <Html
-        occlude
-        position={[-0.85, COUNTER_H + 0.35, 0.45]}
-        center
-        distanceFactor={4.8}
-        zIndexRange={[40, 20]}
-        style={{ pointerEvents: "none" }}
-      >
-        <div className="flex select-none items-center gap-2 rounded-xl border border-white/20 bg-slate-900/90 px-3.5 py-2 shadow-2xl backdrop-blur-md">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/20 text-emerald-400">
-            <TrendingUp className="h-4 w-4" />
-          </div>
-          <div>
-            <div className="text-[10px] font-medium text-slate-300">
-              Doanh thu hôm nay
-            </div>
-            <div className="font-extrabold text-xs text-emerald-400 tabular-nums">
-              {formatVND(recentTotal)}
-            </div>
-          </div>
-        </div>
-      </Html>
 
       {/* ── Badge cảnh báo đơn chờ duyệt ───────────────────────────── */}
       {hasPending && (

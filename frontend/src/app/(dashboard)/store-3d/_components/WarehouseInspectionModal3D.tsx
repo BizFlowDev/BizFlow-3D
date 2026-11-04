@@ -15,6 +15,7 @@ import {
   Pencil,
   CheckCircle2,
 } from "lucide-react";
+import { useSpatialModalClose } from "./useSpatialModalClose";
 import { Modal3DCard } from "./Modal3DCard";
 import { useInventoryCatalog, type InventoryProduct, useStockLevel } from "@/hooks/useInventory";
 
@@ -28,11 +29,12 @@ interface WarehouseInspectionModal3DProps {
 
 export function WarehouseInspectionModal3D({
   isOpen,
-  onClose,
+  onClose: requestClose,
   preselectedProductId,
   onOpenEditProduct3D,
   onOpenImport3D,
 }: WarehouseInspectionModal3DProps) {
+  const { close: onClose, closing } = useSpatialModalClose(isOpen, requestClose);
   const { data: catalog = [] } = useInventoryCatalog();
   const { data: stockItems = [] } = useStockLevel();
 
@@ -81,7 +83,7 @@ export function WarehouseInspectionModal3D({
       />
 
       <div className="pointer-events-auto w-full max-w-lg">
-        <Modal3DCard
+        <Modal3DCard closing={closing}
           className="w-full my-auto border-sky-400/40 shadow-[0_20px_60px_rgba(0,0,0,0.8),0_0_40px_rgba(56,189,248,0.22)]"
           accentGlowColor="rgba(56, 189, 248, 0.45)"
           isFloating={true}

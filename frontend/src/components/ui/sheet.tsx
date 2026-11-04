@@ -1,7 +1,10 @@
+"use client";
+
 import * as React from "react";
 import * as SheetPrimitive from "@radix-ui/react-dialog";
 import { cva, type VariantProps } from "class-variance-authority";
 import { X } from "lucide-react";
+import { SpatialPortalContext, SpatialStoreContext } from "./spatial-portal";
 import { cn } from "@/lib/utils";
 
 const Sheet = SheetPrimitive.Root;
@@ -10,7 +13,10 @@ const SheetTrigger = SheetPrimitive.Trigger;
 
 const SheetClose = SheetPrimitive.Close;
 
-const SheetPortal = SheetPrimitive.Portal;
+const SheetPortal = ({ children, ...props }: React.ComponentPropsWithoutRef<typeof SheetPrimitive.Portal>) => {
+  const container = React.useContext(SpatialPortalContext);
+  return <SheetPrimitive.Portal {...props} container={container ?? undefined}>{children}</SheetPrimitive.Portal>;
+};
 
 const SheetOverlay = React.forwardRef<
   React.ComponentRef<typeof SheetPrimitive.Overlay>,
@@ -53,10 +59,13 @@ interface SheetContentProps
 const SheetContent = React.forwardRef<
   React.ComponentRef<typeof SheetPrimitive.Content>,
   SheetContentProps
->(({ side = "right", className, children, ...props }, ref) => (
+>(({ side = "right", className, children, ...props }, ref) => {
+  const spatial = React.useContext(SpatialStoreContext);
+  return (
   <SheetPortal>
     <SheetOverlay />
     <SheetPrimitive.Content
+      data-spatial-sheet={spatial || undefined}
       ref={ref}
       className={cn(sheetVariants({ side }), className)}
       {...props}
@@ -68,7 +77,8 @@ const SheetContent = React.forwardRef<
       </SheetPrimitive.Close>
     </SheetPrimitive.Content>
   </SheetPortal>
-));
+  );
+});
 SheetContent.displayName = SheetPrimitive.Content.displayName;
 
 const SheetHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (

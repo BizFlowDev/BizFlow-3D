@@ -63,11 +63,12 @@ function toPeriodTransaction(order: RawOrder, index: number): PeriodTransaction 
  * Doanh thu từng ngày trong khoảng [from, to].
  * API: GET /reports/daily-revenue?fromDate&toDate
  */
-export function useDailyRevenue(from: Date, to: Date) {
+export function useDailyRevenue(from: Date, to: Date, enabled = true) {
   const fromKey = from.toISOString();
   const toKey = to.toISOString();
   return useQuery({
     queryKey: reportKeys.dailyRevenue(from.toISOString(), to.toISOString()),
+    enabled,
     queryFn: async (): Promise<DailyRevenuePoint[]> => {
       const { data } = await apiClient.get<ApiResponseData<DailyRevenuePoint[]>>(
         "/reports/daily-revenue",

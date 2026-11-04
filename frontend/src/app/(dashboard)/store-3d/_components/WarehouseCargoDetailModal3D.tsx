@@ -15,6 +15,7 @@ import {
   MapPin,
   Tag,
 } from "lucide-react";
+import { useSpatialModalClose } from "./useSpatialModalClose";
 import { Modal3DCard } from "./Modal3DCard";
 import type { StockLevelRow } from "@/hooks/useInventory";
 import { useInventoryCatalog } from "@/hooks/useInventory";
@@ -36,12 +37,13 @@ interface WarehouseCargoDetailModal3DProps {
 
 export function WarehouseCargoDetailModal3D({
   isOpen,
-  onClose,
+  onClose: requestClose,
   cargoItem,
   location,
   onRestock,
   onInspect,
 }: WarehouseCargoDetailModal3DProps) {
+  const { close: onClose, closing } = useSpatialModalClose(isOpen, requestClose);
   const { data: catalog = [] } = useInventoryCatalog();
 
   const product = useMemo(() => {
@@ -73,7 +75,7 @@ export function WarehouseCargoDetailModal3D({
       />
 
       <div className="pointer-events-auto w-full max-w-md">
-        <Modal3DCard
+        <Modal3DCard closing={closing}
           className="w-full my-auto border-emerald-400/40 shadow-[0_20px_60px_rgba(0,0,0,0.8),0_0_40px_rgba(16,185,129,0.22)]"
           accentGlowColor="rgba(16, 185, 129, 0.45)"
           isFloating={true}

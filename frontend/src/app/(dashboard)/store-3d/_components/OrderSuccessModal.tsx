@@ -1,5 +1,8 @@
 "use client";
 
+import { useSpatialModalClose } from "./useSpatialModalClose";
+import { Modal3DCard } from "./Modal3DCard";
+
 import { CheckCircle2, Sparkles, Receipt, Store, Printer } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { getOrderCode, type Order } from "@/hooks/useOrders";
@@ -22,8 +25,9 @@ function formatVND(amount: number): string {
 export function OrderSuccessModal({
   order,
   isOpen,
-  onClose,
+  onClose: requestClose,
 }: OrderSuccessModalProps) {
+  const { close: onClose, closing } = useSpatialModalClose(isOpen, requestClose);
   const router = useRouter();
 
   if (!isOpen || !order) return null;
@@ -45,8 +49,8 @@ export function OrderSuccessModal({
   };
 
   return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/80 p-4 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="relative w-full max-w-md overflow-hidden rounded-3xl border border-emerald-500/30 bg-slate-900 p-6 text-white shadow-2xl backdrop-blur-2xl text-center">
+    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/35 p-4 backdrop-blur-[2px] animate-in fade-in duration-200">
+      <Modal3DCard closing={closing} className="mx-auto max-w-md"><div className="relative w-full max-w-md overflow-hidden rounded-3xl border border-emerald-500/30 bg-slate-900 p-6 text-white shadow-2xl backdrop-blur-2xl text-center">
         {/* Vòng hào quang thành công */}
         <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 text-white shadow-xl shadow-emerald-500/30">
           <CheckCircle2 className="h-9 w-9 animate-bounce" />
@@ -125,7 +129,7 @@ export function OrderSuccessModal({
             Xem danh sách đơn hàng
           </button>
         </div>
-      </div>
+      </div></Modal3DCard>
     </div>
   );
 }

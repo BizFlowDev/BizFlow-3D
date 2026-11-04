@@ -21,6 +21,7 @@ import {
   type StockLevelRow,
 } from "@/hooks/useInventory";
 import { useQueryClient } from "@tanstack/react-query";
+import { useSpatialModalClose } from "./useSpatialModalClose";
 import { Modal3DCard } from "./Modal3DCard";
 
 interface WarehouseImportModal3DProps {
@@ -39,9 +40,10 @@ function formatVND(amount: number): string {
 
 export function WarehouseImportModal3D({
   isOpen,
-  onClose,
+  onClose: requestClose,
   preselectedProductId,
 }: WarehouseImportModal3DProps) {
+  const { close: onClose, closing } = useSpatialModalClose(isOpen, requestClose);
   const queryClient = useQueryClient();
   const { data: catalog = [] } = useInventoryCatalog();
   const { data: stockItems = [], refetch: refetchStock } = useStockLevel();
@@ -154,7 +156,7 @@ export function WarehouseImportModal3D({
       />
 
       <div className="pointer-events-auto w-full max-w-lg">
-        <Modal3DCard
+        <Modal3DCard closing={closing}
           className="w-full my-auto border-amber-500/35 shadow-[0_20px_60px_rgba(0,0,0,0.75),0_0_40px_rgba(245,158,11,0.22)]"
           accentGlowColor="rgba(245, 158, 11, 0.45)"
           isFloating={true}

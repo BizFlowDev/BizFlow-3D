@@ -46,7 +46,7 @@ export const ROOMS: Record<RoomId, RoomInfo> = {
     name: "Văn Phòng Quản Lý",
     shortName: "Văn Phòng",
     iconName: "BarChart3",
-    description: "Màn hình TV báo cáo doanh thu, bàn giám đốc & tủ hồ sơ nhân viên",
+    description: "Báo cáo kinh doanh, quản lý nhân viên, kế toán & cài đặt cửa hàng",
     badge: "Phòng 3",
     accentColor: "#10b981",
   },
@@ -83,7 +83,8 @@ export type CameraPreset =
   | "officeTV"
   | "officeDesk"
   | "officeCabinet"
-  | "officeKPI";
+  | "officeKPI"
+  | "officeAccounting";
 
 export interface CameraPresetConfig {
   position: [number, number, number];
@@ -244,6 +245,12 @@ export const CAMERA_PRESETS: Record<CameraPreset, CameraPresetConfig> = {
     position: [9.0, 2.0, -22.8],
     target: [9.8, 1.5, -25.2],
     label: "Tủ Hồ Sơ Nhân Viên",
+    room: "office",
+  },
+  officeAccounting: {
+    position: [3, 2.3, -25.2],
+    target: [3, 1.2, -28.6],
+    label: "Bàn Kế Toán",
     room: "office",
   },
   officeKPI: {
