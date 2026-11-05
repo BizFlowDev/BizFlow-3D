@@ -37,7 +37,7 @@ import type { CameraFocusPoint } from "@/components/3d/world/WorldCameraControll
 import { getWarehousePage } from "@/components/3d/world/warehouseInventory";
 import { RoomNavigationHUD } from "@/components/3d/world/RoomNavigationHUD";
 import { getOfficeScreenLayout } from "./_components/officeScreenLayout";
-import { OfficeWorkspace, OfficeLauncher, type OfficeSection } from "./_components/OfficeWorkspace";
+import { OfficeWorkspace, type OfficeSection } from "./_components/OfficeWorkspace";
 import {
   ProductDetailModal3D,
   type CartItem3D,
@@ -836,6 +836,7 @@ export default function Store3DPage() {
 
   // ── Chuyển đổi Phòng & Thao Tác Module ──────────────────────
   const handleSelectRoom = useCallback((room: RoomId) => {
+    setOfficeSection(null);
     setTargetFocusPoint(null);
     setActiveRoom(room);
     if (room === "showroom") {
@@ -953,6 +954,8 @@ export default function Store3DPage() {
   }, []);
 
   const handleSelectPreset = useCallback((preset: CameraPreset) => {
+    setOfficeSection(null);
+    setTargetFocusPoint(null);
     setCameraPreset(preset);
     if (preset === "posScreen") {
       setIsPOSActive(true);
@@ -1108,7 +1111,6 @@ export default function Store3DPage() {
             currentPreset={cameraPreset}
             isPOSActive={isPOSActive}
             isAnyModalOpen={isAnyModalOpen}
-            officeWorkspace={user?.role === "owner" && activeRoom === "office" ? <OfficeWorkspace queryClient={queryClient} section={officeSection} onSectionChange={setOfficeSection} /> : null}
             targetFocusPoint={targetFocusPoint}
             stockItems={stockData || []}
             visibleStockItems={warehouseDisplay.items}
@@ -1121,7 +1123,6 @@ export default function Store3DPage() {
             completedOrdersCount={officeToday?.orderCount ?? 0}
             revenueSeries={user?.role === "owner" && !officeRevenueError ? officeRevenue?.map((point) => point.totalRevenue) ?? [] : []}
             metricsStatus={user?.role !== "owner" ? "Chỉ dành cho chủ cửa hàng" : officeRevenueError ? "Không tải được số liệu" : !officeRevenue ? "Đang tải số liệu…" : undefined}
-            totalProductsCount={productsData?.total ?? 0}
             employeeCount={employeeCount}
             onOpenSettings={handleOpenSettings}
             onOpenEmployeeDialog={handleOpenEmployeeDialog}
@@ -1224,7 +1225,9 @@ export default function Store3DPage() {
         </Suspense>
 
         {/* ── Overlay UI (HUD layer chuẩn z-30) ─────────── */}
-        <div className="pointer-events-none absolute inset-0 z-30 flex flex-col justify-between p-4 overflow-hidden">
+        <div className="pointer-events-none absolute inset-0 z-30 flex flex-col justify-between p-4 overflow-hidden" onClickCapture={() => {
+          if (officeSection) { setOfficeSection(null); setTargetFocusPoint(null); }
+        }}>
           {/* Thanh công cụ tinh gọn khi ở Chế độ Màn hình POS hoặc khi thu gọn HUD */}
           {isHUDCollapsed && (
             <div className="pointer-events-auto fixed top-3.5 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2.5 rounded-2xl border border-white/20 bg-slate-950/90 px-3.5 py-2 shadow-2xl shadow-black/60 backdrop-blur-2xl animate-in fade-in slide-in-from-top-3 duration-300 ring-1 ring-white/10">
@@ -1755,8 +1758,8 @@ export default function Store3DPage() {
 
 
 
-        {activeRoom === "office" && !isAnyModalOpen && (
-          <OfficeLauncher canManage={user?.role === "owner"} onSelect={setOfficeSection} />
+        {user?.role === "owner" && activeRoom === "office" && (
+          <OfficeWorkspace section={officeSection} onSectionChange={setOfficeSection} />
         )}
 
       </div>

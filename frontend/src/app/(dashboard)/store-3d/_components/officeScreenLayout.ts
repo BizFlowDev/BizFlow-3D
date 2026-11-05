@@ -1,6 +1,6 @@
 import { OFFICE_DEVICE_PRESENTATION, type OfficeDevice } from "@/components/3d/world/officePresentation";
 
-/** Frame the original device in the left portion, with a world-space display covering 55% on the right. */
+/** Frame the original device on the left, leaving room for the office panel on the right. */
 export function getOfficeScreenLayout(viewportWidth: number, viewportHeight: number, device: OfficeDevice = "settings") {
   const mobile = viewportWidth < 640;
   const spec = OFFICE_DEVICE_PRESENTATION[device];

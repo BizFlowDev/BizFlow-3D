@@ -81,7 +81,6 @@ export function RoomNavigationHUD({
           { id: "officeDesk" as CameraPreset, label: "Bàn Giám Đốc", icon: Briefcase },
           { id: "officeCabinet" as CameraPreset, label: "Tủ hồ sơ", icon: FolderOpen },
           { id: "officeAccounting" as CameraPreset, label: "Bàn kế toán", icon: BookOpen },
-          { id: "officeKPI" as CameraPreset, label: "Bảng KPI", icon: BarChart3 },
         ];
       default:
         return [];

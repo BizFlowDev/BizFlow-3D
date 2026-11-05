@@ -34,7 +34,6 @@ function ScenePrewarmer() {
 }
 
 interface BizFlowWorldProps {
-  officeWorkspace?: React.ReactNode;
   activeRoom: RoomId;
   onEnterRoom: (room: RoomId) => void;
   currentPreset: CameraPreset;
@@ -58,7 +57,6 @@ interface BizFlowWorldProps {
   revenueSeries?: number[];
   metricsStatus?: string;
   completedOrdersCount?: number;
-  totalProductsCount?: number;
   employeeCount?: number;
   onOpenSettings?: () => void;
   onOpenEmployeeDialog?: () => void;
@@ -69,7 +67,6 @@ interface BizFlowWorldProps {
 }
 
 export function BizFlowWorld({
-  officeWorkspace,
   activeRoom,
   onEnterRoom,
   currentPreset,
@@ -88,7 +85,6 @@ export function BizFlowWorld({
   revenueSeries,
   metricsStatus,
   completedOrdersCount = 0,
-  totalProductsCount = 0,
   employeeCount = 0,
   onOpenSettings,
   onOpenEmployeeDialog,
@@ -279,7 +275,6 @@ export function BizFlowWorld({
             />
           </group>
 
-          {officeWorkspace}
           {/* PHÒNG 3: VĂN PHÒNG QUẢN LÝ */}
           <group visible={isOfficeVisible}>
             <OfficeScene
@@ -287,7 +282,6 @@ export function BizFlowWorld({
               revenueSeries={revenueSeries}
               metricsStatus={metricsStatus}
               completedOrdersCount={completedOrdersCount}
-              totalProductsCount={totalProductsCount}
               employeeCount={employeeCount}
               onOpenSettings={onOpenSettings}
               onOpenEmployeeDialog={onOpenEmployeeDialog}

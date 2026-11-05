@@ -83,7 +83,6 @@ export type CameraPreset =
   | "officeTV"
   | "officeDesk"
   | "officeCabinet"
-  | "officeKPI"
   | "officeAccounting";
 
 export interface CameraPresetConfig {
@@ -251,12 +250,6 @@ export const CAMERA_PRESETS: Record<CameraPreset, CameraPresetConfig> = {
     position: [3, 2.3, -25.2],
     target: [3, 1.2, -28.6],
     label: "Bàn Kế Toán",
-    room: "office",
-  },
-  officeKPI: {
-    position: [11.8, 2.2, -23.5],
-    target: [15.35, 2.2, -24.5],
-    label: "Bảng Chỉ Số KPI",
     room: "office",
   },
 };
