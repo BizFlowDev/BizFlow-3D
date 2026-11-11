@@ -99,6 +99,9 @@ export default function Store3DPage() {
   const queryClient = useQueryClient();
 
   // ── State ──────────────────────────────────────────────────
+  const roomNavigationRef = useRef<((room: RoomId) => void) | null>(null);
+  const [isRoomTransitionBusy, setRoomTransitionBusy] = useState(false);
+  const requestRoom = useCallback((room: RoomId) => roomNavigationRef.current?.(room), []);
   const [activeRoom, setActiveRoom] = useState<RoomId>("showroom");
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -1041,7 +1044,7 @@ export default function Store3DPage() {
         }
 
         if (activeRoom !== "hallway") {
-          handleSelectRoom("hallway");
+          requestRoom("hallway");
         } else if (isHUDCollapsed) {
           setIsHUDCollapsed(false);
         }
@@ -1065,7 +1068,7 @@ export default function Store3DPage() {
     upgradeModalOpen,
     handleExitPOS,
     handleReturnToOverview,
-    handleSelectRoom,
+    requestRoom,
   ]);
 
   // ── Render ─────────────────────────────────────────────────
@@ -1108,6 +1111,8 @@ export default function Store3DPage() {
           <BizFlowWorld
             activeRoom={activeRoom}
             onEnterRoom={handleSelectRoom}
+            navigationRef={roomNavigationRef}
+            onBusyChange={setRoomTransitionBusy}
             currentPreset={cameraPreset}
             isPOSActive={isPOSActive}
             isAnyModalOpen={isAnyModalOpen}
@@ -1665,7 +1670,8 @@ export default function Store3DPage() {
             <RoomNavigationHUD
               activeRoom={activeRoom}
               currentPreset={cameraPreset}
-              onSelectRoom={handleSelectRoom}
+              disabled={isRoomTransitionBusy}
+              onSelectRoom={requestRoom}
               onSelectPreset={handleSelectPreset}
               onToggle2D={handleToggle2D}
               isPOSActive={isPOSActive}

@@ -1,9 +1,9 @@
 "use client";
+import { useRoomFrame } from "./world/roomActivity";
 
 import { useMemo, useState, useEffect, useRef } from "react";
 import { Html, Text } from "@react-three/drei";
 import { useSpring, animated } from "@react-spring/three";
-import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { LOW_STOCK_THRESHOLD } from "@/lib/dashboard-keys";
 import {
@@ -194,7 +194,7 @@ function ProductBoxItem({
 
   // Ref cho hiệu ứng lơ lửng bồng bềnh êm ái khi đang được chọn (Levitation Float Bobbing nhẹ nhàng)
   const floatGroupRef = useRef<THREE.Group>(null);
-  useFrame(({ clock }) => {
+  useRoomFrame(({ clock }) => {
     if (!floatGroupRef.current) return;
     if (isSelected) {
       // Biên độ lơ lửng êm ái ±0.015m, tuyệt đối an toàn với khoảng hở kệ trên

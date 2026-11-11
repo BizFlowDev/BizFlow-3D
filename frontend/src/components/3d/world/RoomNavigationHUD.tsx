@@ -21,6 +21,7 @@ import {
 import { type RoomId, ROOMS, type CameraPreset, CAMERA_PRESETS } from "./types";
 
 interface RoomNavigationHUDProps {
+  disabled?: boolean;
   activeRoom: RoomId;
   currentPreset: CameraPreset;
   onSelectRoom: (room: RoomId) => void;
@@ -30,6 +31,7 @@ interface RoomNavigationHUDProps {
 }
 
 export function RoomNavigationHUD({
+  disabled = false,
   activeRoom,
   currentPreset,
   onSelectRoom,
@@ -105,7 +107,7 @@ export function RoomNavigationHUD({
             (item.id === "showroomOverview" && currentPreset === "overview");
 
           return (
-            <button
+            <button disabled={disabled}
               key={item.id}
               id={`btn-preset-${item.id}`}
               type="button"
@@ -124,7 +126,7 @@ export function RoomNavigationHUD({
 
         {/* Nút quay lại Hành Lang nhanh khi đang ở trong các phòng */}
         {activeRoom !== "hallway" && (
-          <button
+          <button disabled={disabled}
             id="btn-nav-to-hallway"
             type="button"
             onClick={() => onSelectRoom("hallway")}
@@ -139,7 +141,7 @@ export function RoomNavigationHUD({
       {/* ── 2. THANH CHUYỂN PHÒNG CHÍNH (TOP-LEVEL ROOM TABS) ────────── */}
       <div className="pointer-events-auto flex max-w-full overflow-x-auto whitespace-nowrap items-center gap-1 sm:gap-1.5 rounded-2xl border border-white/20 bg-slate-950/90 p-1 sm:p-1.5 shadow-2xl backdrop-blur-2xl ring-1 ring-white/10">
         {/* Nút thoát về 2D */}
-        <button
+        <button disabled={disabled}
           id="btn-nav-2d"
           type="button"
           onClick={onToggle2D}
@@ -156,7 +158,7 @@ export function RoomNavigationHUD({
           const isActive = activeRoom === room.id;
 
           return (
-            <button
+            <button disabled={disabled}
               key={room.id}
               id={`btn-room-${room.id}`}
               type="button"

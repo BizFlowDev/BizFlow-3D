@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useRef, useEffect } from "react";
-import { useFrame, useThree } from "@react-three/fiber";
+import { useThree } from "@react-three/fiber";
+import { useRoomFrame } from "./roomActivity";
 import * as THREE from "three";
 
 export type OcclusionPreset =
@@ -61,34 +62,55 @@ export function SmartOcclusionGroup({
 }: SmartOcclusionGroupProps) {
   const groupRef = useRef<THREE.Group>(null);
   const opacityRef = useRef(1.0);
-  const originalMaterialsCloned = useRef(false);
+  type Entry = { mesh: THREE.Mesh; materials: THREE.Material[]; opacity: number[]; depthWrite: boolean[]; raycast: THREE.Mesh["raycast"]; text: boolean; cleanup: () => void };
+  const entries = useRef<Entry[]>([]);
+  const cache = useRef(new Map<THREE.Mesh, Entry>());
+  const lastOpacity = useRef(-1);
+  const noRaycast: THREE.Mesh["raycast"] = () => {};
   const { camera } = useThree();
 
-  // Đảm bảo clone material để các thay đổi opacity không bị rò rỉ sang mesh khác
+  // Cache once per child-tree revision; preserve custom raycasts and material ownership.
   useEffect(() => {
-    if (!groupRef.current || originalMaterialsCloned.current) return;
-
-    groupRef.current.traverse((child) => {
-      if ((child as THREE.Mesh).isMesh) {
-        const mesh = child as THREE.Mesh;
-        // Bỏ qua Troika Text Mesh hoặc mesh đặc thù tự quản lý shader/material pipeline
-        if (typeof (mesh as any).sync === "function" || mesh.constructor?.name === "Text") {
-          return;
-        }
-
-        if (Array.isArray(mesh.material)) {
-          mesh.material = mesh.material.map((mat) =>
-            mat && typeof mat.clone === "function" ? mat.clone() : mat,
-          );
-        } else if (mesh.material && typeof mesh.material.clone === "function") {
-          mesh.material = mesh.material.clone();
-        }
-      }
+    if (!groupRef.current) return;
+    const seen = new Set<THREE.Mesh>();
+    groupRef.current.traverse(child => {
+      const mesh = child as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      seen.add(mesh);
+      if (cache.current.has(mesh)) return;
+      const text = typeof (mesh as any).sync === "function";
+      const original = mesh.material;
+      const originals = Array.isArray(original) ? original : [original];
+      const materials = text ? originals : originals.map(material => {
+        const clone = material.clone();
+        // Stable shader/render mode while fading, prepared before navigation.
+        clone.transparent = true;
+        return clone;
+      });
+      const raycast = mesh.raycast;
+      if (!text) mesh.material = Array.isArray(original) ? materials : materials[0];
+      const textMesh = mesh as any;
+      const fill = textMesh.fillOpacity, outline = textMesh.outlineOpacity;
+      const cleanup = () => {
+        mesh.raycast = raycast;
+        if (!text) { mesh.material = original; materials.forEach(m => m.dispose()); }
+        else { textMesh.fillOpacity = fill; textMesh.outlineOpacity = outline; }
+      };
+      cache.current.set(mesh, { mesh, materials, opacity: originals.map(m => m.opacity), depthWrite: originals.map(m => m.depthWrite), raycast, text, cleanup });
     });
-    originalMaterialsCloned.current = true;
+    for (const [mesh, entry] of cache.current) {
+      if (!seen.has(mesh)) { entry.cleanup(); cache.current.delete(mesh); }
+    }
+    entries.current = [...cache.current.values()];
+    lastOpacity.current = -1;
+  }, [children]);
+  useEffect(() => () => {
+    cache.current.forEach(entry => entry.cleanup());
+    cache.current.clear();
+    entries.current = [];
   }, []);
 
-  useFrame((_, delta) => {
+  useRoomFrame((_, delta) => {
     if (!groupRef.current) return;
 
     // Xác định xem camera có đang ở góc bị vật cản ngáng đường không
@@ -125,70 +147,24 @@ export function SmartOcclusionGroup({
 
     const targetOpacity = isOccluding ? targetFadeOpacity : 1.0;
 
-    // Nội suy Lerp độ trong suốt theo delta time
-    opacityRef.current = THREE.MathUtils.lerp(
-      opacityRef.current,
-      targetOpacity,
-      Math.min(1, delta * fadeSpeed),
-    );
-
-    const currentOpacity = opacityRef.current;
-    const isVisible = currentOpacity > 0.01;
-    groupRef.current.visible = isVisible;
-
-    if (isVisible) {
-      const isSolid = currentOpacity > 0.98;
-      groupRef.current.traverse((child) => {
-        if ((child as THREE.Mesh).isMesh) {
-          const mesh = child as THREE.Mesh;
-          const isTroikaText =
-            typeof (mesh as any).sync === "function" ||
-            mesh.constructor?.name === "Text";
-
-          if (isTroikaText) {
-            // Troika Text quản lý độ mờ qua fillOpacity và outlineOpacity
-            const textMesh = mesh as any;
-            textMesh.fillOpacity = currentOpacity;
-            if (
-              textMesh.outlineWidth !== undefined &&
-              textMesh.outlineWidth !== 0
-            ) {
-              textMesh.outlineOpacity = currentOpacity;
-            }
-            if (passThroughRaycast) {
-              mesh.raycast =
-                currentOpacity > 0.15
-                  ? THREE.Mesh.prototype.raycast
-                  : () => {};
-            }
-            return;
-          }
-
-          const matProp = mesh.material;
-          if (!matProp) return;
-
-          const materials = Array.isArray(matProp) ? matProp : [matProp];
-
-          materials.forEach((mat) => {
-            if (mat && typeof mat === "object") {
-              if (mat.transparent !== !isSolid) {
-                mat.transparent = !isSolid;
-                mat.needsUpdate = true;
-              }
-              if (mat.depthWrite !== isSolid) {
-                mat.depthWrite = isSolid;
-              }
-              mat.opacity = currentOpacity;
-            }
-          });
-
-          // Cho phép click chuột xuyên qua vật thể khi đang mờ
-          if (passThroughRaycast) {
-            mesh.raycast =
-              currentOpacity > 0.15 ? THREE.Mesh.prototype.raycast : () => {};
-          }
-        }
-      });
+    opacityRef.current = THREE.MathUtils.damp(opacityRef.current, targetOpacity, fadeSpeed, delta);
+    if (Math.abs(opacityRef.current - targetOpacity) < 0.001) opacityRef.current = targetOpacity;
+    const opacity = opacityRef.current;
+    if (Math.abs(opacity - lastOpacity.current) < 0.0001) return;
+    lastOpacity.current = opacity;
+    groupRef.current.visible = opacity > 0.01;
+    for (const entry of entries.current) {
+      if (entry.text) {
+        const text = entry.mesh as any;
+        text.fillOpacity = opacity;
+        text.outlineOpacity = opacity;
+      } else {
+        entry.materials.forEach((material, index) => {
+          material.opacity = entry.opacity[index] * opacity;
+          material.depthWrite = opacity > 0.98 && entry.depthWrite[index];
+        });
+      }
+      if (passThroughRaycast) entry.mesh.raycast = opacity > 0.15 ? entry.raycast : noRaycast;
     }
   });
 

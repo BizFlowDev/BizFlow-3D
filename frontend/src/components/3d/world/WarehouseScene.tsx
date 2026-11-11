@@ -1,7 +1,7 @@
 "use client";
+import { useRoomFrame } from "./roomActivity";
 
 import { useRef, useState } from "react";
-import { useFrame } from "@react-three/fiber";
 import { Text, Html } from "@react-three/drei";
 import * as THREE from "three";
 import { Door3D } from "./Door3D";
@@ -43,7 +43,7 @@ function StationFloorRing({
   color?: string;
 }) {
   const ringRef = useRef<THREE.Mesh>(null);
-  useFrame(({ clock }) => {
+  useRoomFrame(({ clock }) => {
     if (ringRef.current) {
       const s = 1 + Math.sin(clock.getElapsedTime() * 2.2) * 0.05;
       ringRef.current.scale.set(s, s, 1);
@@ -87,7 +87,7 @@ function RealisticCargoItem({
   const statusColor = isLowStock ? "#ef4444" : "#10b981";
 
   // Hiệu ứng nhấp nháy cảnh báo nếu hàng sắp hết
-  useFrame(({ clock }) => {
+  useRoomFrame(({ clock }) => {
     if (isLowStock && indicatorRef.current) {
       const mat = indicatorRef.current.material as THREE.MeshStandardMaterial;
       const t = Math.sin(clock.getElapsedTime() * 6);
@@ -480,7 +480,7 @@ function WarehouseWMSDashboard({
   ).length;
 
   const pulseRef = useRef<THREE.Mesh>(null);
-  useFrame(({ clock }) => {
+  useRoomFrame(({ clock }) => {
     if (pulseRef.current) {
       const mat = pulseRef.current.material as THREE.MeshStandardMaterial;
       mat.emissiveIntensity = 0.5 + Math.sin(clock.getElapsedTime() * 4) * 0.5;
@@ -601,7 +601,7 @@ function WarehouseForklift3D({
   const beaconRef = useRef<THREE.Mesh>(null);
 
   // Hiệu ứng đèn chớp vàng xoay nhấp nháy trên nóc xe nâng
-  useFrame(({ clock }) => {
+  useRoomFrame(({ clock }) => {
     if (beaconRef.current) {
       const mat = beaconRef.current.material as THREE.MeshStandardMaterial;
       const t = Math.sin(clock.getElapsedTime() * 8);
@@ -855,7 +855,7 @@ function InspectionDesk({
   const laserRef = useRef<THREE.Mesh>(null);
 
   // Tia laser đỏ máy quét mã vạch chớp nháy
-  useFrame(({ clock }) => {
+  useRoomFrame(({ clock }) => {
     if (laserRef.current) {
       const mat = laserRef.current.material as THREE.MeshStandardMaterial;
       const t = Math.sin(clock.getElapsedTime() * 10);
@@ -1159,7 +1159,7 @@ function CategoryBoard({
 // ── 10. THIẾT BỊ AN TOÀN PCCC & CƠ SỞ HẠ TẦNG (Safety & Facility) ──────────────
 function WarehouseSafetyEquipment() {
   const cameraLedRef = useRef<THREE.Mesh>(null);
-  useFrame(({ clock }) => {
+  useRoomFrame(({ clock }) => {
     if (cameraLedRef.current) {
       const mat = cameraLedRef.current.material as THREE.MeshStandardMaterial;
       const t = Math.sin(clock.getElapsedTime() * 4);

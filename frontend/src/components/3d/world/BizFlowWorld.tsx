@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useEffect, useCallback, Suspense } from "react";
-import { Canvas, useThree } from "@react-three/fiber";
+import { Canvas } from "@react-three/fiber";
 import { OrbitControls, Environment } from "@react-three/drei";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import { type RoomId, type CameraPreset, type DoorId, type TransitionWaypoint } from "./types";
@@ -11,30 +11,16 @@ import { HallwayScene } from "./HallwayScene";
 import { ShowroomScene } from "./ShowroomScene";
 import { WarehouseScene } from "./WarehouseScene";
 import { OfficeScene } from "./OfficeScene";
+import { ScenePrewarmer, type PrepareRoom } from "./ScenePrewarmer";
+import { TransitionProfiler } from "./TransitionProfiler";
+import { RoomActivity } from "./roomActivity";
+import { canRequestRoom, type TransitionPhase } from "./transitionMotion";
 import type { StockLevelRow } from "@/hooks/useInventory";
-
-/**
- * ScenePrewarmer — Biên dịch ngầm tất cả WebGL Shaders của các phòng ngay khi tải trang
- * giúp loại bỏ 100% hiện tượng khựng lag khi mở phòng mới.
- */
-function ScenePrewarmer() {
-  const { gl, scene, camera } = useThree();
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      try {
-        gl.compile(scene, camera);
-      } catch {
-        // Fallback an toàn
-      }
-    }, 200);
-    return () => clearTimeout(timer);
-  }, [gl, scene, camera]);
-
-  return null;
-}
 
 interface BizFlowWorldProps {
   activeRoom: RoomId;
+  navigationRef: React.MutableRefObject<((room: RoomId) => void) | null>;
+  onBusyChange: (busy: boolean) => void;
   onEnterRoom: (room: RoomId) => void;
   currentPreset: CameraPreset;
   isPOSActive?: boolean;
@@ -68,6 +54,8 @@ interface BizFlowWorldProps {
 
 export function BizFlowWorld({
   activeRoom,
+  navigationRef,
+  onBusyChange,
   onEnterRoom,
   currentPreset,
   isPOSActive = false,
@@ -99,84 +87,93 @@ export function BizFlowWorld({
   const [transitionWaypoints, setTransitionWaypoints] = useState<TransitionWaypoint[] | null>(null);
   const [activeOpenDoor, setActiveOpenDoor] = useState<DoorId | null>(null);
 
-  const targetRoomRef = useRef<RoomId | null>(null);
-  const currentCommittedRoomRef = useRef<RoomId>(activeRoom);
-
-  // ── Khởi động chuỗi chuyển phòng siêu mượt ──────────────────────────────────
-  const handleRequestRoomTransition = useCallback(
-    (targetRoom: RoomId) => {
-      if (targetRoom === currentCommittedRoomRef.current) return;
-      if (targetRoomRef.current === targetRoom) return;
-
-      const fromRoom = currentCommittedRoomRef.current;
-      const sequence = getDoorTransitionSequence(fromRoom, targetRoom);
-
-      if (sequence.length === 0) {
-        currentCommittedRoomRef.current = targetRoom;
-        onEnterRoom(targetRoom);
-        return;
-      }
-
-      targetRoomRef.current = targetRoom;
-      setTransitionWaypoints(sequence);
-      setActiveOpenDoor(sequence[0].openDoor || null);
-    },
-    [onEnterRoom],
-  );
-
-  // Lắng nghe khi `activeRoom` thay đổi từ bên ngoài (ví dụ: click RoomNavigationHUD)
+  const prepareRef = useRef<PrepareRoom | null>(null);
+  const phaseRef = useRef<TransitionPhase>("idle");
+  const [phase, setPhase] = useState<TransitionPhase>("idle");
+  const [journey, setJourney] = useState<{ from: RoomId; to: RoomId } | null>(null);
+  const journeyRef = useRef<typeof journey>(null);
+  const [error, setError] = useState<RoomId | null>(null);
+  const mounted = useRef(true);
+  const changePhase = useCallback((next: TransitionPhase) => {
+    phaseRef.current = next;
+    setPhase(next);
+    onBusyChange(next !== "idle");
+  }, [onBusyChange]);
   useEffect(() => {
-    if (activeRoom !== currentCommittedRoomRef.current) {
-      if (targetRoomRef.current !== activeRoom) {
-        handleRequestRoomTransition(activeRoom);
-      } else {
-        currentCommittedRoomRef.current = activeRoom;
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
+
+  const handleRequestRoomTransition = useCallback(async (to: RoomId) => {
+    if (!canRequestRoom(phaseRef.current, activeRoom, to)) return;
+    const from = activeRoom;
+    setError(null);
+    changePhase("preparing");
+    try {
+      // Suspense may still be waiting for the environment or a room asset.
+      const deadline = performance.now() + 20000;
+      while (!prepareRef.current) {
+        if (!mounted.current) return;
+        if (performance.now() > deadline) throw new Error("Scene readiness timeout");
+        await new Promise(resolve => setTimeout(resolve, 50));
       }
+      let timeout: ReturnType<typeof setTimeout> | undefined;
+      try {
+        await Promise.race([
+          prepareRef.current(from, to),
+          new Promise((_, reject) => { timeout = setTimeout(() => reject(new Error("Room preparation timeout")), 20000); }),
+        ]);
+      } finally { clearTimeout(timeout); }
+      if (!mounted.current) return;
+      const next = { from, to };
+      journeyRef.current = next;
+      setJourney(next);
+      setTransitionWaypoints(getDoorTransitionSequence(from, to));
+      changePhase("moving");
+    } catch (cause) {
+      if (!mounted.current) return;
+      console.warn("Room preparation failed", cause);
+      setError(to);
+      changePhase("idle");
     }
-  }, [activeRoom, handleRequestRoomTransition]);
+  }, [activeRoom, changePhase]);
+  useEffect(() => {
+    navigationRef.current = handleRequestRoomTransition;
+    return () => { navigationRef.current = null; };
+  }, [navigationRef, handleRequestRoomTransition]);
 
-  // Khi camera đến từng waypoint trong chuỗi
-  const handleWaypointChange = useCallback(
-    (wp: TransitionWaypoint) => {
-      setActiveOpenDoor(wp.openDoor || null);
-      if (wp.activeRoomHint && wp.activeRoomHint !== currentCommittedRoomRef.current) {
-        currentCommittedRoomRef.current = wp.activeRoomHint;
-        onEnterRoom(wp.activeRoomHint);
-      }
-    },
-    [onEnterRoom],
-  );
-
-  // Khi toàn bộ chuỗi animation ra vào cửa hoàn thành
+  const handleWaypointChange = useCallback((wp: TransitionWaypoint) => {
+    setActiveOpenDoor(wp.openDoor || null);
+  }, []);
   const handleTransitionComplete = useCallback(() => {
+    const destination = journeyRef.current?.to;
     setTransitionWaypoints(null);
     setActiveOpenDoor(null);
-    if (targetRoomRef.current) {
-      currentCommittedRoomRef.current = targetRoomRef.current;
-      onEnterRoom(targetRoomRef.current);
-      targetRoomRef.current = null;
-    }
-  }, [onEnterRoom]);
+    journeyRef.current = null;
+    setJourney(null);
+    if (destination) onEnterRoom(destination);
+    changePhase("idle");
+  }, [onEnterRoom, changePhase]);
 
-  // Xác định các cảnh 3D cần được hiển thị (giữ các phòng đã mount trong bộ nhớ GPU)
-  const isTransitioning = transitionWaypoints !== null && transitionWaypoints.length > 0;
-  const isShowroomVisible =
-    activeRoom === "showroom" ||
-    (isTransitioning && (targetRoomRef.current === "showroom" || currentCommittedRoomRef.current === "showroom"));
-  const isWarehouseVisible =
-    activeRoom === "warehouse" ||
-    (isTransitioning && (targetRoomRef.current === "warehouse" || currentCommittedRoomRef.current === "warehouse"));
-  const isOfficeVisible =
-    activeRoom === "office" ||
-    (isTransitioning && (targetRoomRef.current === "office" || currentCommittedRoomRef.current === "office"));
-  const isHallwayVisible =
-    isTransitioning || (activeRoom !== "warehouse" && activeRoom !== "office");
+  const visible = (room: RoomId) => phase === "moving" && journey
+    ? room === journey.from || room === journey.to || room === "hallway"
+    : room === activeRoom || (room === "hallway" && activeRoom === "showroom");
+  const isShowroomVisible = visible("showroom");
+  const isWarehouseVisible = visible("warehouse");
+  const isOfficeVisible = visible("office");
+  const isHallwayVisible = visible("hallway");
 
   return (
     <div
       className="relative h-full w-full select-none"
       onContextMenu={(e) => e.preventDefault()}
     >
+      {phase === "preparing" && <div role="status" className="absolute inset-x-0 top-20 z-30 mx-auto w-fit rounded-xl bg-slate-900/95 px-5 py-3 text-sm text-white">Đang chuẩn bị phòng…</div>}
+      {error && <div role="alert" className="absolute inset-x-0 top-20 z-30 mx-auto w-fit rounded-xl bg-slate-900/95 p-4 text-sm text-white">
+        Không thể chuẩn bị phòng. <button className="ml-3 underline" onClick={() => handleRequestRoomTransition(error)}>Thử lại</button>
+        <button className="ml-3 underline" onClick={() => setError(null)}>Đóng</button>
+      </div>}
+      {phase !== "idle" && <div className="absolute inset-0 z-20" aria-hidden="true" />}
       {/* Lớp phủ điện ảnh mờ viền khi camera lướt qua cửa */}
       <div
         className="pointer-events-none absolute inset-0 z-10 transition-opacity duration-700 ease-out"
@@ -203,16 +200,16 @@ export function BizFlowWorld({
         shadows
         style={{ position: "absolute", inset: 0, background: "#070b14" }}
       >
-        {/* Pre-warm WebGL Shaders loại bỏ 100% lag khi chuyển phòng */}
-        <ScenePrewarmer />
         <color attach="background" args={[activeRoom === "warehouse" ? "#101827" : "#070b14"]} />
 
         {/* Môi trường chiếu sáng nhẹ & sương mù chiều sâu */}
         <fog attach="fog" args={activeRoom === "warehouse" ? ["#070b14", 38, 90] : ["#070b14", 20, 48]} />
+        <Suspense fallback={null}>
         <Environment preset="city" environmentIntensity={0.25} />
 
         {/* ── BỘ ĐIỀU KHIỂN CAMERA ĐA PHÒNG & MOUSE PARALLAX ────────── */}
         <WorldCameraController
+          paused={phase === "preparing"}
           activeRoom={activeRoom}
           currentPreset={currentPreset}
           controlsRef={controlsRef}
@@ -238,18 +235,20 @@ export function BizFlowWorld({
         />
 
         {/* ── 1. HÀNH LANG TRUNG TÂM (Central Hallway) ──────────────── */}
-        <group visible={isHallwayVisible}>
+        <RoomActivity.Provider value={isHallwayVisible}>
+        <group name="room-hallway" visible={isHallwayVisible}>
           <HallwayScene
             activeRoom={activeRoom}
             openDoor={activeOpenDoor}
             onEnterRoom={handleRequestRoomTransition}
           />
         </group>
+        </RoomActivity.Provider>
 
-        {/* ── 2. CÁC PHÒNG CHỨC NĂNG (Pre-mounted with visible toggle để 0ms giật lag) ── */}
-        <Suspense fallback={null}>
+        {/* ── 2. CÁC PHÒNG CHỨC NĂNG (Giữ tài nguyên giữa các lần chuyển phòng) ── */}
           {/* PHÒNG 1: SHOWROOM & BÁN HÀNG */}
-          <group visible={isShowroomVisible}>
+          <RoomActivity.Provider value={isShowroomVisible}>
+          <group name="room-showroom" visible={isShowroomVisible}>
             <ShowroomScene
               openDoor={activeOpenDoor}
               onReturnToHallway={() => handleRequestRoomTransition("hallway")}
@@ -257,9 +256,11 @@ export function BizFlowWorld({
               {showroomChildren}
             </ShowroomScene>
           </group>
+          </RoomActivity.Provider>
 
           {/* PHÒNG 2: KHO & SẢN PHẨM */}
-          <group visible={isWarehouseVisible}>
+          <RoomActivity.Provider value={isWarehouseVisible}>
+          <group name="room-warehouse" visible={isWarehouseVisible}>
             <WarehouseScene
               stockItems={stockItems}
               visibleStockItems={visibleStockItems}
@@ -274,9 +275,11 @@ export function BizFlowWorld({
               isAnyModalOpen={isAnyModalOpen}
             />
           </group>
+          </RoomActivity.Provider>
 
           {/* PHÒNG 3: VĂN PHÒNG QUẢN LÝ */}
-          <group visible={isOfficeVisible}>
+          <RoomActivity.Provider value={isOfficeVisible}>
+          <group name="room-office" visible={isOfficeVisible}>
             <OfficeScene
               todayRevenue={todayRevenue}
               revenueSeries={revenueSeries}
@@ -294,6 +297,9 @@ export function BizFlowWorld({
               isAnyModalOpen={isAnyModalOpen}
             />
           </group>
+          </RoomActivity.Provider>
+          <TransitionProfiler phase={phase} />
+          <ScenePrewarmer prepareRef={prepareRef} activeRoom={activeRoom} busy={phase !== "idle"} />
         </Suspense>
       </Canvas>
     </div>

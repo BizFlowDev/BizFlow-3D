@@ -1,7 +1,7 @@
 "use client";
+import { useRoomFrame } from "./roomActivity";
 
 import { useRef, useState } from "react";
-import { useFrame } from "@react-three/fiber";
 import { Text, Html } from "@react-three/drei";
 import * as THREE from "three";
 import { type RoomId, ROOMS, type DoorId } from "./types";
@@ -149,7 +149,7 @@ export function Door3D({
   const effectiveAccent = accentColor || roomConfig.accentColor;
 
   // Animation bản lề mở/đóng cửa êm ái, chuyển động đầm chắc tự nhiên (~0.65s)
-  useFrame((_, delta) => {
+  useRoomFrame((_, delta) => {
     if (!hingeRef.current) return;
     const targetAngle = isOpen ? -Math.PI * 0.48 : 0; // Xoay ~86 độ
     const step = Math.min(1, delta * 4.2);

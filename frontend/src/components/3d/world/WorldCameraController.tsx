@@ -1,5 +1,6 @@
 "use client";
 
+import { createTrack, sampleTrack, lookAngles } from "./transitionMotion";
 import { useEffect, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
@@ -14,6 +15,7 @@ export type CameraFocusPoint =
     };
 
 interface WorldCameraControllerProps {
+  paused?: boolean;
   currentPreset: CameraPreset;
   activeRoom?: RoomId;
   controlsRef: React.RefObject<OrbitControlsImpl | null>;
@@ -32,6 +34,7 @@ interface WorldCameraControllerProps {
 }
 
 export function WorldCameraController({
+  paused = false,
   currentPreset,
   activeRoom,
   controlsRef,
@@ -44,6 +47,7 @@ export function WorldCameraController({
   onTransitionComplete,
 }: WorldCameraControllerProps) {
   const { camera, gl } = useThree();
+  const lookSampleRef = useRef(new THREE.Vector3());
   const desiredZoomRef = useRef(1);
 
   // Optical zoom stays independent of preset/parallax camera positions.
@@ -77,6 +81,7 @@ export function WorldCameraController({
 
   // Quản lý chuỗi Waypoints chuyển phòng
   const waypointsRef = useRef<TransitionWaypoint[] | null>(null);
+  const tracksRef = useRef<{ position: ReturnType<typeof createTrack>; target: ReturnType<typeof createTrack> } | null>(null);
   const waypointIndexRef = useRef(0);
   const waypointProgressRef = useRef(0);
   const waypointStartPosRef = useRef(new THREE.Vector3());
@@ -105,6 +110,21 @@ export function WorldCameraController({
       waypointStartTargetRef.current.copy(
         controlsRef.current?.target || baseTargetRef.current,
       );
+      const durations = waypoints.map(wp => wp.duration);
+      const positions = [camera.position.toArray(), ...waypoints.map(wp => wp.position)];
+      const targets = [waypointStartTargetRef.current.toArray(), ...waypoints.map(wp => wp.target)];
+      let yaw = 0;
+      const angles = positions.map((position, index) => {
+        const angle = lookAngles(position, targets[index], yaw);
+        yaw = angle[0];
+        return angle;
+      });
+      tracksRef.current = {
+        position: createTrack(positions, durations),
+        target: createTrack(angles, durations),
+      };
+      currentParallaxPosRef.current.set(0, 0, 0);
+      currentParallaxLookRef.current.set(0, 0, 0);
       isTransitioningRef.current = true;
 
       // Thông báo waypoint đầu tiên ngay lập tức (để mở cửa)
@@ -178,6 +198,8 @@ export function WorldCameraController({
 
   // ── 3. Vòng lặp Render useFrame (Waypoints + Parallax + Safe Zoom) ───────────
   useFrame((state, delta) => {
+    if (paused || document.hidden) return;
+    delta = Math.min(delta, 0.05);
     const zoom = THREE.MathUtils.damp(camera.zoom, desiredZoomRef.current, 8, delta);
     if (Math.abs(camera.zoom - zoom) > 0.00001) {
       camera.zoom = zoom;
@@ -187,42 +209,24 @@ export function WorldCameraController({
     if (waypointsRef.current && waypointsRef.current.length > 0) {
       const currentWp = waypointsRef.current[waypointIndexRef.current];
       if (currentWp) {
+        const previousProgress = waypointProgressRef.current;
         const step = delta / Math.max(0.1, currentWp.duration);
         waypointProgressRef.current = Math.min(1, waypointProgressRef.current + step);
 
         const t = waypointProgressRef.current;
-        const isFirst = waypointIndexRef.current === 0;
-        const isLast = waypointIndexRef.current === waypointsRef.current.length - 1;
-
-        // Easing chuyển động điện ảnh mượt mà, không bị phanh gấp giữa chừng khi qua cửa
-        let eased: number;
-        if (isFirst && isLast) {
-          // Waypoint đơn lẻ: Smoothstep hoàn hảo
-          eased = t * t * (3 - 2 * t);
-        } else if (isFirst) {
-          // Khởi hành êm từ trạng thái đứng yên (Ease-in mượt mà)
-          eased = Math.pow(t, 1.45);
-        } else if (isLast) {
-          // Tiếp đất êm ái về vị trí toàn cảnh của phòng đích (Ease-out mềm mại)
-          eased = 1 - Math.pow(1 - t, 2.2);
-        } else {
-          // Đang lướt qua ngưỡng cửa: Giữ đà lướt mượt mà, không khựng phanh
-          eased = t * t * (3 - 2 * t) * 0.35 + t * 0.65;
-        }
-
         desiredPosRef.current.set(...currentWp.position);
         desiredTargetRef.current.set(...currentWp.target);
-
-        basePosRef.current.lerpVectors(
-          waypointStartPosRef.current,
-          desiredPosRef.current,
-          eased,
-        );
-        baseTargetRef.current.lerpVectors(
-          waypointStartTargetRef.current,
-          desiredTargetRef.current,
-          eased,
-        );
+        if (tracksRef.current) {
+          sampleTrack(tracksRef.current.position, waypointIndexRef.current, t, basePosRef.current);
+          sampleTrack(tracksRef.current.target, waypointIndexRef.current, t, lookSampleRef.current);
+          const { x: yaw, y: pitch, z: distance } = lookSampleRef.current;
+          baseTargetRef.current.set(
+            Math.sin(yaw) * Math.cos(pitch) * distance,
+            Math.sin(pitch) * distance,
+            Math.cos(yaw) * Math.cos(pitch) * distance,
+          ).add(basePosRef.current);
+          camera.up.set(0, 1, 0);
+        }
 
         camera.position.copy(basePosRef.current);
         if (controlsRef.current) {
@@ -235,7 +239,7 @@ export function WorldCameraController({
           const nextIndex = waypointIndexRef.current + 1;
           if (nextIndex < waypointsRef.current.length) {
             waypointIndexRef.current = nextIndex;
-            waypointProgressRef.current = 0;
+            waypointProgressRef.current = Math.max(0, (step - (1 - previousProgress)) * currentWp.duration / waypointsRef.current[nextIndex].duration);
             waypointStartPosRef.current.copy(camera.position);
             waypointStartTargetRef.current.copy(
               controlsRef.current?.target || baseTargetRef.current,
@@ -245,6 +249,9 @@ export function WorldCameraController({
             // Đã hoàn thành toàn bộ hành trình
             waypointsRef.current = null;
             isTransitioningRef.current = false;
+            tracksRef.current = null;
+            currentParallaxPosRef.current.set(0, 0, 0);
+            currentParallaxLookRef.current.set(0, 0, 0);
             onTransitionComplete?.();
           }
         }
@@ -254,9 +261,16 @@ export function WorldCameraController({
 
     // --- PHẦN B: LERP PRESET HOẶC FOCUS POINT THÔNG THƯỜNG ---
     if (isTransitioningRef.current) {
-      const factor = Math.min(1, delta * lerpSpeed);
+      const factor = 1 - Math.exp(-delta * lerpSpeed);
+      const current = lookAngles(basePosRef.current.toArray(), baseTargetRef.current.toArray());
+      const desired = lookAngles(desiredPosRef.current.toArray(), desiredTargetRef.current.toArray(), current[0]);
+      const yaw = THREE.MathUtils.lerp(current[0], desired[0], factor);
+      const pitch = THREE.MathUtils.lerp(current[1], desired[1], factor);
+      const distance = THREE.MathUtils.lerp(current[2], desired[2], factor);
       basePosRef.current.lerp(desiredPosRef.current, factor);
-      baseTargetRef.current.lerp(desiredTargetRef.current, factor);
+      baseTargetRef.current.set(Math.sin(yaw) * Math.cos(pitch) * distance,
+        Math.sin(pitch) * distance, Math.cos(yaw) * Math.cos(pitch) * distance).add(basePosRef.current);
+      camera.up.set(0, 1, 0);
 
       camera.position.copy(basePosRef.current);
       if (controlsRef.current) {
@@ -296,7 +310,7 @@ export function WorldCameraController({
     }
 
     // Hệ số damping làm mịn mượt cử động
-    const pDamp = Math.min(1, delta * 4.2);
+    const pDamp = 1 - Math.exp(-delta * 4.2);
     currentParallaxPosRef.current.lerp(targetParallaxPosRef.current, pDamp);
     currentParallaxLookRef.current.lerp(targetParallaxLookRef.current, pDamp);
 
