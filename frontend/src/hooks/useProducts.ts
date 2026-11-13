@@ -91,6 +91,28 @@ interface PaginatedResponse<T> {
 
 // ── Hooks ─────────────────────────────────────────────────────────────────────
 
+/** Complete catalogue for spatial browsing; publish only after every page loads. */
+export function useProductCatalog() {
+  return useQuery({
+    queryKey: ["products", "catalog"],
+    queryFn: async ({ signal }) => {
+      const items: Product[] = [];
+      for (let page = 1; ; page++) {
+        const { data } = await apiClient.get<ApiResponseData<PaginatedResponse<Product>>>(
+          "/products", { params: { page, limit: 100 }, signal },
+        );
+        const result = data.data;
+        if (!result || (!result.items.length && items.length < result.total)) {
+          throw new Error("Không tải được toàn bộ danh mục sản phẩm");
+        }
+        items.push(...result.items);
+        if (items.length >= result.total) return { ...result, items };
+      }
+    },
+    staleTime: 30_000,
+  });
+}
+
 /** Lấy danh sách sản phẩm với search, filter (category/status), pagination */
 export function useProductList(params: ProductListParams = {}) {
   return useQuery({

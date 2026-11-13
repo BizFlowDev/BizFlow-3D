@@ -159,7 +159,7 @@ export function WarehouseCargoDetailModal3D({
               {/* Thanh tồn kho */}
               <div className="space-y-1.5 pt-1 border-t border-white/5">
                 <div className="flex justify-between text-xs">
-                  <span className="text-slate-400">Tồn kho tại vị trí:</span>
+                  <span className="text-slate-400">Tồn kho sản phẩm:</span>
                   <span className="font-bold text-white font-mono">
                     {current} {cargoItem.unitName || "Đơn vị"}
                   </span>
@@ -175,7 +175,7 @@ export function WarehouseCargoDetailModal3D({
               <div className="flex justify-between">
                 <span className="text-slate-400">Danh mục:</span>
                 <span className="text-slate-200 font-semibold">
-                  {cargoItem.categoryName || "Chung"}
+                  {cargoItem.categoryName || (cargoItem.categoryId ? "Chưa tải được danh mục" : "Chưa phân loại")}
                 </span>
               </div>
               <div className="flex justify-between">

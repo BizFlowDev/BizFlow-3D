@@ -28,6 +28,9 @@ interface RoomNavigationHUDProps {
   onSelectPreset: (preset: CameraPreset) => void;
   onToggle2D: () => void;
   isPOSActive?: boolean;
+  quickNavigation: boolean;
+  reducedMotion: boolean;
+  onQuickNavigationChange: (value: boolean) => void;
 }
 
 export function RoomNavigationHUD({
@@ -38,6 +41,9 @@ export function RoomNavigationHUD({
   onSelectPreset,
   onToggle2D,
   isPOSActive = false,
+  quickNavigation,
+  reducedMotion,
+  onQuickNavigationChange,
 }: RoomNavigationHUDProps) {
   // Danh sách các phòng
   const roomList: { id: RoomId; label: string; icon: typeof Store; color: string }[] = [
@@ -140,8 +146,12 @@ export function RoomNavigationHUD({
 
       {/* ── 2. THANH CHUYỂN PHÒNG CHÍNH (TOP-LEVEL ROOM TABS) ────────── */}
       <div className="pointer-events-auto flex max-w-full overflow-x-auto whitespace-nowrap items-center gap-1 sm:gap-1.5 rounded-2xl border border-white/20 bg-slate-950/90 p-1 sm:p-1.5 shadow-2xl backdrop-blur-2xl ring-1 ring-white/10">
+        <label className="flex shrink-0 items-center gap-1.5 px-2 text-xs text-slate-300" title={reducedMotion ? "Đang giảm chuyển động theo cài đặt thiết bị" : "Tắt để xem camera di chuyển qua cửa"}>
+          <input type="checkbox" checked={quickNavigation || reducedMotion} disabled={reducedMotion || disabled} onChange={event => onQuickNavigationChange(event.target.checked)} className="accent-indigo-500" />
+          Chuyển nhanh
+        </label>
         {/* Nút thoát về 2D */}
-        <button disabled={disabled}
+        <button
           id="btn-nav-2d"
           type="button"
           onClick={onToggle2D}

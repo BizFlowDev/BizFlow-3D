@@ -285,9 +285,14 @@ async function fetchInventoryProducts(): Promise<InventoryProduct[]> {
 
 /** Full product catalog for joining stock rows; fail visibly if unavailable. */
 async function getCatalogReal(): Promise<Map<string, InventoryProduct>> {
-  const products = await fetchInventoryProducts();
+  const [products, categories] = await Promise.all([
+    fetchInventoryProducts(),
+    apiClient.get<ApiResponseData<{ id: string; name: string }[]>>("/products/categories").catch(() => null),
+  ]);
+  const categoryNames = new Map((categories?.data.data ?? []).map(category => [category.id, category.name]));
   return new Map(products.map(p => [p.id, {
     ...p,
+    categoryName: categoryNames.get(p.categoryId ?? "") ?? null,
     maxStock: p.maxStock ?? 100,
     units: p.units?.length ? p.units : [{ id: `${p.id}-u1`, unitName: "Cái", conversionFactor: 1, isDefault: true }],
   }]));

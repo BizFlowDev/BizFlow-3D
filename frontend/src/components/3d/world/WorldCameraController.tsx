@@ -1,6 +1,7 @@
 "use client";
 
 import { createTrack, sampleTrack, lookAngles } from "./transitionMotion";
+import { getPOSCamera } from "../posScreenLayout";
 import { useEffect, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
@@ -16,6 +17,7 @@ export type CameraFocusPoint =
 
 interface WorldCameraControllerProps {
   paused?: boolean;
+  reducedMotion?: boolean;
   currentPreset: CameraPreset;
   activeRoom?: RoomId;
   controlsRef: React.RefObject<OrbitControlsImpl | null>;
@@ -35,6 +37,7 @@ interface WorldCameraControllerProps {
 
 export function WorldCameraController({
   paused = false,
+  reducedMotion = false,
   currentPreset,
   activeRoom,
   controlsRef,
@@ -46,7 +49,7 @@ export function WorldCameraController({
   onWaypointChange,
   onTransitionComplete,
 }: WorldCameraControllerProps) {
-  const { camera, gl } = useThree();
+  const { camera, gl, size } = useThree();
   const lookSampleRef = useRef(new THREE.Vector3());
   const desiredZoomRef = useRef(1);
 
@@ -172,33 +175,46 @@ export function WorldCameraController({
     }
 
     // Khi targetFocusPoint được đóng (chuyển về null) hoặc khi người dùng đổi preset camera:
-    if (hadTargetFocusPointRef.current || currentPreset !== lastPresetRef.current) {
-      const wasExitingFocusPoint = hadTargetFocusPointRef.current;
+    if (hadTargetFocusPointRef.current || currentPreset !== lastPresetRef.current || currentPreset === "posScreen") {
       hadTargetFocusPointRef.current = false;
-
-      let targetPreset = currentPreset;
-      if (wasExitingFocusPoint && activeRoom) {
-        targetPreset =
-          activeRoom === "warehouse"
-            ? "warehouseOverview"
-            : activeRoom === "office"
-              ? "officeOverview"
-              : activeRoom === "hallway"
-                ? "hallwayOverview"
-                : "showroomOverview";
-      }
+      const targetPreset = currentPreset;
 
       lastPresetRef.current = targetPreset;
-      const cfg = CAMERA_PRESETS[targetPreset] || CAMERA_PRESETS[currentPreset] || CAMERA_PRESETS.overview;
+      const cfg = targetPreset === "posScreen"
+        ? getPOSCamera(size.width / Math.max(1, size.height), camera instanceof THREE.PerspectiveCamera ? camera.fov : 52)
+        : CAMERA_PRESETS[targetPreset] || CAMERA_PRESETS[currentPreset] || CAMERA_PRESETS.overview;
       desiredPosRef.current.set(...cfg.position);
       desiredTargetRef.current.set(...cfg.target);
       isTransitioningRef.current = true;
     }
-  }, [currentPreset, targetFocusPoint, activeRoom, camera, waypoints]);
+  }, [currentPreset, targetFocusPoint, activeRoom, camera, waypoints, size.width, size.height]);
 
   // ── 3. Vòng lặp Render useFrame (Waypoints + Parallax + Safe Zoom) ───────────
   useFrame((state, delta) => {
     if (paused || document.hidden) return;
+    if (reducedMotion) {
+      const lastWaypoint = waypointsRef.current?.at(-1);
+      if (lastWaypoint) {
+        desiredPosRef.current.set(...lastWaypoint.position);
+        desiredTargetRef.current.set(...lastWaypoint.target);
+        waypointsRef.current = null;
+        tracksRef.current = null;
+        onTransitionComplete?.();
+      }
+      basePosRef.current.copy(desiredPosRef.current);
+      baseTargetRef.current.copy(desiredTargetRef.current);
+      camera.position.copy(basePosRef.current);
+      currentParallaxPosRef.current.set(0, 0, 0);
+      currentParallaxLookRef.current.set(0, 0, 0);
+      isTransitioningRef.current = false;
+      if (controlsRef.current) {
+        controlsRef.current.target.copy(baseTargetRef.current);
+        controlsRef.current.update();
+      }
+      camera.zoom = desiredZoomRef.current;
+      camera.updateProjectionMatrix();
+      return;
+    }
     delta = Math.min(delta, 0.05);
     const zoom = THREE.MathUtils.damp(camera.zoom, desiredZoomRef.current, 8, delta);
     if (Math.abs(camera.zoom - zoom) > 0.00001) {

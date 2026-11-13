@@ -2,7 +2,7 @@
 
 import { useRef, useState, useEffect, useCallback, Suspense } from "react";
 import { Canvas } from "@react-three/fiber";
-import { OrbitControls, Environment } from "@react-three/drei";
+import { OrbitControls, Environment, Html } from "@react-three/drei";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import { type RoomId, type CameraPreset, type DoorId, type TransitionWaypoint } from "./types";
 import { WorldCameraController, type CameraFocusPoint } from "./WorldCameraController";
@@ -19,6 +19,8 @@ import type { StockLevelRow } from "@/hooks/useInventory";
 
 interface BizFlowWorldProps {
   activeRoom: RoomId;
+  reducedMotion?: boolean;
+  quickNavigation?: boolean;
   navigationRef: React.MutableRefObject<((room: RoomId) => void) | null>;
   onBusyChange: (busy: boolean) => void;
   onEnterRoom: (room: RoomId) => void;
@@ -54,6 +56,8 @@ interface BizFlowWorldProps {
 
 export function BizFlowWorld({
   activeRoom,
+  reducedMotion = false,
+  quickNavigation = true,
   navigationRef,
   onBusyChange,
   onEnterRoom,
@@ -125,6 +129,11 @@ export function BizFlowWorld({
         ]);
       } finally { clearTimeout(timeout); }
       if (!mounted.current) return;
+      if (reducedMotion || quickNavigation) {
+        onEnterRoom(to);
+        changePhase("idle");
+        return;
+      }
       const next = { from, to };
       journeyRef.current = next;
       setJourney(next);
@@ -136,7 +145,7 @@ export function BizFlowWorld({
       setError(to);
       changePhase("idle");
     }
-  }, [activeRoom, changePhase]);
+  }, [activeRoom, changePhase, reducedMotion, quickNavigation, onEnterRoom]);
   useEffect(() => {
     navigationRef.current = handleRequestRoomTransition;
     return () => { navigationRef.current = null; };
@@ -204,12 +213,13 @@ export function BizFlowWorld({
 
         {/* Môi trường chiếu sáng nhẹ & sương mù chiều sâu */}
         <fog attach="fog" args={activeRoom === "warehouse" ? ["#070b14", 38, 90] : ["#070b14", 20, 48]} />
-        <Suspense fallback={null}>
+        <Suspense fallback={<Html center><div role="status" className="whitespace-nowrap rounded-xl bg-slate-950/95 px-5 py-3 text-sm text-white">Đang tải không gian 3D…</div></Html>}>
         <Environment preset="city" environmentIntensity={0.25} />
 
         {/* ── BỘ ĐIỀU KHIỂN CAMERA ĐA PHÒNG & MOUSE PARALLAX ────────── */}
         <WorldCameraController
           paused={phase === "preparing"}
+          reducedMotion={reducedMotion || (quickNavigation && !isInteractingWithPOS)}
           activeRoom={activeRoom}
           currentPreset={currentPreset}
           controlsRef={controlsRef}

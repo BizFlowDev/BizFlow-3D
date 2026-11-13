@@ -1,5 +1,6 @@
 "use client";
 import { useRoomFrame } from "./world/roomActivity";
+import { getShelfProductPosition } from "./shelfLayout";
 
 import { useMemo, useState, useEffect, useRef } from "react";
 import { Html, Text } from "@react-three/drei";
@@ -22,6 +23,7 @@ export interface ShelfProduct {
   name: string;
   price: number;
   stock: number;
+  stockKnown?: boolean;
   categoryId?: string | null;
   categoryName?: string | null;
   code?: string;
@@ -138,13 +140,6 @@ function useProductTexture(imageUrl?: string | null) {
 
 // ── Helper: tọa độ từng slot ──────────────────────────────────────────────────
 
-function slotPosition(row: number, col: number): [number, number, number] {
-  const x = -SHELF_WIDTH / 2 + (col + 1) * COL_GAP;
-  const y = (row + 1) * ROW_GAP + PRODUCT_SIZE[1] / 2 + 0.04;
-  const z = 0;
-  return [x, y, z];
-}
-
 // ── Format VND ────────────────────────────────────────────────────────────────
 
 function formatVND(amount: number): string {
@@ -162,18 +157,20 @@ function ProductBoxItem({
   position,
   onSelect,
   isSelected = false,
+  showLabel = false,
 }: {
   product: ShelfProduct;
   position: [number, number, number];
   onSelect?: (id: string) => void;
   isSelected?: boolean;
+  showLabel?: boolean;
 }) {
   const [hovered, setHovered] = useState(false);
   const palette = useMemo(() => getPalette(product.id), [product.id]);
   const productTexture = useProductTexture(product.imageUrl);
 
-  const isOutOfStock = product.stock <= 0;
-  const isLowStock = !isOutOfStock && product.stock <= LOW_STOCK_THRESHOLD;
+  const isOutOfStock = product.stockKnown !== false && product.stock <= 0;
+  const isLowStock = product.stockKnown !== false && !isOutOfStock && product.stock < LOW_STOCK_THRESHOLD;
 
   // Hiệu ứng Spring nảy phóng to 1.09x và nhấc bổng nhẹ nhàng 0.08m (đảm bảo không bao giờ đâm xuyên kệ trên)
   // Đồng thời nhích nhẹ ra trước (Z + 0.06m) tạo cảm giác 3D nổi bật
@@ -382,10 +379,12 @@ function ProductBoxItem({
       </animated.group>
 
       {/* Thẻ giá gắn ở gờ kệ (Shelf Price Tag) */}
-      <mesh position={[0, position[1] - PRODUCT_SIZE[1] / 2 - 0.04, PRODUCT_SIZE[2] / 2 + 0.04]}>
-        <boxGeometry args={[0.42, 0.06, 0.02]} />
+      <mesh position={[0, position[1] - PRODUCT_SIZE[1] / 2 - 0.04, SHELF_DEPTH / 2 + 0.04]}>
+        <boxGeometry args={[showLabel ? 0.82 : 0.42, showLabel ? 0.18 : 0.06, 0.02]} />
         <meshStandardMaterial color="#0f172a" roughness={0.3} />
       </mesh>
+
+      {showLabel && <Text position={[0, position[1] - PRODUCT_SIZE[1] / 2 - 0.04, SHELF_DEPTH / 2 + 0.055]} fontSize={0.065} maxWidth={0.78} color="#f8fafc" textAlign="center" anchorX="center" anchorY="middle">{`${product.name.length > 19 ? `${product.name.slice(0, 18)}…` : product.name}\n${formatVND(product.price)}`}</Text>}
 
       {/* Floating Card khi hover sản phẩm */}
       {hovered && (
@@ -403,14 +402,14 @@ function ProductBoxItem({
                 {product.name}
               </span>
               <span
-                className={`flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold ${isOutOfStock
+                className={`flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold ${product.stockKnown === false ? "bg-slate-500/20 text-slate-300 border border-slate-500/30" : isOutOfStock
                   ? "bg-red-500/20 text-red-400 border border-red-500/30"
                   : isLowStock
                     ? "bg-amber-500/20 text-amber-400 border border-amber-500/30"
                     : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
                   }`}
               >
-                {isOutOfStock ? (
+                {product.stockKnown === false ? "Chưa xác định tồn kho" : isOutOfStock ? (
                   "Hết hàng"
                 ) : (
                   <>
@@ -706,9 +705,7 @@ export default function ProductShelf({
 
       {/* Từng hộp sản phẩm bán lẻ */}
       {visible.map((product, index) => {
-        const row = Math.floor(index / COLS);
-        const col = index % COLS;
-        const pos = slotPosition(row, col);
+        const pos = getShelfProductPosition(index, visible.length);
 
         return (
           <ProductBoxItem
@@ -717,6 +714,7 @@ export default function ProductShelf({
             position={pos}
             onSelect={onSelectProduct}
             isSelected={selectedProductId === product.id}
+            showLabel={isFocused}
           />
         );
       })}

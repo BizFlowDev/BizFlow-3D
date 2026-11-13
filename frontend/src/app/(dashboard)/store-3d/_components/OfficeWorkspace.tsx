@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import { BarChart3, BookOpen, Settings2, Users, Loader2, X } from "lucide-react";
+import { BarChart3, BookOpen, Settings2, Users, Loader2, X, Maximize2, Minimize2 } from "lucide-react";
 import { SpatialPortalContext } from "@/components/ui/spatial-portal";
 import { Modal3DCard } from "./Modal3DCard";
 
@@ -31,6 +31,7 @@ export function OfficeWorkspace({ section, onSectionChange }: { section: OfficeS
   const closeRef = useRef<HTMLButtonElement>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [closing, setClosing] = useState(false);
+  const [expanded, setExpanded] = useState(true);
 
   const close = useCallback(() => {
     if (timer.current) return;
@@ -65,17 +66,20 @@ export function OfficeWorkspace({ section, onSectionChange }: { section: OfficeS
   const Icon = selected.icon;
   return (
     // Keep the panel below the HUD layer and reserve space for both control bars.
-    <div className="pointer-events-none fixed inset-x-0 bottom-32 top-24 z-20 flex items-center justify-center px-4 sm:justify-end sm:px-8 lg:px-12">
-      <div className="pointer-events-auto w-full min-w-0 max-w-4xl sm:w-[62vw]">
+    <div className={`pointer-events-none fixed inset-x-0 z-20 flex items-center justify-center px-4 ${expanded ? "bottom-32 top-4" : "bottom-32 top-24 sm:justify-end sm:px-8 lg:px-12"}`}>
+      <div className={`pointer-events-auto w-full min-w-0 ${expanded ? "max-w-7xl" : "max-w-4xl sm:w-[62vw]"}`}>
         <Modal3DCard key={section} closing={closing} isFloating enableTilt={false} accentGlowColor="rgba(52, 211, 153, 0.35)">
           <SpatialPortalContext.Provider value={portal}>
-            <section data-office-panel role="dialog" aria-modal="false" aria-labelledby="office-workspace-title" className="relative flex h-[calc(100dvh-15rem)] min-h-0 flex-col" onPointerDown={(event) => event.stopPropagation()} onWheel={(event) => event.stopPropagation()}>
+            <section data-office-panel role="dialog" aria-modal="false" aria-labelledby="office-workspace-title" className={`relative flex min-h-0 flex-col ${expanded ? "h-[calc(100dvh-9rem)]" : "h-[calc(100dvh-15rem)]"}`} onPointerDown={(event) => event.stopPropagation()} onWheel={(event) => event.stopPropagation()}>
               <header className="flex shrink-0 items-center justify-between gap-3 border-b border-emerald-400/20 bg-slate-950/85 px-4 py-3">
                 <div className="flex min-w-0 items-center gap-3">
                   <span className="rounded-xl border border-emerald-400/30 bg-emerald-400/10 p-2 text-emerald-300"><Icon className="h-5 w-5" /></span>
                   <div className="min-w-0"><p className="text-[10px] font-bold tracking-wider text-emerald-400">BIZFLOW · VĂN PHÒNG P.3</p><h2 id="office-workspace-title" className="truncate text-sm font-bold text-white">{selected.title}</h2></div>
                 </div>
-                <button ref={closeRef} type="button" onClick={close} aria-label="Đóng màn hình văn phòng (Esc)" title="Đóng (Esc)" className="shrink-0 rounded-full p-2 text-slate-400 transition hover:bg-white/10 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-300"><X className="h-4 w-4" /></button>
+                <div className="flex shrink-0 items-center gap-1">
+                  <button type="button" onClick={() => setExpanded(value => !value)} aria-label={expanded ? "Thu nhỏ bảng văn phòng" : "Mở rộng bảng văn phòng"} className="rounded-full p-2 text-slate-300 hover:bg-white/10">{expanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}</button>
+                  <button ref={closeRef} type="button" onClick={close} aria-label="Đóng màn hình văn phòng (Esc)" title="Đóng (Esc)" className="shrink-0 rounded-full p-2 text-slate-400 transition hover:bg-white/10 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-300"><X className="h-4 w-4" /></button>
+                </div>
               </header>
               <nav aria-label="Chức năng quản lý" className="flex shrink-0 gap-1.5 overflow-x-auto border-b border-white/10 bg-slate-900/60 px-3 py-2">
                 {sections.map(({ id, title, icon: TabIcon }) => <button key={id} type="button" aria-current={section === id ? "page" : undefined} onClick={() => onSectionChange(id)} className={`flex shrink-0 items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold focus-visible:outline focus-visible:outline-2 ${section === id ? "border-emerald-400/40 bg-emerald-500/25 text-emerald-300" : "border-transparent text-slate-400 hover:bg-white/5 hover:text-white"}`}><TabIcon className="h-4 w-4" />{title}</button>)}

@@ -7,12 +7,13 @@ function normalize(value: string) {
 }
 
 /** A page represents virtual display slots, never a physical warehouse location. */
-export function getWarehousePage(items: StockLevelRow[], query: string, category: string | null, page: number) {
+export function getWarehousePage(items: StockLevelRow[], query: string, category: string | null, page: number, needsRestock = false) {
   const term = normalize(query.trim());
   const filtered = items.filter(item =>
     (!category || item.categoryId === category) &&
+    (!needsRestock || item.status !== "in_stock") &&
     (!term || normalize(`${item.productName} ${item.code}`).includes(term))
-  ).sort((a, b) => a.code.localeCompare(b.code, "vi", { numeric: true }) || a.productId.localeCompare(b.productId));
+  ).sort((a, b) => (needsRestock ? a.currentStock - b.currentStock : 0) || a.code.localeCompare(b.code, "vi", { numeric: true }) || a.productId.localeCompare(b.productId));
   const pageCount = Math.max(1, Math.ceil(filtered.length / WAREHOUSE_PAGE_SIZE));
   const currentPage = Math.max(0, Math.min(pageCount - 1, Math.floor(page) || 0));
   const start = currentPage * WAREHOUSE_PAGE_SIZE;

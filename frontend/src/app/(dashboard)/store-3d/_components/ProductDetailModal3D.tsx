@@ -32,7 +32,7 @@ export interface CartItem3D {
 }
 
 interface ProductDetailModal3DProps {
-  product: (Product & { stock: number; categoryName?: string | null }) | null;
+  product: (Product & { stock: number; stockKnown?: boolean; categoryName?: string | null }) | null;
   isOpen: boolean;
   onClose: () => void;
   onAddToCart: (item: CartItem3D) => void;
@@ -61,15 +61,14 @@ export function ProductDetailModal3D({
 
   // Đơn vị mặc định
   useEffect(() => {
-    if (product?.units && product.units.length > 0) {
-      const def = product.units.find((u) => u.isDefault) || product.units[0];
-      setSelectedUnitId(def.id);
-    } else {
-      setSelectedUnitId("");
-    }
     setQuantity(1);
     setAddedAnimation(false);
-  }, [product]);
+  }, [product?.id, isOpen]);
+
+  useEffect(() => {
+    const units = product?.units ?? [];
+    setSelectedUnitId(current => units.some(unit => unit.id === current) ? current : (units.find(unit => unit.isDefault) ?? units[0])?.id ?? "");
+  }, [product?.id, product?.units]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -88,18 +87,19 @@ export function ProductDetailModal3D({
   if (!isOpen || !product) return null;
 
   const currentStock = product.stock ?? 0;
-  const isOutOfStock = currentStock <= 0;
-  const isLowStock = !isOutOfStock && currentStock <= LOW_STOCK_THRESHOLD;
+  const stockKnown = product.stockKnown !== false;
+  const isOutOfStock = !stockKnown || currentStock <= 0;
+  const isLowStock = !isOutOfStock && currentStock < LOW_STOCK_THRESHOLD;
 
   const unitPrice = activeUnit?.price ?? 0;
   const conversionFactor = activeUnit?.conversionFactor ?? 1;
 
   // Số lượng tối đa có thể mua theo đơn vị này
-  const maxAllowedQty = Math.max(1, Math.floor(currentStock / conversionFactor));
+  const maxAllowedQty = Math.floor(currentStock / conversionFactor);
   const subtotal = unitPrice * quantity;
 
   const handleAdd = () => {
-    if (isOutOfStock) return;
+    if (isOutOfStock || quantity < 1 || quantity > maxAllowedQty || !activeUnit) return;
     const cartItem: CartItem3D = {
       productId: product.id,
       productName: product.name,
@@ -118,7 +118,7 @@ export function ProductDetailModal3D({
   };
 
   const handleBuyNow = () => {
-    if (isOutOfStock) return;
+    if (isOutOfStock || quantity < 1 || quantity > maxAllowedQty || !activeUnit) return;
     const cartItem: CartItem3D = {
       productId: product.id,
       productName: product.name,
@@ -132,7 +132,6 @@ export function ProductDetailModal3D({
       availableStock: currentStock,
     };
     onBuyNow(cartItem);
-    onClose();
   };
 
   return (
@@ -214,7 +213,7 @@ export function ProductDetailModal3D({
 
                   {/* Badge tem ảnh chính hãng */}
                   <span className="absolute bottom-1.5 right-1.5 rounded-md bg-black/75 px-1.5 py-0.5 text-[9px] font-bold text-sky-300 backdrop-blur-sm border border-white/10">
-                    Ảnh 3D
+                    Ảnh sản phẩm
                   </span>
                 </div>
 
@@ -226,14 +225,14 @@ export function ProductDetailModal3D({
                     </span>
                     <span
                       className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
-                        isOutOfStock
+                        !stockKnown ? "bg-slate-500/20 text-slate-300 border border-slate-500/30" : isOutOfStock
                           ? "bg-red-500/20 text-red-400 border border-red-500/30"
                           : isLowStock
                           ? "bg-amber-500/20 text-amber-400 border border-amber-500/30"
                           : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
                       }`}
                     >
-                      {isOutOfStock ? (
+                      {!stockKnown ? "Chưa xác định tồn kho" : isOutOfStock ? (
                         <>
                           <AlertCircle className="h-3 w-3" /> Hết hàng
                         </>
@@ -311,7 +310,7 @@ export function ProductDetailModal3D({
                   Số lượng mua
                 </div>
                 <div className="text-[10px] text-slate-400">
-                  Tối đa: {maxAllowedQty} {activeUnit?.unitName ?? "đơn vị"}
+                  Tối đa: {stockKnown ? maxAllowedQty : "—"} {activeUnit?.unitName ?? "đơn vị"}
                 </div>
               </div>
 
@@ -333,7 +332,7 @@ export function ProductDetailModal3D({
                   onChange={(e) => {
                     const val = parseInt(e.target.value, 10);
                     if (!isNaN(val)) {
-                      setQuantity(Math.min(maxAllowedQty, Math.max(1, val)));
+                      setQuantity(Math.max(1, Math.min(maxAllowedQty, val)));
                     }
                   }}
                   disabled={isOutOfStock}
@@ -370,7 +369,7 @@ export function ProductDetailModal3D({
             <button
               type="button"
               onClick={handleAdd}
-              disabled={isOutOfStock}
+              disabled={isOutOfStock || quantity < 1 || quantity > maxAllowedQty || !activeUnit}
               className={`flex-1 flex items-center justify-center gap-2 rounded-xl py-2.5 px-3 font-bold text-xs text-white transition-all shadow-lg active:scale-95 ${
                 addedAnimation
                   ? "bg-emerald-600 shadow-emerald-500/30"
@@ -393,7 +392,7 @@ export function ProductDetailModal3D({
             <button
               type="button"
               onClick={handleBuyNow}
-              disabled={isOutOfStock}
+              disabled={isOutOfStock || quantity < 1 || quantity > maxAllowedQty || !activeUnit}
               className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-sky-500 via-indigo-600 to-teal-500 hover:from-sky-600 hover:to-teal-600 py-2.5 px-3 font-bold text-xs text-white shadow-lg shadow-sky-500/25 transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <CreditCard className="h-4 w-4" />

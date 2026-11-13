@@ -44,3 +44,13 @@ test("deleting or filtering products clamps an out-of-range page", () => {
   assert.equal(empty.total, 0);
   assert.equal(empty.pageCount, 1);
 });
+
+test("restock mode includes low and empty stock, prioritizes empty items, and preserves search/category filters", () => {
+  const items = inventory(40);
+  items[0] = { ...items[0], currentStock: 3, status: "low_stock" };
+  items[2] = { ...items[2], currentStock: 0, status: "out_of_stock" };
+  assert.deepEqual(getWarehousePage(items, "", null, 0, true).items.map(item => item.productId), ["p-2", "p-0"]);
+  assert.equal(getWarehousePage(items, "duong", "b", 3, true).items[0].productId, "p-0");
+  assert.equal(getWarehousePage(items, "", "a", 0, true).total, 0);
+  assert.equal(getWarehousePage(items, "", null, 0).total, 40);
+});

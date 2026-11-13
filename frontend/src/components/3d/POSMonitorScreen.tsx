@@ -38,7 +38,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCustomerList, type Customer } from "@/hooks/useCustomers";
-import { useProductList, useCategoryList, type Product } from "@/hooks/useProducts";
+import { useProductCatalog, useCategoryList, type Product } from "@/hooks/useProducts";
+import { useStockLevel } from "@/hooks/useInventory";
 import {
   useCreateOrder,
   getOrderCode,
@@ -58,6 +59,7 @@ import { printInvoice } from "@/lib/invoice";
 import type { CartItem3D } from "@/app/(dashboard)/store-3d/_components/ProductDetailModal3D";
 
 interface POSMonitorScreenProps {
+  screenWidth?: number;
   isActive: boolean;
   onActivate: () => void;
   onExit: () => void;
@@ -97,7 +99,7 @@ class ScreenErrorBoundary extends React.Component<
   render() {
     if (this.state.hasError) {
       return (
-        <div className="pos-screen flex h-[750px] w-[1200px] flex-col justify-between rounded-2xl bg-slate-950 p-8 text-white border border-red-500/50">
+        <div className="pos-screen flex h-full w-full flex-col justify-between rounded-2xl bg-slate-950 p-8 text-white border border-red-500/50">
           <div className="text-red-400 font-bold text-sm">
             ⚠️ Giao diện POS đang gặp sự cố:
           </div>
@@ -127,6 +129,7 @@ export function POSMonitorScreen(props: POSMonitorScreenProps) {
 }
 
 function POSMonitorScreenInner({
+  screenWidth = 1200,
   isActive,
   onActivate,
   onExit,
@@ -176,11 +179,10 @@ function POSMonitorScreenInner({
   const { data: customerData } = useCustomerList({ limit: 100 });
   const customers = customerData?.items ?? [];
 
-  const { data: productData, isLoading: productsLoading } = useProductList({
-    status: "active",
-    limit: 100,
-  });
-  const allProducts = productData?.items ?? [];
+  const { data: productData, isLoading: productsLoading, isError: productsError, refetch: refetchProducts } = useProductCatalog();
+  const allProducts = useMemo(() => productData?.items.filter(product => product.isActive) ?? [], [productData]);
+  const { data: stockData, isLoading: stockLoading, isError: stockError, refetch: refetchStock } = useStockLevel();
+  const stockMap = useMemo(() => new Map(stockData?.map(item => [item.productId, item.currentStock])), [stockData]);
 
   const { data: categories = [] } = useCategoryList();
   const createOrderMutation = useCreateOrder();
@@ -293,10 +295,24 @@ function POSMonitorScreenInner({
     ? Math.max(0, parseFloat(cashGivenInput) || 0)
     : finalAmount;
   const changeAmount = Math.max(0, cashGiven - finalAmount);
+  const stockIssue = useMemo(() => {
+    if (!orderLines.length) return null;
+    if (stockError || !stockData) return "Chưa xác định được tồn kho. Vui lòng tải lại tồn kho trước khi thanh toán.";
+    const quantities = new Map<string, number>();
+    for (const item of orderLines) {
+      if (!Number.isInteger(item.quantity) || item.quantity < 1 || item.conversionFactor <= 0) return "Số lượng hoặc đơn vị mua không hợp lệ.";
+      const quantity = (quantities.get(item.productId) ?? 0) + item.quantity * item.conversionFactor;
+      quantities.set(item.productId, quantity);
+      const stock = stockMap.get(item.productId);
+      if (stock === undefined || quantity > stock) return `Không đủ tồn kho đã xác nhận cho ${item.productName}. Vui lòng kiểm tra số lượng và đơn vị.`;
+    }
+    return null;
+  }, [orderLines, stockData, stockError, stockMap]);
 
   // Mở modal thanh toán Stripe và sinh phiên checkout
   const handleOpenStripeModal = useCallback(() => {
     if (orderLines.length === 0) return;
+    if (stockIssue) { setErrorMessage(stockIssue); return; }
     hasAutoSubmittedStripeRef.current = false;
     setStripeError(null);
     setIsStripeExpired(false);
@@ -324,7 +340,7 @@ function POSMonitorScreenInner({
         },
       },
     );
-  }, [orderLines, finalAmount, selectedCustomer, createStripeSessionMutation]);
+  }, [orderLines, finalAmount, selectedCustomer, createStripeSessionMutation, stockIssue]);
 
   // Hủy phiên Stripe sau 15 phút
   const handleStripeExpire = useCallback(() => {
@@ -350,6 +366,13 @@ function POSMonitorScreenInner({
   // Thêm nhanh từ grid
   const handleAddProductCard = (p: Product) => {
     const defaultUnit = p.units?.find((u) => u.isDefault) || p.units?.[0];
+    const stock = stockMap.get(p.id);
+    const reserved = orderLines.filter(item => item.productId === p.id).reduce((sum, item) => sum + item.quantity * item.conversionFactor, 0);
+    if (stockError || stock === undefined || !defaultUnit || stock - reserved < defaultUnit.conversionFactor) {
+      setErrorMessage(stockError || stock === undefined ? "Chưa xác định được tồn kho. Vui lòng tải lại tồn kho trước khi bán." : "Không đủ tồn kho cho đơn vị đã chọn.");
+      return;
+    }
+    setErrorMessage(null);
     const item: CartItem3D = {
       productId: p.id,
       productName: p.name,
@@ -360,7 +383,7 @@ function POSMonitorScreenInner({
       conversionFactor: defaultUnit?.conversionFactor || 1,
       unitPrice: defaultUnit?.price || 0,
       quantity: 1,
-      availableStock: 50,
+      availableStock: stock,
     };
     onAddProduct(item);
   };
@@ -389,6 +412,7 @@ function POSMonitorScreenInner({
 
   // Submit thanh toán
   const handleCheckout = async () => {
+    if (stockIssue) { setErrorMessage(stockIssue); return; }
     if (orderLines.length === 0) {
       setErrorMessage("Vui lòng chọn ít nhất một sản phẩm vào đơn hàng.");
       return;
@@ -547,7 +571,10 @@ function POSMonitorScreenInner({
   return (
     <div
       onClick={(e) => e.stopPropagation()}
-      className="pos-screen flex h-[752px] w-[1200px] flex-col overflow-hidden rounded-2xl bg-slate-950 text-white shadow-2xl select-none border border-slate-700/60"
+      role="region"
+      aria-label="Bán hàng POS"
+      style={{ width: screenWidth, height: screenWidth * 0.625 }}
+      className="pos-screen flex min-h-0 min-w-0 flex-col overflow-hidden rounded-2xl bg-slate-950 text-white shadow-2xl select-none border border-slate-700/60"
     >
       {/* ── 1. Top Bar của Hệ Thống POS ─────────────────────────────────── */}
       <div className="flex h-14 shrink-0 items-center justify-between border-b border-white/10 bg-slate-900/90 px-6">
@@ -745,9 +772,9 @@ function POSMonitorScreenInner({
         </div>
       ) : (
         /* ── 4. Giao diện Bán Hàng POS Chia 2 Cột Chuẩn Mực ───────────── */
-        <div className="flex flex-1 overflow-hidden">
+        <div className="flex min-h-0 flex-1 overflow-hidden">
           {/* ── CỘT TRÁI: DANH MỤC & TÌM KIẾM SẢN PHẨM (50%) ─────────── */}
-          <div className="flex w-[50%] flex-col border-r border-white/10 bg-slate-900/40">
+          <div className="flex min-h-0 min-w-0 w-[50%] flex-col border-r border-white/10 bg-slate-900/40">
             {/* Thanh tìm kiếm & lọc danh mục */}
             <div className="border-b border-white/10 p-3 space-y-2 bg-slate-900/60">
               <div className="relative">
@@ -789,9 +816,12 @@ function POSMonitorScreenInner({
               </div>
             </div>
 
+            {stockError && <p role="alert" className="px-3 py-2 text-xs text-amber-300">Không tải được tồn kho. <button type="button" onClick={() => refetchStock()} className="underline">Tải lại tồn kho</button></p>}
             {/* Grid sản phẩm */}
             <div className="flex-1 overflow-y-auto p-3 pos-screen">
-              {productsLoading ? (
+              {productsError ? (
+                <div role="alert" className="p-4 text-sm text-amber-300">Không tải được danh mục. <button onClick={() => refetchProducts()} className="underline">Thử lại</button></div>
+              ) : productsLoading ? (
                 <div className="flex h-full items-center justify-center text-xs text-slate-400">
                   <Loader2 className="h-5 w-5 animate-spin text-sky-400 mr-2" />
                   Đang tải danh mục sản phẩm...
@@ -805,10 +835,12 @@ function POSMonitorScreenInner({
                   {paginatedProducts.map((p) => {
                     const defaultUnit = p.units?.find((u) => u.isDefault) || p.units?.[0];
                     const price = defaultUnit?.price ?? 0;
+                    const knownStock = !stockError && stockMap.has(p.id);
+                    const stock = stockMap.get(p.id) ?? 0;
                     return (
                       <div
                         key={p.id}
-                        onClick={() => handleAddProductCard(p)}
+                        onClick={() => { if (knownStock && stock > 0) handleAddProductCard(p); }}
                         className="group flex flex-col justify-between rounded-xl border border-white/10 bg-slate-800/60 p-2.5 text-left hover:border-emerald-500/50 hover:bg-slate-800 transition-all hover:scale-[1.02] cursor-pointer shadow-sm"
                       >
                         <div className="relative h-18 w-full shrink-0 overflow-hidden rounded-lg bg-slate-700/60 flex items-center justify-center mb-1.5">
@@ -824,6 +856,7 @@ function POSMonitorScreenInner({
                           )}
                         </div>
 
+                        <p className={`mb-1 text-[10px] ${!knownStock ? "text-slate-400" : stock <= 0 ? "text-red-300" : "text-emerald-300"}`}>{!knownStock ? stockLoading ? "Đang tải tồn kho…" : "Chưa xác định tồn kho" : stock <= 0 ? "Hết hàng" : `Tồn: ${stock}`}</p>
                         <div className="min-w-0 flex-1">
                           <div className="line-clamp-1 text-xs font-bold text-white group-hover:text-emerald-400 transition-colors">
                             {p.name}
@@ -843,7 +876,9 @@ function POSMonitorScreenInner({
 
                         <button
                           type="button"
-                          className="mt-2 flex w-full items-center justify-center gap-1 rounded-lg bg-emerald-600/20 py-1 text-[11px] font-semibold text-emerald-300 group-hover:bg-emerald-600 group-hover:text-white transition-all shadow"
+                          aria-label={`Thêm ${p.name}`}
+                          disabled={!knownStock || !defaultUnit || stock < defaultUnit.conversionFactor}
+                          className="mt-2 flex w-full items-center justify-center gap-1 rounded-lg bg-emerald-600/20 py-1 text-[11px] font-semibold text-emerald-300 group-hover:bg-emerald-600 group-hover:text-white transition-all shadow disabled:cursor-not-allowed disabled:opacity-40"
                         >
                           <Plus className="h-3.5 w-3.5" />
                           <span>Thêm món</span>
@@ -1309,9 +1344,9 @@ function POSMonitorScreenInner({
               )}
 
               {/* Lỗi nếu có */}
-              {errorMessage && (
+              {(errorMessage || stockIssue) && (
                 <div className="rounded bg-red-500/20 border border-red-500/30 p-1 text-[10px] text-red-300">
-                  {errorMessage}
+                  {errorMessage || stockIssue}
                 </div>
               )}
 

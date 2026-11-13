@@ -83,8 +83,8 @@ function RealisticCargoItem({
   const [hovered, setHovered] = useState(false);
   const indicatorRef = useRef<THREE.Mesh>(null);
 
-  const isLowStock = (item.currentStock ?? 0) <= (item.minStock ?? 5);
-  const statusColor = isLowStock ? "#ef4444" : "#10b981";
+  const isLowStock = item.status !== "in_stock";
+  const statusColor = item.currentStock <= 0 ? "#ef4444" : isLowStock ? "#fbbf24" : "#10b981";
 
   // Hiệu ứng nhấp nháy cảnh báo nếu hàng sắp hết
   useRoomFrame(({ clock }) => {
@@ -99,6 +99,13 @@ function RealisticCargoItem({
 
   return (
     <group position={position}>
+      {isLowStock && <>
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.015, 0]}>
+          <ringGeometry args={[0.44, 0.5, 24]} />
+          <meshBasicMaterial color={statusColor} transparent opacity={0.8} side={THREE.DoubleSide} />
+        </mesh>
+        <Text position={[0, 0.85, 0.4]} fontSize={0.11} maxWidth={1.1} textAlign="center" color={statusColor} anchorX="center" anchorY="bottom">{`${item.code}\n${item.currentStock <= 0 ? "Hết hàng" : `Còn ${item.currentStock} ${item.unitName}`}`}</Text>
+      </>}
       {/* ── LOẠI 1: THÙNG CARTON LOGISTICS TIÊU CHUẨN ── */}
       {type === "carton" && (
         <group
@@ -476,7 +483,7 @@ function WarehouseWMSDashboard({
   const totalSku = items.length;
   const totalStock = items.reduce((acc, it) => acc + (it.currentStock || 0), 0);
   const lowStockCount = items.filter(
-    (it) => (it.currentStock || 0) <= (it.minStock ?? 5),
+    (it) => it.status !== "in_stock",
   ).length;
 
   const pulseRef = useRef<THREE.Mesh>(null);

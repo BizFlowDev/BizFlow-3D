@@ -24,7 +24,8 @@ import {
   Layers,
   Filter,
 } from "lucide-react";
-import { useProductList, useCategoryList, type Product } from "@/hooks/useProducts";
+import { useProductCatalog, useCategoryList, type Product } from "@/hooks/useProducts";
+import { useReducedMotion } from "motion/react";
 import { useOrderList, type Order } from "@/hooks/useOrders";
 import { useStockLevel, type StockLevelRow } from "@/hooks/useInventory";
 import { toISODate } from "@/lib/report-utils";
@@ -32,6 +33,7 @@ import { useDailyRevenue } from "@/hooks/useReports";
 import { useEmployeeList } from "@/hooks/useEmployees";
 import { useQueryClient } from "@tanstack/react-query";
 import type { ShelfProduct } from "@/components/3d/ProductShelf";
+import { getShelfProductPosition } from "@/components/3d/shelfLayout";
 import type { RoomId, CameraPreset } from "@/components/3d/world/types";
 import type { CameraFocusPoint } from "@/components/3d/world/WorldCameraController";
 import { getWarehousePage } from "@/components/3d/world/warehouseInventory";
@@ -101,9 +103,13 @@ export default function Store3DPage() {
   // ── State ──────────────────────────────────────────────────
   const roomNavigationRef = useRef<((room: RoomId) => void) | null>(null);
   const [isRoomTransitionBusy, setRoomTransitionBusy] = useState(false);
+  const [quickNavigation, setQuickNavigation] = useState(true);
+  const prefersReducedMotion = useReducedMotion();
   const requestRoom = useCallback((room: RoomId) => roomNavigationRef.current?.(room), []);
   const [activeRoom, setActiveRoom] = useState<RoomId>("showroom");
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchResultLimit, setSearchResultLimit] = useState(20);
+  useEffect(() => setSearchResultLimit(20), [searchQuery]);
 
   // Camera preset & Chế độ màn hình POS 3D
   const [cameraPreset, setCameraPreset] = useState<CameraPreset>("showroomOverview");
@@ -127,6 +133,7 @@ export default function Store3DPage() {
   const [selectedCargoLocation, setSelectedCargoLocation] = useState<CargoLocationInfo | null>(null);
   const [warehouseQuery, setWarehouseQuery] = useState("");
   const [warehousePage, setWarehousePage] = useState(0);
+  const [needsRestockOnly, setNeedsRestockOnly] = useState(false);
   const [highlightCategoryId, setHighlightCategoryIdState] = useState<string | null>(null);
   const setHighlightCategoryId = useCallback((id: string | null) => {
     setHighlightCategoryIdState(id);
@@ -152,19 +159,16 @@ export default function Store3DPage() {
   // Order Lines State (Các mặt hàng trong đơn)
   const [orderLines, setOrderLines] = useState<CartItem3D[]>([]);
   const [selectedProductForDetail, setSelectedProductForDetail] = useState<
-    (Product & { stock: number; categoryName?: string | null }) | null
+    (Product & { stock: number; stockKnown?: boolean; categoryName?: string | null }) | null
   >(null);
   const [createdOrder, setCreatedOrder] = useState<Order | null>(null);
 
   // ── Data hooks ─────────────────────────────────────────────
-  const { data: productsData, isLoading: productsLoading } = useProductList({
-    limit: 200,
-    status: "all",
-  });
+  const { data: productsData, isLoading: productsLoading, isError: productsError, refetch: refetchProducts } = useProductCatalog();
   const { data: stockData, isLoading: stockLoading, isError: stockError, refetch: refetchStock } = useStockLevel();
   const warehouseDisplay = useMemo(
-    () => getWarehousePage(stockData || [], warehouseQuery, highlightCategoryId, warehousePage),
-    [stockData, warehouseQuery, highlightCategoryId, warehousePage],
+    () => getWarehousePage(stockData || [], warehouseQuery, highlightCategoryId, warehousePage, needsRestockOnly),
+    [stockData, warehouseQuery, highlightCategoryId, warehousePage, needsRestockOnly],
   );
   useEffect(() => { setWarehousePage(warehouseDisplay.currentPage); }, [warehouseDisplay.currentPage]);
   const { data: ordersData } = useOrderList({ limit: 12 });
@@ -206,15 +210,17 @@ export default function Store3DPage() {
   const enrichedProducts = useMemo(() => {
     if (!productsData?.items) return [];
     return productsData.items.map((p) => {
-      const realStock = stockMap.has(p.id) ? stockMap.get(p.id)! : 15;
+      const stockKnown = !stockError && stockMap.has(p.id);
+      const realStock = stockKnown ? stockMap.get(p.id)! : 0;
       return {
         ...p,
         stock: realStock,
-        price: p.units?.[0]?.price ?? 0,
+        stockKnown,
+        price: (p.units?.find(unit => unit.isDefault) ?? p.units?.[0])?.price ?? 0,
         categoryName: p.categoryId ? (categoryMap.get(p.categoryId) ?? null) : null,
       };
     });
-  }, [productsData, stockMap, categoryMap]);
+  }, [productsData, stockMap, categoryMap, stockError]);
 
   // ── Chế độ Test Phân Trang (Dữ liệu mẫu 160 sản phẩm theo 6 danh mục) ─────────
   const [isDemoMode, setIsDemoMode] = useState(false);
@@ -277,6 +283,7 @@ export default function Store3DPage() {
       name: p.name,
       price: p.price,
       stock: p.stock,
+      stockKnown: p.stockKnown,
       categoryId: p.categoryId,
       categoryName: p.categoryName,
       code: p.code,
@@ -653,23 +660,12 @@ export default function Store3DPage() {
   const handleSelectProduct = useCallback(
     (productId: string) => {
       // ── Tính toán tọa độ 3D CHÍNH XÁC của chiếc hộp sản phẩm đó trên kệ ──
-      const ROWS = 4;
-      const COLS = 5;
-      const SHELF_WIDTH = 5.6;
-      const SHELF_HEIGHT = 3.8;
-      const ROW_GAP = SHELF_HEIGHT / (ROWS + 1); // 0.76
-      const COL_GAP = SHELF_WIDTH / (COLS + 1);  // 0.9333
-      const PRODUCT_HEIGHT = 0.48;
-
-      const getSlot = (idx: number) => {
-        const row = Math.floor(idx / COLS);
-        const col = idx % COLS;
-        const x = -SHELF_WIDTH / 2 + (col + 1) * COL_GAP;
-        const y = (row + 1) * ROW_GAP + PRODUCT_HEIGHT / 2 + 0.04;
+      const getSlot = (idx: number, count: number) => {
+        const [x, y] = getShelfProductPosition(idx, count);
         return { x, y };
       };
 
-      let focusConfig: CameraFocusPoint;
+      let focusConfig: CameraFocusPoint | null;
 
       const idxA = shelfAData.products.findIndex((p) => p.id === productId);
       const idxB = shelfBData.products.findIndex((p) => p.id === productId);
@@ -678,7 +674,7 @@ export default function Store3DPage() {
 
       if (idxA >= 0) {
         // Hộp sản phẩm trên Kệ A (phía sau bên trái) — Zoom chuẩn vào hàng đó
-        const slot = getSlot(idxA);
+        const slot = getSlot(idxA, shelfAData.products.length);
         const worldX = -3.5 + slot.x;
         const worldY = slot.y;
         const worldZ = -4.5;
@@ -688,7 +684,7 @@ export default function Store3DPage() {
         };
       } else if (idxB >= 0) {
         // Hộp sản phẩm trên Kệ B (phía sau bên phải) — Zoom chuẩn vào hàng đó
-        const slot = getSlot(idxB);
+        const slot = getSlot(idxB, shelfBData.products.length);
         const worldX = 3.5 + slot.x;
         const worldY = slot.y;
         const worldZ = -4.5;
@@ -698,7 +694,7 @@ export default function Store3DPage() {
         };
       } else if (idxC >= 0) {
         // Hộp sản phẩm trên Kệ C (hông trái, quay +90 deg quanh trục Y)
-        const slot = getSlot(idxC);
+        const slot = getSlot(idxC, shelfCData.products.length);
         const worldX = -7.0;
         const worldY = slot.y;
         const worldZ = -0.5 - slot.x;
@@ -708,7 +704,7 @@ export default function Store3DPage() {
         };
       } else if (idxD >= 0) {
         // Hộp sản phẩm trên Kệ D (hông phải, quay -90 deg quanh trục Y)
-        const slot = getSlot(idxD);
+        const slot = getSlot(idxD, shelfDData.products.length);
         const worldX = 7.0;
         const worldY = slot.y;
         const worldZ = -0.5 + slot.x;
@@ -718,10 +714,7 @@ export default function Store3DPage() {
         };
       } else {
         // Fallback mặc định
-        focusConfig = {
-          target: [-3.2, 1.4, -4.5],
-          position: [-2.2, 1.8, -1.8],
-        };
+        focusConfig = null;
       }
 
       setTargetFocusPoint(focusConfig);
@@ -761,7 +754,7 @@ export default function Store3DPage() {
         }
       }
     },
-    [enrichedProducts, isDemoMode, shelfProducts, shelfBData, shelfCData, shelfDData],
+    [enrichedProducts, isDemoMode, shelfProducts, shelfAData, shelfBData, shelfCData, shelfDData],
   );
 
   const handleCloseProductDetail = useCallback(() => {
@@ -793,6 +786,7 @@ export default function Store3DPage() {
     (item: CartItem3D) => {
       handleAddToOrder(item);
       setSelectedProductForDetail(null);
+      setTargetFocusPoint(null);
       setCameraPreset("posScreen");
       setIsPOSActive(true);
       setIsHUDCollapsed(true);
@@ -945,6 +939,8 @@ export default function Store3DPage() {
 
   // ── Mở & Đóng Màn Hình Máy Tính POS ─────────────────────────
   const handleOpenPOS = useCallback(() => {
+    setTargetFocusPoint(null);
+    setSelectedProductForDetail(null);
     setCameraPreset("posScreen");
     setIsPOSActive(true);
     setIsHUDCollapsed(true);
@@ -1114,6 +1110,8 @@ export default function Store3DPage() {
             navigationRef={roomNavigationRef}
             onBusyChange={setRoomTransitionBusy}
             currentPreset={cameraPreset}
+            reducedMotion={!!prefersReducedMotion}
+            quickNavigation={quickNavigation}
             isPOSActive={isPOSActive}
             isAnyModalOpen={isAnyModalOpen}
             targetFocusPoint={targetFocusPoint}
@@ -1234,7 +1232,7 @@ export default function Store3DPage() {
           if (officeSection) { setOfficeSection(null); setTargetFocusPoint(null); }
         }}>
           {/* Thanh công cụ tinh gọn khi ở Chế độ Màn hình POS hoặc khi thu gọn HUD */}
-          {isHUDCollapsed && (
+          {isHUDCollapsed && !isPOSActive && (
             <div className="pointer-events-auto fixed top-3.5 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2.5 rounded-2xl border border-white/20 bg-slate-950/90 px-3.5 py-2 shadow-2xl shadow-black/60 backdrop-blur-2xl animate-in fade-in slide-in-from-top-3 duration-300 ring-1 ring-white/10">
               {/* Nút Rời Quầy / Toàn cảnh */}
               <button
@@ -1321,8 +1319,22 @@ export default function Store3DPage() {
                   <label className="flex items-center gap-1">Trang <input aria-label="Đến trang kho" type="number" min={1} max={warehouseDisplay.pageCount} value={warehouseDisplay.currentPage + 1} onChange={(e) => { if (e.target.value) setWarehousePage(Math.max(0, Math.min(warehouseDisplay.pageCount - 1, Number(e.target.value) - 1))); }} className="w-12 rounded border border-white/20 bg-slate-900 px-1 py-1 text-center" /> / {warehouseDisplay.pageCount}</label>
                   <button type="button" aria-label="Trang kho tiếp" disabled={warehouseDisplay.currentPage + 1 >= warehouseDisplay.pageCount} onClick={() => setWarehousePage(warehouseDisplay.currentPage + 1)} className="rounded-lg border border-white/20 p-1.5 hover:bg-white/10 disabled:opacity-30"><ChevronRight className="h-4 w-4" /></button>
                 </div>
-                <span className="text-[10px] text-slate-400">Kệ A: 15 ô · Kệ B: 15 ô · Vị trí hiển thị ảo</span>
+                <button type="button" aria-pressed={needsRestockOnly} disabled={stockLoading || stockError} onClick={() => { setNeedsRestockOnly(value => !value); setWarehousePage(0); }} className={`rounded-lg border px-3 py-1.5 font-semibold disabled:opacity-40 ${needsRestockOnly ? "border-amber-400 bg-amber-500/20 text-amber-200" : "border-amber-400/30 text-amber-300 hover:bg-amber-500/10"}`}>
+                  Cần nhập thêm ({stockError ? "—" : (stockData ?? []).filter(item => item.status !== "in_stock").length})
+                </button>
+                <span className="text-[10px] text-slate-400">Vị trí hiển thị ảo</span>
               </div>
+              {needsRestockOnly && !stockError && !stockLoading && !isAnyModalOpen && (
+                <div aria-label="Mặt hàng cần nhập thêm" className="max-h-40 overflow-auto rounded-xl border border-amber-400/30 bg-slate-950/95 p-2 text-xs text-white">
+                  {warehouseDisplay.items.length === 0 ? <p className="p-2">Không có hàng cần nhập thêm phù hợp bộ lọc.</p> : warehouseDisplay.items.map((item, index) => (
+                    <div key={item.productId} className="flex items-center gap-3 border-b border-white/5 p-2 last:border-0">
+                      <button type="button" onClick={() => handleSelectCargoItem(item, { aisle: index < 15 ? "DÃY KỆ A" : "DÃY KỆ B", level: Math.floor((index % 15) / 5), col: index % 5 })} className="min-w-0 flex-1 text-left hover:text-sky-300"><span className="font-semibold">{item.productName}</span><span className="ml-2 text-slate-400">{item.code}</span></button>
+                      <span className={item.currentStock <= 0 ? "text-red-300" : "text-amber-300"}>{item.currentStock <= 0 ? "Hết hàng" : `Còn ${item.currentStock} ${item.unitName}`}</span>
+                      <button type="button" onClick={() => handleOpenImportStock(item.productId)} className="shrink-0 rounded-lg bg-amber-500/20 px-3 py-1.5 font-semibold text-amber-200 hover:bg-amber-500/30" aria-label={`Nhập thêm ${item.productName}`}>Nhập thêm</button>
+                    </div>
+                  ))}
+                </div>
+              )}
               </div>
             )}
 
@@ -1330,12 +1342,17 @@ export default function Store3DPage() {
             {activeRoom === "showroom" && (
               <>
                 {/* Hàng 1: Search + Test Button + [Chính Giữa: Điều hướng Phân Trang] + Right Controls */}
-                <div className="relative flex items-center justify-between gap-3">
+                {(productsLoading || productsError || stockLoading || stockError) && <div role={productsError || stockError ? "alert" : "status"} className="rounded-xl bg-slate-950/95 px-4 py-2 text-xs text-amber-200">
+                  {productsError ? <>Không tải được danh mục. <button onClick={() => refetchProducts()} className="underline">Thử lại danh mục</button></> : productsLoading ? "Đang tải toàn bộ danh mục…" : null}
+                  {stockError ? <> Không tải được tồn kho; tạm khóa thêm sản phẩm từ kệ. <button onClick={() => refetchStock()} className="underline">Thử lại tồn kho</button></> : stockLoading ? " Đang tải tồn kho…" : null}
+                </div>}
+                <div className="relative flex flex-wrap items-center justify-between gap-3">
               {/* Cụm Bên Trái: Tìm kiếm sản phẩm & Nút bật Chế độ Test Phân Trang */}
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
                 <div className="relative w-56 sm:w-72">
                   <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                   <input
+                    aria-label="Tìm sản phẩm trong showroom"
                     type="text"
                     placeholder="Tìm kiếm sản phẩm trên kệ..."
                     value={searchQuery}
@@ -1377,7 +1394,7 @@ export default function Store3DPage() {
               </div>
 
               {/* Chính giữa: Thanh điều hướng phân trang (ngang hàng với thanh tìm kiếm) */}
-              <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 hidden sm:flex items-center justify-center">
+              <div className="hidden shrink-0 items-center justify-center sm:flex">
                 {/* Khi ở chế độ Tất cả danh mục: Điều hướng Nhóm Kệ */}
                 {selectedCategory === "all" && totalCategoryGroups > 1 && (
                   <div className="pointer-events-auto flex items-center gap-1 rounded-2xl border border-amber-500/40 bg-slate-900/90 p-1 text-xs text-white shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95">
@@ -1462,7 +1479,7 @@ export default function Store3DPage() {
               </div>
 
               {/* Cụm Bên Phải: Right Controls Header */}
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex flex-wrap items-center gap-2">
                 {/* Nút thoát nhanh quầy POS khi đang trong góc nhìn POS */}
                 {isPOSActive && (
                   <button
@@ -1531,6 +1548,13 @@ export default function Store3DPage() {
               </div>
             </div>
 
+            {searchQuery.trim() && !isAnyModalOpen && (
+              <div aria-label="Kết quả tìm sản phẩm" className="max-h-48 overflow-auto rounded-xl border border-white/15 bg-slate-950/95 p-2 text-xs text-white">
+                <p role="status" className="px-2 py-1 text-slate-400">{productsLoading ? "Đang tải danh mục…" : productsError ? "Không tải được danh mục" : `${filteredProducts.length} sản phẩm phù hợp`}</p>
+                {filteredProducts.slice(0, searchResultLimit).map(product => <button key={product.id} type="button" onClick={() => handleSelectProduct(product.id)} className="flex w-full items-center justify-between gap-3 rounded-lg px-2 py-2 text-left hover:bg-white/10"><span className="min-w-0 truncate">{product.name} <span className="text-slate-400">{product.code}</span></span><span className="shrink-0 text-emerald-300">{product.price.toLocaleString("vi-VN")} ₫</span></button>)}
+                {filteredProducts.length > searchResultLimit && <button type="button" onClick={() => setSearchResultLimit(limit => limit + 20)} className="w-full rounded-lg px-2 py-2 font-semibold text-sky-300 hover:bg-white/10">Xem thêm kết quả ({filteredProducts.length - searchResultLimit})</button>}
+              </div>
+            )}
             {/* Hàng 2: Thanh Tab Danh Mục Sản Phẩm (Hiển thị Tất Cả + 3 Danh Mục Chính + Dropdown Danh Mục Khác) */}
             <div className="flex items-center gap-1.5 overflow-visible py-0.5 max-w-full">
               {/* Nút Tất Cả Danh Mục */}
@@ -1669,6 +1693,9 @@ export default function Store3DPage() {
           >
             <RoomNavigationHUD
               activeRoom={activeRoom}
+              quickNavigation={quickNavigation}
+              reducedMotion={!!prefersReducedMotion}
+              onQuickNavigationChange={setQuickNavigation}
               currentPreset={cameraPreset}
               disabled={isRoomTransitionBusy}
               onSelectRoom={requestRoom}
@@ -1681,7 +1708,7 @@ export default function Store3DPage() {
 
         {/* ── Product Detail Modal 3D ─────────────────────── */}
         <ProductDetailModal3D
-          product={selectedProductForDetail}
+          product={enrichedProducts.find(product => product.id === selectedProductForDetail?.id) ?? selectedProductForDetail}
           isOpen={!!selectedProductForDetail}
           onClose={handleCloseProductDetail}
           onAddToCart={handleAddToOrder}

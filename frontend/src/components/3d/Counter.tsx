@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useThree } from "@react-three/fiber";
 import { Html, Text } from "@react-three/drei";
 import { useSpring, animated } from "@react-spring/three";
 import {
@@ -90,6 +91,8 @@ export default function Counter({
   onOrderSuccess,
   recentOrders = [],
 }: CounterProps) {
+  const { size } = useThree();
+  const screenWidth = isPOSActive ? Math.max(800, Math.min(1440, size.width - 48)) : 1200;
   const [hovered, setHovered] = useState(false);
   const [screenHovered, setScreenHovered] = useState(false);
   const hasPending = pendingCount > 0;
@@ -220,13 +223,14 @@ export default function Counter({
           <Html
             transform
             occlude
-            distanceFactor={0.52}
+            distanceFactor={624 / screenWidth}
             position={[0, 0, 0.03]}
             zIndexRange={[10, 0]}
             style={{ pointerEvents: "auto" }}
           >
             <QueryClientProvider client={queryClient || fallbackQueryClient}>
               <POSMonitorScreen
+                screenWidth={screenWidth}
                 isActive={!!isPOSActive}
                 onActivate={() => onOpenPOS?.()}
                 onExit={() => onExitPOS?.()}
