@@ -1,6 +1,7 @@
 "use client";
 
 import { Modal3DCard } from "@/app/(dashboard)/store-3d/_components/Modal3DCard";
+import { remainingSpatialStock } from "./spatialCart";
 
 import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import {
@@ -399,6 +400,14 @@ function POSMonitorScreenInner({
       (it) => it.productId === productId && it.unitId === oldUnitId,
     );
     if (!currentItem) return;
+
+    const otherLines = orderLines.filter(line => line !== currentItem);
+    if (stockError || !Number.isFinite(newUnit.conversionFactor) || newUnit.conversionFactor <= 0 ||
+        currentItem.quantity * newUnit.conversionFactor > remainingSpatialStock(otherLines, productId, stockMap.get(productId))) {
+      setErrorMessage("Không đủ tồn kho đã xác nhận cho đơn vị đã chọn. Giỏ hàng được giữ nguyên.");
+      return;
+    }
+    setErrorMessage(null);
 
     onRemoveItem(productId, oldUnitId);
     onAddProduct({
@@ -985,6 +994,7 @@ function POSMonitorScreenInner({
                         {/* Dropdown đơn vị tính */}
                         {pDetail?.units && pDetail.units.length > 1 ? (
                           <select
+                            aria-label={`Đơn vị ${it.productName}`}
                             value={it.unitId}
                             onChange={(e) =>
                               handleChangeUnit(it.productId, it.unitId, e.target.value)
@@ -1008,13 +1018,16 @@ function POSMonitorScreenInner({
                       <div className="flex items-center gap-1">
                         <button
                           type="button"
-                          onClick={() =>
+                          aria-label={`Giảm ${it.productName}`}
+                          disabled={it.quantity <= 1}
+                          onClick={() => {
+                            setErrorMessage(null);
                             onUpdateQuantity(
                               it.productId,
                               it.unitId,
                               Math.max(1, it.quantity - 1),
-                            )
-                          }
+                            );
+                          }}
                           className="flex h-6 w-6 items-center justify-center rounded bg-slate-800 hover:bg-slate-700 text-white"
                         >
                           <Minus className="h-3 w-3" />
@@ -1024,13 +1037,16 @@ function POSMonitorScreenInner({
                         </span>
                         <button
                           type="button"
-                          onClick={() =>
+                          aria-label={`Tăng ${it.productName}`}
+                          disabled={stockError || remainingSpatialStock(orderLines, it.productId, stockMap.get(it.productId)) < it.conversionFactor}
+                          onClick={() => {
+                            setErrorMessage(null);
                             onUpdateQuantity(
                               it.productId,
                               it.unitId,
                               it.quantity + 1,
-                            )
-                          }
+                            );
+                          }}
                           className="flex h-6 w-6 items-center justify-center rounded bg-slate-800 hover:bg-slate-700 text-white"
                         >
                           <Plus className="h-3 w-3" />
@@ -1046,7 +1062,8 @@ function POSMonitorScreenInner({
 
                       <button
                         type="button"
-                        onClick={() => onRemoveItem(it.productId, it.unitId)}
+                        aria-label={`Xóa ${it.productName}`}
+                        onClick={() => { setErrorMessage(null); onRemoveItem(it.productId, it.unitId); }}
                         className="p-1 text-slate-500 hover:text-red-400 transition-colors"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
@@ -1360,6 +1377,7 @@ function POSMonitorScreenInner({
                 }
                 disabled={
                   orderLines.length === 0 ||
+                  !!stockIssue ||
                   createOrderMutation.isPending ||
                   (paymentMethod === "debt" && !selectedCustomerId) ||
                   (paymentMethod === "debt" && !!selectedCustomer && selectedCustomer.creditLimit > 0 && ((selectedCustomer.debtBalance || 0) + finalAmount) > selectedCustomer.creditLimit) ||

@@ -34,6 +34,7 @@ import { useEmployeeList } from "@/hooks/useEmployees";
 import { useQueryClient } from "@tanstack/react-query";
 import type { ShelfProduct } from "@/components/3d/ProductShelf";
 import { getShelfProductPosition } from "@/components/3d/shelfLayout";
+import { addSpatialCartItem, updateSpatialCartQuantity } from "@/components/3d/spatialCart";
 import type { RoomId, CameraPreset } from "@/components/3d/world/types";
 import type { CameraFocusPoint } from "@/components/3d/world/WorldCameraController";
 import { getWarehousePage } from "@/components/3d/world/warehouseInventory";
@@ -730,6 +731,7 @@ export default function Store3DPage() {
             name: demoItem.name,
             code: demoItem.code || "DEMO-01",
             stock: demoItem.stock,
+            stockKnown: false,
             categoryId: null,
             categoryName: "Dữ Liệu Mẫu Test",
             imageUrl: demoItem.imageUrl || null,
@@ -764,21 +766,8 @@ export default function Store3DPage() {
   }, []);
 
   const handleAddToOrder = useCallback((item: CartItem3D) => {
-    setOrderLines((prev) => {
-      const idx = prev.findIndex(
-        (it) => it.productId === item.productId && it.unitId === item.unitId,
-      );
-      if (idx >= 0) {
-        const updated = [...prev];
-        updated[idx] = {
-          ...updated[idx],
-          quantity: updated[idx].quantity + item.quantity,
-        };
-        return updated;
-      }
-      return [...prev, item];
-    });
-  }, []);
+    setOrderLines(prev => addSpatialCartItem(prev, item, stockError ? undefined : stockMap.get(item.productId)));
+  }, [stockError, stockMap]);
 
   // Khi click Tạo đơn & Thanh toán ngay từ modal sản phẩm kệ:
   // Thêm vào đơn và bay thẳng camera vào màn hình máy tính POS để thanh toán
@@ -796,15 +785,9 @@ export default function Store3DPage() {
 
   const handleUpdateQuantity = useCallback(
     (productId: string, unitId: string, quantity: number) => {
-      setOrderLines((prev) =>
-        prev.map((it) =>
-          it.productId === productId && it.unitId === unitId
-            ? { ...it, quantity }
-            : it,
-        ),
-      );
+      setOrderLines(prev => updateSpatialCartQuantity(prev, productId, unitId, quantity, stockError ? undefined : stockMap.get(productId)));
     },
-    [],
+    [stockError, stockMap],
   );
 
   const handleRemoveOrderItem = useCallback(
@@ -1708,6 +1691,7 @@ export default function Store3DPage() {
 
         {/* ── Product Detail Modal 3D ─────────────────────── */}
         <ProductDetailModal3D
+          orderLines={orderLines}
           product={enrichedProducts.find(product => product.id === selectedProductForDetail?.id) ?? selectedProductForDetail}
           isOpen={!!selectedProductForDetail}
           onClose={handleCloseProductDetail}

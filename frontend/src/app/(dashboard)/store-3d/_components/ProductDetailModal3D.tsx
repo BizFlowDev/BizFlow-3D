@@ -17,19 +17,9 @@ import type { Product, ProductUnit } from "@/hooks/useProducts";
 import { LOW_STOCK_THRESHOLD } from "@/lib/dashboard-keys";
 import { useSpatialModalClose } from "./useSpatialModalClose";
 import { Modal3DCard } from "./Modal3DCard";
+import { remainingSpatialStock, type CartItem3D } from "@/components/3d/spatialCart";
 
-export interface CartItem3D {
-  productId: string;
-  productName: string;
-  code: string;
-  imageUrl?: string | null;
-  unitId: string;
-  unitName: string;
-  conversionFactor: number;
-  unitPrice: number;
-  quantity: number;
-  availableStock: number;
-}
+export type { CartItem3D } from "@/components/3d/spatialCart";
 
 interface ProductDetailModal3DProps {
   product: (Product & { stock: number; stockKnown?: boolean; categoryName?: string | null }) | null;
@@ -37,6 +27,7 @@ interface ProductDetailModal3DProps {
   onClose: () => void;
   onAddToCart: (item: CartItem3D) => void;
   onBuyNow: (item: CartItem3D) => void;
+  orderLines?: CartItem3D[];
 }
 
 function formatVND(amount: number): string {
@@ -53,6 +44,7 @@ export function ProductDetailModal3D({
   onClose: requestClose,
   onAddToCart,
   onBuyNow,
+  orderLines = [],
 }: ProductDetailModal3DProps) {
   const { close: onClose, closing } = useSpatialModalClose(isOpen, requestClose);
   const [selectedUnitId, setSelectedUnitId] = useState<string>("");
@@ -87,7 +79,7 @@ export function ProductDetailModal3D({
   if (!isOpen || !product) return null;
 
   const currentStock = product.stock ?? 0;
-  const stockKnown = product.stockKnown !== false;
+  const stockKnown = product.stockKnown === true && Number.isFinite(currentStock);
   const isOutOfStock = !stockKnown || currentStock <= 0;
   const isLowStock = !isOutOfStock && currentStock < LOW_STOCK_THRESHOLD;
 
@@ -95,7 +87,8 @@ export function ProductDetailModal3D({
   const conversionFactor = activeUnit?.conversionFactor ?? 1;
 
   // Số lượng tối đa có thể mua theo đơn vị này
-  const maxAllowedQty = Math.floor(currentStock / conversionFactor);
+  const remainingStock = remainingSpatialStock(orderLines, product.id, stockKnown ? currentStock : undefined);
+  const maxAllowedQty = conversionFactor > 0 && Number.isFinite(conversionFactor) ? Math.floor(remainingStock / conversionFactor) : 0;
   const subtotal = unitPrice * quantity;
 
   const handleAdd = () => {
@@ -311,6 +304,7 @@ export function ProductDetailModal3D({
                 </div>
                 <div className="text-[10px] text-slate-400">
                   Tối đa: {stockKnown ? maxAllowedQty : "—"} {activeUnit?.unitName ?? "đơn vị"}
+                  {stockKnown && remainingStock < currentStock && <span className="block">Đã trừ số lượng trong giỏ</span>}
                 </div>
               </div>
 
