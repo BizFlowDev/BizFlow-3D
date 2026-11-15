@@ -76,7 +76,15 @@ export class Store {
       }));
       throw new ValidationError('Store validation failed', fields);
     }
-    return new Store(result.data);
+    const storeData = { ...result.data };
+    if (
+      storeData.subscriptionStatus === 'active' &&
+      storeData.subscriptionExpiresAt &&
+      new Date(storeData.subscriptionExpiresAt).getTime() < Date.now()
+    ) {
+      storeData.subscriptionStatus = 'expired';
+    }
+    return new Store(storeData);
   }
 
   /** Check if subscription is currently active. */

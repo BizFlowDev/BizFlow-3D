@@ -109,6 +109,13 @@ export class PostgresUserRepository implements IUserRepository {
     );
   }
 
+  async updateStatusByStoreId(storeId: string, isActive: boolean): Promise<void> {
+    await query(
+      'UPDATE users SET is_active = $1, updated_at = NOW() WHERE store_id = $2 AND deleted_at IS NULL',
+      [isActive, storeId],
+    );
+  }
+
   async updateLastLogin(id: string): Promise<void> {
     await query('UPDATE users SET last_login_at = $1 WHERE id = $2', [new Date(), id]);
   }

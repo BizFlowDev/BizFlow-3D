@@ -80,6 +80,11 @@ export function useAuth() {
 
         setAuth(authUser, accessToken, refreshToken);
 
+        // Xóa cờ dismiss cũ để popup cảnh báo hết hạn chắc chắn xuất hiện khi đăng nhập
+        if (typeof window !== "undefined") {
+          sessionStorage.removeItem("bizflow_expired_alert_dismissed_session");
+        }
+
         // Redirect theo role — dùng window.location để full-reload,
         // đảm bảo cookie đã được gửi đến middleware (router.push có thể race condition)
         const dest =

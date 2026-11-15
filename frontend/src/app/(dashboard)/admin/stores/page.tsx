@@ -89,6 +89,20 @@ function getPlanInfo(
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+function getEffectiveSubscriptionStatus(store: {
+  subscriptionStatus: string;
+  subscriptionExpiresAt: string | null;
+}): "active" | "expired" | "trial" {
+  if (store.subscriptionStatus === "expired") return "expired";
+  if (
+    store.subscriptionExpiresAt &&
+    new Date(store.subscriptionExpiresAt).getTime() < Date.now()
+  ) {
+    return "expired";
+  }
+  return (store.subscriptionStatus as "active" | "expired" | "trial") || "expired";
+}
+
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat("vi-VN", {
     style: "currency",
@@ -212,6 +226,32 @@ function StoreDetailPanel({
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {store.isLocked ? (
+            <Badge className="bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400 border border-rose-300 dark:border-rose-800">
+              Đã khóa
+            </Badge>
+          ) : (
+            (() => {
+              const effStatus = getEffectiveSubscriptionStatus(store);
+              return (
+                <Badge
+                  className={
+                    effStatus === "active"
+                      ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
+                      : effStatus === "trial"
+                      ? "bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-400"
+                      : "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400"
+                  }
+                >
+                  {effStatus === "active"
+                    ? "Hoạt động"
+                    : effStatus === "trial"
+                    ? "Dùng thử"
+                    : "Hết hạn"}
+                </Badge>
+              );
+            })()
+          )}
           <Badge
             className={
               store.subscriptionPlan === "professional"
@@ -446,7 +486,9 @@ export default function AdminStoresPage() {
   };
 
   const handleToggleStatus = (store: Store) => {
-    const activate = store.subscriptionStatus !== "active";
+    // Nếu đang bị khóa (isLocked === true) -> Admin bấm để Mở khóa (activate = true)
+    // Nếu chưa bị khóa -> Admin bấm để Khóa tài khoản (activate = false)
+    const activate = Boolean(store.isLocked);
     toggleStatus({ storeId: store.id, activate });
   };
 
@@ -480,12 +522,13 @@ export default function AdminStoresPage() {
         "Đơn hàng",
         "Doanh thu",
       ];
-      const statusLabel = (s: string) =>
-        s === "active"
-          ? "Đang hoạt động"
-          : s === "trial"
-          ? "Dùng thử"
-          : "Hết hạn";
+      const statusLabel = (store: Store) => {
+        if (store.isLocked) return "Đã khóa";
+        const eff = getEffectiveSubscriptionStatus(store);
+        if (eff === "expired") return "Hết hạn";
+        if (eff === "trial") return "Dùng thử";
+        return "Đang hoạt động";
+      };
       const rows = items.map((store) => [
         store.name,
         store.ownerName,
@@ -493,7 +536,7 @@ export default function AdminStoresPage() {
         store.phone ?? "",
         store.address ?? "",
         getPlanInfo(plans, store.subscriptionPlan).name,
-        statusLabel(store.subscriptionStatus),
+        statusLabel(store),
         formatDate(store.createdAt),
         formatDate(store.subscriptionExpiresAt),
         store.employeeCount,
@@ -608,6 +651,7 @@ export default function AdminStoresPage() {
             <SelectItem value="all">Tất cả</SelectItem>
             <SelectItem value="active">Đang hoạt động</SelectItem>
             <SelectItem value="expired">Hết hạn</SelectItem>
+            <SelectItem value="locked">Đã khóa</SelectItem>
             <SelectItem value="trial">Dùng thử</SelectItem>
           </SelectContent>
         </Select>
@@ -785,21 +829,32 @@ export default function AdminStoresPage() {
 
                         {/* Status */}
                         <TableCell className="text-center">
-                          <Badge
-                            className={
-                              store.subscriptionStatus === "active"
-                                ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-400"
-                                : store.subscriptionStatus === "trial"
-                                ? "bg-sky-100 text-sky-700 hover:bg-sky-100 dark:bg-sky-950/40 dark:text-sky-400"
-                                : "bg-red-100 text-red-700 hover:bg-red-100 dark:bg-red-950/40 dark:text-red-400"
-                            }
-                          >
-                            {store.subscriptionStatus === "active"
-                              ? "Hoạt động"
-                              : store.subscriptionStatus === "trial"
-                              ? "Dùng thử"
-                              : "Hết hạn"}
-                          </Badge>
+                          {store.isLocked ? (
+                            <Badge className="bg-rose-100 text-rose-700 hover:bg-rose-100 dark:bg-rose-950/40 dark:text-rose-400 border border-rose-300 dark:border-rose-800">
+                              Đã khóa
+                            </Badge>
+                          ) : (
+                            (() => {
+                              const effStatus = getEffectiveSubscriptionStatus(store);
+                              return (
+                                <Badge
+                                  className={
+                                    effStatus === "active"
+                                      ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-400"
+                                      : effStatus === "trial"
+                                      ? "bg-sky-100 text-sky-700 hover:bg-sky-100 dark:bg-sky-950/40 dark:text-sky-400"
+                                      : "bg-amber-100 text-amber-700 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-400"
+                                  }
+                                >
+                                  {effStatus === "active"
+                                    ? "Hoạt động"
+                                    : effStatus === "trial"
+                                    ? "Dùng thử"
+                                    : "Hết hạn"}
+                                </Badge>
+                              );
+                            })()
+                          )}
                         </TableCell>
 
                         {/* Registered Date */}
@@ -846,20 +901,20 @@ export default function AdminStoresPage() {
                               <DropdownMenuItem
                                 onClick={() => handleToggleStatus(store)}
                                 className={
-                                  store.subscriptionStatus === "active"
-                                    ? "text-destructive focus:text-destructive"
-                                    : "text-emerald-600 focus:text-emerald-600"
+                                  store.isLocked
+                                    ? "text-emerald-600 focus:text-emerald-600"
+                                    : "text-destructive focus:text-destructive"
                                 }
                               >
-                                {store.subscriptionStatus === "active" ? (
+                                {store.isLocked ? (
                                   <>
-                                    <PowerOff className="mr-2 h-4 w-4" />
-                                    Vô hiệu hóa
+                                    <Power className="mr-2 h-4 w-4" />
+                                    Mở khóa tài khoản
                                   </>
                                 ) : (
                                   <>
-                                    <Power className="mr-2 h-4 w-4" />
-                                    Kích hoạt
+                                    <PowerOff className="mr-2 h-4 w-4" />
+                                    Khóa tài khoản
                                   </>
                                 )}
                               </DropdownMenuItem>

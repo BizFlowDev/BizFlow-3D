@@ -18,6 +18,7 @@ export interface Store {
   subscriptionExpiresAt: string | null;
   ownerName: string;
   ownerEmail: string;
+  isLocked?: boolean;
   employeeCount: number;
   totalOrders: number;
   totalRevenue: number;
@@ -37,7 +38,7 @@ export interface StoreDetail extends Store {
 
 export interface StoreListParams {
   search?: string;
-  status?: "all" | "active" | "expired" | "trial";
+  status?: "all" | "active" | "expired" | "trial" | "locked";
   plan?: string;
   page?: number;
   limit?: number;

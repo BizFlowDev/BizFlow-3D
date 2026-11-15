@@ -18,12 +18,16 @@ const ADMIN_STORE_SELECT = `
     s.email,
     s.tax_code,
     s.subscription_plan,
-    s.subscription_status,
+    CASE
+      WHEN s.subscription_status = 'active' AND s.subscription_expires_at IS NOT NULL AND s.subscription_expires_at < NOW() THEN 'expired'
+      ELSE s.subscription_status
+    END AS subscription_status,
     s.subscription_expires_at,
     s.created_at,
     s.updated_at,
     owner.full_name AS "ownerName",
     owner.email AS "ownerEmail",
+    COALESCE(owner.is_active, true) AS "ownerIsActive",
     (SELECT COUNT(*)::int FROM users u WHERE u.store_id = s.id AND u.role = 'employee') AS "employeeCount",
     (SELECT COUNT(*)::int FROM orders o WHERE o.store_id = s.id) AS "totalOrders",
     (SELECT COALESCE(SUM(o.final_amount), 0)::float8 FROM orders o
@@ -46,8 +50,15 @@ function adminStoreFilterClauses(filter: AdminStoreFilter): { where: string; par
     )`);
   }
   if (filter.status) {
-    params.push(filter.status);
-    clauses.push(`s.subscription_status = $${params.length}`);
+    if (filter.status === 'locked') {
+      clauses.push(`COALESCE(owner.is_active, true) = false`);
+    } else if (filter.status === 'active') {
+      clauses.push(`(COALESCE(owner.is_active, true) = true AND s.subscription_status = 'active' AND (s.subscription_expires_at IS NULL OR s.subscription_expires_at >= NOW()))`);
+    } else if (filter.status === 'expired') {
+      clauses.push(`(COALESCE(owner.is_active, true) = true AND (s.subscription_status = 'expired' OR (s.subscription_status = 'active' AND s.subscription_expires_at IS NOT NULL AND s.subscription_expires_at < NOW())))`);
+    } else if (filter.status === 'trial') {
+      clauses.push(`s.subscription_status = 'trial'`);
+    }
   }
   if (filter.plan) {
     params.push(filter.plan);
@@ -59,8 +70,10 @@ function adminStoreFilterClauses(filter: AdminStoreFilter): { where: string; par
 
 function mapAdminStoreRow(row: any): AdminStoreRow {
   const camel = mapToCamelCase(row);
+  const isLocked = camel.ownerIsActive === false;
   return {
     ...camel,
+    isLocked,
     employeeCount: parseInt(camel.employeeCount, 10) || 0,
     totalOrders: parseInt(camel.totalOrders, 10) || 0,
     totalRevenue: parseFloat(camel.totalRevenue) || 0,
@@ -190,6 +203,15 @@ export class PostgresStoreRepository implements IStoreRepository {
   // ── Admin aggregate queries ──
 
   async searchAdmin(filter: AdminStoreFilter): Promise<AdminStoreResult> {
+    // Tự động đồng bộ các store đã quá hạn thành 'expired' trong database
+    query(
+      `UPDATE stores
+       SET subscription_status = 'expired', updated_at = NOW()
+       WHERE subscription_status = 'active'
+         AND subscription_expires_at IS NOT NULL
+         AND subscription_expires_at < NOW()`,
+    ).catch((err) => console.error('[Auto-Expire Stores Sync Error]:', err));
+
     const { where, params } = adminStoreFilterClauses(filter);
 
     const countRes = await query(
@@ -228,7 +250,9 @@ export class PostgresStoreRepository implements IStoreRepository {
 
   async countActiveSubscriptions(): Promise<number> {
     const res = await query(
-      `SELECT COUNT(*)::int AS total FROM stores WHERE subscription_status = 'active'`,
+      `SELECT COUNT(*)::int AS total FROM stores
+       WHERE subscription_status = 'active'
+         AND (subscription_expires_at IS NULL OR subscription_expires_at >= NOW())`,
     );
     return parseInt(res.rows[0].total, 10) || 0;
   }
@@ -239,7 +263,8 @@ export class PostgresStoreRepository implements IStoreRepository {
          CASE WHEN subscription_plan = 'professional' THEN $1::numeric ELSE $2::numeric END
        ), 0)::float8 AS mrr
        FROM stores
-       WHERE subscription_status = 'active'`,
+       WHERE subscription_status = 'active'
+         AND (subscription_expires_at IS NULL OR subscription_expires_at >= NOW())`,
       [professionalPrice, basicPrice],
     );
     return parseFloat(res.rows[0].mrr) || 0;

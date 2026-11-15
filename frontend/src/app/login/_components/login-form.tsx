@@ -107,6 +107,9 @@ export function LoginForm() {
   const onSubmit = async (data: LoginFormValues) => {
     setApiError(null);
     try {
+      if (typeof window !== "undefined") {
+        sessionStorage.removeItem("bizflow_expired_alert_dismissed_session");
+      }
       await login(data.email, data.password);
     } catch (err: unknown) {
       const axiosError = err as AxiosError<ApiResponseData>;
@@ -308,7 +311,7 @@ export function LoginForm() {
               </motion.div>
 
               {/* Remember me + Forgot password */}
-              <motion.div
+              {/* <motion.div
                 variants={itemVariants}
                 className="flex items-center justify-between"
               >
@@ -332,7 +335,7 @@ export function LoginForm() {
                 >
                   {t.forgotPassword}
                 </button>
-              </motion.div>
+              </motion.div> */}
 
               {/* Login button */}
               <motion.div variants={itemVariants}>
@@ -360,7 +363,7 @@ export function LoginForm() {
               </motion.div>
 
               {/* Divider */}
-              <motion.div
+              {/* <motion.div
                 variants={itemVariants}
                 className="relative flex items-center py-1"
               >
@@ -369,10 +372,10 @@ export function LoginForm() {
                   {t.orContinue}
                 </span>
                 <div className="flex-1 border-t border-white/[0.06]" />
-              </motion.div>
+              </motion.div> */}
 
               {/* Google button */}
-              <motion.div variants={itemVariants}>
+              {/* <motion.div variants={itemVariants}>
                 <Button
                   type="button"
                   variant="outline"
@@ -381,7 +384,7 @@ export function LoginForm() {
                   <GoogleIcon />
                   <span className="ml-2.5">{t.google}</span>
                 </Button>
-              </motion.div>
+              </motion.div> */}
 
               {/* Link to Register */}
               <motion.div variants={itemVariants} className="text-center pt-2">

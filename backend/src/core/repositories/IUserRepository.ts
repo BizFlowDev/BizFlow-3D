@@ -28,6 +28,9 @@ export interface IUserRepository {
   /** Soft-delete a user (marks deleted_at and sets is_active to false). */
   softDelete(id: string): Promise<void>;
 
+  /** Update active status for all users belonging to a store. */
+  updateStatusByStoreId(storeId: string, isActive: boolean): Promise<void>;
+
   /** Update last login timestamp for a user. */
   updateLastLogin(id: string): Promise<void>;
 
