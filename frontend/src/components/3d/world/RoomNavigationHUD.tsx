@@ -20,7 +20,10 @@ import {
 } from "lucide-react";
 import { type RoomId, ROOMS, type CameraPreset, CAMERA_PRESETS } from "./types";
 
+import { ALL_ROOMS, canUsePreset } from "./roomAccess";
+
 interface RoomNavigationHUDProps {
+  allowedRooms?: readonly RoomId[];
   disabled?: boolean;
   activeRoom: RoomId;
   currentPreset: CameraPreset;
@@ -35,6 +38,7 @@ interface RoomNavigationHUDProps {
 
 export function RoomNavigationHUD({
   disabled = false,
+  allowedRooms = ALL_ROOMS,
   activeRoom,
   currentPreset,
   onSelectRoom,
@@ -106,7 +110,7 @@ export function RoomNavigationHUD({
           <span>Góc nhìn:</span>
         </div>
 
-        {currentRoomPresets.map((item) => {
+        {currentRoomPresets.filter(item => canUsePreset(allowedRooms, item.id)).map((item) => {
           const Icon = item.icon;
           const isActive =
             currentPreset === item.id ||
@@ -163,7 +167,7 @@ export function RoomNavigationHUD({
         </button>
 
         {/* 4 Phòng chức năng */}
-        {roomList.map((room) => {
+        {roomList.filter(room => allowedRooms.includes(room.id)).map((room) => {
           const Icon = room.icon;
           const isActive = activeRoom === room.id;
 

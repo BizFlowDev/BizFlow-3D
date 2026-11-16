@@ -1,11 +1,11 @@
 "use client";
 
-import { useMemo } from "react";
 import { Text } from "@react-three/drei";
 import { StoreDecorations } from "../StoreDecorations";
 import { Door3D, DOOR_TOTAL_HEIGHT } from "./Door3D";
-import { type RoomId, ROOMS, type DoorId } from "./types";
+import { ROOMS, type DoorId } from "./types";
 import { SmartOcclusionGroup } from "./SmartOcclusion";
+import { RoomLighting } from "./RoomLighting";
 
 interface ShowroomSceneProps {
   children?: React.ReactNode;
@@ -19,7 +19,7 @@ const STORE_HEIGHT = 5.2;
 const WALL_THICKNESS = 0.18;
 
 /**
- * ShowroomFloor — Sàn đá bóng men cao cấp có vạch LED dẫn hướng
+ * ShowroomFloor — Nền sàn có đường ghép ván và thảm trung tâm theo P3
  */
 function ShowroomFloor() {
   return (
@@ -33,31 +33,24 @@ function ShowroomFloor() {
         />
       </mesh>
 
-      {/* Lối đi chính giữa cửa hàng */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.003, 0]}>
-        <planeGeometry args={[3.2, STORE_DEPTH - 0.5]} />
-        <meshStandardMaterial
-          color="#aaa99f"
-          roughness={0.45}
-          metalness={0.08}
-        />
-      </mesh>
+      {/* Đường ghép ván theo P3: rộng 0.018, cách nhau 1 đơn vị; nằm dưới thảm. */}
+      {Array.from({ length: STORE_WIDTH }, (_, i) => (
+        <mesh
+          key={`floor-plank-${i}`}
+          position={[-STORE_WIDTH / 2 + 0.15 + i, 0.001, 0]}
+          rotation={[-Math.PI / 2, 0, 0]}
+        >
+          <planeGeometry args={[0.018, STORE_DEPTH - 0.2]} />
+          <meshStandardMaterial color="#c4ac8c" />
+        </mesh>
+      ))}
 
-      {/* Vạch kẻ ánh sáng dẫn hướng neon hai bên lối đi */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[-1.6, 0.005, 0]}>
-        <planeGeometry args={[0.04, STORE_DEPTH - 0.6]} />
+      {/* Thảm trung tâm cùng màu, độ nhám và kích thước với P3 */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.003, 2]}>
+        <planeGeometry args={[6, 5]} />
         <meshStandardMaterial
-          color="#6366f1"
-          emissive="#4f46e5"
-          emissiveIntensity={0.8}
-        />
-      </mesh>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[1.6, 0.005, 0]}>
-        <planeGeometry args={[0.04, STORE_DEPTH - 0.6]} />
-        <meshStandardMaterial
-          color="#6366f1"
-          emissive="#4f46e5"
-          emissiveIntensity={0.8}
+          color="#606060"
+          roughness={0.7}
         />
       </mesh>
     </group>
@@ -84,12 +77,12 @@ function ShowroomWalls({
         {/* Mảng tường sau bên trái */}
         <mesh position={[-4.4, STORE_HEIGHT / 2, -STORE_DEPTH / 2]}>
           <boxGeometry args={[7.2, STORE_HEIGHT, WALL_THICKNESS]} />
-          <meshStandardMaterial color={wallBaseColor} roughness={0.8} />
+          <meshStandardMaterial color={wallBaseColor} roughness={0.75} />
         </mesh>
         {/* Mảng tường sau bên phải */}
         <mesh position={[4.4, STORE_HEIGHT / 2, -STORE_DEPTH / 2]}>
           <boxGeometry args={[7.2, STORE_HEIGHT, WALL_THICKNESS]} />
-          <meshStandardMaterial color={wallBaseColor} roughness={0.8} />
+          <meshStandardMaterial color={wallBaseColor} roughness={0.75} />
         </mesh>
         {/* Mảng tường phía trên khung cửa */}
         <mesh
@@ -102,7 +95,7 @@ function ShowroomWalls({
           <boxGeometry
             args={[1.6, STORE_HEIGHT - DOOR_TOTAL_HEIGHT, WALL_THICKNESS]}
           />
-          <meshStandardMaterial color={wallBaseColor} roughness={0.8} />
+          <meshStandardMaterial color={wallBaseColor} roughness={0.75} />
         </mesh>
 
         {/* Mảng ốp lam gỗ dọc trang trí hai bên tường sau */}
@@ -177,7 +170,7 @@ function ShowroomWalls({
           rotation={[0, Math.PI / 2, 0]}
         >
           <boxGeometry args={[STORE_DEPTH, STORE_HEIGHT, WALL_THICKNESS]} />
-          <meshStandardMaterial color={wallBaseColor} roughness={0.8} />
+          <meshStandardMaterial color={wallBaseColor} roughness={0.75} />
         </mesh>
       </SmartOcclusionGroup>
 
@@ -188,7 +181,7 @@ function ShowroomWalls({
           rotation={[0, Math.PI / 2, 0]}
         >
           <boxGeometry args={[STORE_DEPTH, STORE_HEIGHT, WALL_THICKNESS]} />
-          <meshStandardMaterial color={wallBaseColor} roughness={0.8} />
+          <meshStandardMaterial color={wallBaseColor} roughness={0.75} />
         </mesh>
       </SmartOcclusionGroup>
 
@@ -246,66 +239,14 @@ function ShowroomCeilingAndLights() {
               <meshStandardMaterial
                 color="#fef08a"
                 emissive="#fef08a"
-                emissiveIntensity={1.2}
+                emissiveIntensity={0.6}
               />
             </mesh>
           </group>
         ))}
       </SmartOcclusionGroup>
 
-      {/* Ánh sáng đa lớp */}
-      <ambientLight intensity={0.52} color="#ffffff" />
-      <directionalLight
-        position={[4, STORE_HEIGHT - 0.5, 4]}
-        intensity={0.88}
-        castShadow
-        shadow-mapSize-width={1024}
-        shadow-mapSize-height={1024}
-        color="#ffffff"
-      />
-      <directionalLight
-        position={[-5, STORE_HEIGHT - 0.6, -3]}
-        intensity={0.44}
-        color="#ffffff"
-      />
-
-      {/* Đèn điểm cho các khu vực kệ */}
-      <pointLight
-        position={[-3.5, STORE_HEIGHT - 0.5, -3.5]}
-        intensity={16}
-        distance={9}
-        color="#fff4e6"
-      />
-      <pointLight
-        position={[3.5, STORE_HEIGHT - 0.5, -3.5]}
-        intensity={16}
-        distance={9}
-        color="#fff4e6"
-      />
-      <pointLight
-        position={[-5.2, STORE_HEIGHT - 0.5, -0.5]}
-        intensity={16}
-        distance={9}
-        color="#fff4e6"
-      />
-      <pointLight
-        position={[5.2, STORE_HEIGHT - 0.5, -0.5]}
-        intensity={16}
-        distance={9}
-        color="#fff4e6"
-      />
-      <pointLight
-        position={[0, STORE_HEIGHT - 0.5, 2]}
-        intensity={14.4}
-        distance={8}
-        color="#fff4e6"
-      />
-      <pointLight
-        position={[0, STORE_HEIGHT - 1.2, -STORE_DEPTH / 2 + 1.2]}
-        intensity={3.2}
-        distance={6}
-        color="#fff4e6"
-      />
+      <RoomLighting center={[0, 0, 0]} height={STORE_HEIGHT} depth={STORE_DEPTH} />
     </group>
   );
 }

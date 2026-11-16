@@ -3,16 +3,18 @@
 import { useEffect, type MutableRefObject } from "react";
 import { useThree } from "@react-three/fiber";
 import * as THREE from "three";
+import { ALL_ROOMS } from "./roomAccess";
 import { CAMERA_PRESETS, type RoomId } from "./types";
 
 export type PrepareRoom = (from: RoomId, to: RoomId) => Promise<void>;
 const rooms: RoomId[] = ["showroom", "hallway", "warehouse", "office"];
 
 /** Mounted inside Suspense, after the room tree and environment have committed. */
-export function ScenePrewarmer({ prepareRef, activeRoom, busy }: {
+export function ScenePrewarmer({ prepareRef, activeRoom, busy, allowedRooms = ALL_ROOMS }: {
   prepareRef: MutableRefObject<PrepareRoom | null>;
   activeRoom: RoomId;
   busy: boolean;
+  allowedRooms?: readonly RoomId[];
 }) {
   const { gl, scene, camera } = useThree();
   useEffect(() => {
@@ -141,7 +143,7 @@ export function ScenePrewarmer({ prepareRef, activeRoom, busy }: {
     if (busy) return;
     let cancelled = false;
     let idle: number;
-    const remaining = rooms.filter(room => room !== activeRoom);
+    const remaining = allowedRooms.filter(room => room !== activeRoom);
     const schedule = () => {
       idle = window.requestIdleCallback(async () => {
         if (cancelled) return;
@@ -154,6 +156,6 @@ export function ScenePrewarmer({ prepareRef, activeRoom, busy }: {
     // Unsupported browsers still prepare on demand.
     if (typeof window.requestIdleCallback === "function") schedule();
     return () => { cancelled = true; if (idle !== undefined) window.cancelIdleCallback(idle); };
-  }, [activeRoom, busy, prepareRef]);
+  }, [activeRoom, busy, prepareRef, allowedRooms]);
   return null;
 }

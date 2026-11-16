@@ -1,5 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { controllers } from '../../../config/diContainer.js';
+import { allowRoles } from '../../../adapters/middleware/rbacMiddleware.js';
 import { authMiddleware } from '../../../adapters/middleware/authMiddleware.js';
 import { ApiResponse } from '../../../adapters/presenters/ApiResponse.js';
 import { AuthenticationError } from '../../../core/errors/AuthenticationError.js';
@@ -48,7 +49,7 @@ router.get('/me', async (req: Request, res: Response, next: NextFunction) => {
  * Cập nhật thông tin ngân hàng nhận tiền (VietQR).
  * Body: { bankCode, bankAccountNumber, bankAccountHolder }
  */
-router.put('/bank-info', async (req: Request, res: Response, next: NextFunction) => {
+router.put('/bank-info', allowRoles('owner', 'admin'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const storeId = req.user?.storeId;
     if (!storeId) throw new AuthenticationError('Store không xác định');
@@ -72,7 +73,7 @@ router.put('/bank-info', async (req: Request, res: Response, next: NextFunction)
  * PUT /api/v1/stores/profile
  * Cập nhật thông tin chung của cửa hàng (Tên, địa chỉ, sđt, email, taxCode).
  */
-router.put('/profile', async (req: Request, res: Response, next: NextFunction) => {
+router.put('/profile', allowRoles('owner', 'admin'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const storeId = req.user?.storeId;
     if (!storeId) throw new AuthenticationError('Store không xác định');
@@ -139,7 +140,7 @@ router.get('/subscription-payment-bank', async (_req: Request, res: Response, ne
  * Nâng cấp / gia hạn gói dịch vụ cho cửa hàng hiện tại.
  * Body: { plan: string, durationMonths: number, paymentMethod?: string }
  */
-router.post('/upgrade-subscription', async (req: Request, res: Response, next: NextFunction) => {
+router.post('/upgrade-subscription', allowRoles('owner', 'admin'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const storeId = await getEffectiveStoreId(req);
 
@@ -181,7 +182,7 @@ router.post('/upgrade-subscription', async (req: Request, res: Response, next: N
  * POST /api/v1/stores/upgrade-session/stripe
  * Tạo phiên thanh toán nâng cấp gói qua Stripe Checkout và sinh mã QR
  */
-router.post('/upgrade-session/stripe', async (req: Request, res: Response, next: NextFunction) => {
+router.post('/upgrade-session/stripe', allowRoles('owner', 'admin'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const storeId = await getEffectiveStoreId(req);
 

@@ -17,7 +17,10 @@ import { RoomActivity } from "./roomActivity";
 import { canRequestRoom, type TransitionPhase } from "./transitionMotion";
 import type { StockLevelRow } from "@/hooks/useInventory";
 
+import { ALL_ROOMS } from "./roomAccess";
+
 interface BizFlowWorldProps {
+  allowedRooms?: readonly RoomId[];
   activeRoom: RoomId;
   reducedMotion?: boolean;
   quickNavigation?: boolean;
@@ -52,10 +55,12 @@ interface BizFlowWorldProps {
   onOpenAccounting?: () => void;
   canManageOffice?: boolean;
   isAnyModalOpen?: boolean;
+  onRequestLogout?: () => void;
 }
 
 export function BizFlowWorld({
   activeRoom,
+  allowedRooms = ALL_ROOMS,
   reducedMotion = false,
   quickNavigation = true,
   navigationRef,
@@ -64,6 +69,7 @@ export function BizFlowWorld({
   currentPreset,
   isPOSActive = false,
   isAnyModalOpen = false,
+  onRequestLogout,
   targetFocusPoint = null,
   showroomChildren,
   stockItems = [],
@@ -109,7 +115,7 @@ export function BizFlowWorld({
   }, []);
 
   const handleRequestRoomTransition = useCallback(async (to: RoomId) => {
-    if (!canRequestRoom(phaseRef.current, activeRoom, to)) return;
+    if (!allowedRooms.includes(to) || isAnyModalOpen || !canRequestRoom(phaseRef.current, activeRoom, to)) return;
     const from = activeRoom;
     setError(null);
     changePhase("preparing");
@@ -145,7 +151,7 @@ export function BizFlowWorld({
       setError(to);
       changePhase("idle");
     }
-  }, [activeRoom, changePhase, reducedMotion, quickNavigation, onEnterRoom]);
+  }, [activeRoom, allowedRooms, isAnyModalOpen, changePhase, reducedMotion, quickNavigation, onEnterRoom]);
   useEffect(() => {
     navigationRef.current = handleRequestRoomTransition;
     return () => { navigationRef.current = null; };
@@ -160,9 +166,9 @@ export function BizFlowWorld({
     setActiveOpenDoor(null);
     journeyRef.current = null;
     setJourney(null);
-    if (destination) onEnterRoom(destination);
+    if (destination && allowedRooms.includes(destination)) onEnterRoom(destination);
     changePhase("idle");
-  }, [onEnterRoom, changePhase]);
+  }, [onEnterRoom, changePhase, allowedRooms]);
 
   const visible = (room: RoomId) => phase === "moving" && journey
     ? room === journey.from || room === journey.to || room === "hallway"
@@ -249,8 +255,11 @@ export function BizFlowWorld({
         <group name="room-hallway" visible={isHallwayVisible}>
           <HallwayScene
             activeRoom={activeRoom}
+            allowedRooms={allowedRooms}
             openDoor={activeOpenDoor}
             onEnterRoom={handleRequestRoomTransition}
+            onRequestLogout={onRequestLogout}
+            canLogout={phase === "idle" && !isAnyModalOpen}
           />
         </group>
         </RoomActivity.Provider>
@@ -271,7 +280,7 @@ export function BizFlowWorld({
           {/* PHÒNG 2: KHO & SẢN PHẨM */}
           <RoomActivity.Provider value={isWarehouseVisible}>
           <group name="room-warehouse" visible={isWarehouseVisible}>
-            <WarehouseScene
+            {allowedRooms.includes("warehouse") && <WarehouseScene
               stockItems={stockItems}
               visibleStockItems={visibleStockItems}
               onOpenProductForm={onOpenProductForm}
@@ -283,14 +292,14 @@ export function BizFlowWorld({
               onReturnToHallway={() => handleRequestRoomTransition("hallway")}
               isVisible={isWarehouseVisible}
               isAnyModalOpen={isAnyModalOpen}
-            />
+            />}
           </group>
           </RoomActivity.Provider>
 
           {/* PHÒNG 3: VĂN PHÒNG QUẢN LÝ */}
           <RoomActivity.Provider value={isOfficeVisible}>
           <group name="room-office" visible={isOfficeVisible}>
-            <OfficeScene
+            {allowedRooms.includes("office") && <OfficeScene
               todayRevenue={todayRevenue}
               revenueSeries={revenueSeries}
               metricsStatus={metricsStatus}
@@ -305,11 +314,11 @@ export function BizFlowWorld({
               onReturnToHallway={() => handleRequestRoomTransition("hallway")}
               isVisible={isOfficeVisible}
               isAnyModalOpen={isAnyModalOpen}
-            />
+            />}
           </group>
           </RoomActivity.Provider>
           <TransitionProfiler phase={phase} />
-          <ScenePrewarmer prepareRef={prepareRef} activeRoom={activeRoom} busy={phase !== "idle"} />
+          <ScenePrewarmer allowedRooms={allowedRooms} prepareRef={prepareRef} activeRoom={activeRoom} busy={phase !== "idle"} />
         </Suspense>
       </Canvas>
     </div>

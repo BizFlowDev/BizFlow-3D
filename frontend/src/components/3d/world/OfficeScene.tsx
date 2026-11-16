@@ -5,6 +5,7 @@ import { Text, Html, Edges } from "@react-three/drei";
 import { Door3D } from "./Door3D";
 import { ROOMS, type DoorId } from "./types";
 import { SmartOcclusionGroup } from "./SmartOcclusion";
+import { RoomLighting } from "./RoomLighting";
 
 interface OfficeSceneProps {
   todayRevenue?: number;
@@ -564,20 +565,7 @@ export function OfficeScene({
         </mesh>
       </SmartOcclusionGroup>
 
-      {/* Đèn trần âm hiện đại */}
-      <ambientLight intensity={0.48} color="#f8fafc" />
-      <pointLight
-        position={[CENTER_X, OFFICE_HEIGHT - 0.4, CENTER_Z]}
-        intensity={16}
-        distance={10}
-        color="#fef3c7"
-      />
-      <pointLight
-        position={[CENTER_X, OFFICE_HEIGHT - 0.4, -30]}
-        intensity={14.4}
-        distance={8}
-        color="#bae6fd"
-      />
+      <RoomLighting center={[CENTER_X, 0, CENTER_Z]} height={OFFICE_HEIGHT} depth={OFFICE_DEPTH} />
 
       <OfficeFinishes />
       <group position={[3.0, 0, -28.6]} onPointerOver={(event) => { event.stopPropagation(); setAccountingPointerOver(true); }} onPointerOut={() => setAccountingPointerOver(false)} onClick={(event) => { event.stopPropagation(); if (showHotspots) onOpenAccounting(); }}>

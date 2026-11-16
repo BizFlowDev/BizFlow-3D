@@ -98,8 +98,9 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL(role === "employee" ? "/orders/new" : "/", request.url));
   }
 
-  // Employee không truy cập trang Tổng quan (/) → redirect về /orders/new
-  if (role === "employee" && pathname === "/") {
+  // Employee only accesses the same sales routes exposed by the 2D navigation.
+  const employeePaths = ["/orders", "/customers", "/store-3d", "/change-password"];
+  if (role === "employee" && !employeePaths.some(path => pathname === path || pathname.startsWith(`${path}/`))) {
     return NextResponse.redirect(new URL("/orders/new", request.url));
   }
 

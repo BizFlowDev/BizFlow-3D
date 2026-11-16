@@ -2,6 +2,7 @@
 
 import { Modal3DCard } from "@/app/(dashboard)/store-3d/_components/Modal3DCard";
 import { remainingSpatialStock } from "./spatialCart";
+import { SpatialPortalContext, SpatialStoreContext } from "@/components/ui/spatial-portal";
 
 import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import {
@@ -60,6 +61,11 @@ import { printInvoice } from "@/lib/invoice";
 import type { CartItem3D } from "@/app/(dashboard)/store-3d/_components/ProductDetailModal3D";
 
 interface POSMonitorScreenProps {
+  workspace?: React.ReactNode;
+  workspaceSection?: "orders" | "customers" | null;
+  onOpenSales?: () => void;
+  onOpenOrders?: () => void;
+  onOpenCustomers?: () => void;
   screenWidth?: number;
   isActive: boolean;
   onActivate: () => void;
@@ -130,6 +136,11 @@ export function POSMonitorScreen(props: POSMonitorScreenProps) {
 }
 
 function POSMonitorScreenInner({
+  workspace,
+  workspaceSection,
+  onOpenSales,
+  onOpenOrders,
+  onOpenCustomers,
   screenWidth = 1200,
   isActive,
   onActivate,
@@ -142,6 +153,7 @@ function POSMonitorScreenInner({
   onOrderSuccess,
   recentOrders,
 }: POSMonitorScreenProps) {
+  const [screenElement, setScreenElement] = useState<HTMLDivElement | null>(null);
   // ── Đồng hồ thời gian thực ──
   const [currentTime, setCurrentTime] = useState("");
   useEffect(() => {
@@ -164,7 +176,7 @@ function POSMonitorScreenInner({
   useEffect(() => {
     if (!isActive) return;
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
+      if (e.key === "Escape" && !e.defaultPrevented && !document.querySelector('[role="dialog"][data-state="open"]')) {
         onExit();
       }
     };
@@ -420,7 +432,8 @@ function POSMonitorScreenInner({
   };
 
   // Submit thanh toán
-  const handleCheckout = async () => {
+  const handleCheckout = async (status: "draft" | "confirmed" = "confirmed") => {
+    if (createOrderMutation.isPending) return;
     if (stockIssue) { setErrorMessage(stockIssue); return; }
     if (orderLines.length === 0) {
       setErrorMessage("Vui lòng chọn ít nhất một sản phẩm vào đơn hàng.");
@@ -445,7 +458,7 @@ function POSMonitorScreenInner({
     }
 
     // Double Guard: Không cho phép tạo đơn Stripe khi chưa hoàn tất thanh toán
-    if (paymentMethod === "stripe" && !stripeStatus?.isPaid) {
+    if (status === "confirmed" && paymentMethod === "stripe" && !stripeStatus?.isPaid) {
       setErrorMessage("Khách hàng chưa hoàn tất thanh toán Stripe. Vui lòng thanh toán trước khi xác nhận đơn!");
       return;
     }
@@ -455,7 +468,7 @@ function POSMonitorScreenInner({
     const payload = {
       customerId: selectedCustomerId || undefined,
       orderType: "counter" as const,
-      status: "confirmed" as const,
+      status,
       paymentMethod,
       discountAmount,
       debtAmount: paymentMethod === "debt" ? finalAmount : 0,
@@ -578,12 +591,15 @@ function POSMonitorScreenInner({
   // CHẾ ĐỘ 2: ỨNG DỤNG BÁN HÀNG POS ĐẦY ĐỦ TRONG MÀN HÌNH MÁY TÍNH
   // ═══════════════════════════════════════════════════════════════════════════
   return (
+    <SpatialStoreContext.Provider value={true}>
+    <SpatialPortalContext.Provider value={screenElement}>
     <div
+      ref={setScreenElement}
       onClick={(e) => e.stopPropagation()}
       role="region"
       aria-label="Bán hàng POS"
       style={{ width: screenWidth, height: screenWidth * 0.625 }}
-      className="pos-screen flex min-h-0 min-w-0 flex-col overflow-hidden rounded-2xl bg-slate-950 text-white shadow-2xl select-none border border-slate-700/60"
+      className="dark pos-screen relative flex min-h-0 min-w-0 flex-col overflow-hidden rounded-2xl bg-slate-950 text-white shadow-2xl select-none border border-slate-700/60"
     >
       {/* ── 1. Top Bar của Hệ Thống POS ─────────────────────────────────── */}
       <div className="flex h-14 shrink-0 items-center justify-between border-b border-white/10 bg-slate-900/90 px-6">
@@ -605,8 +621,8 @@ function POSMonitorScreenInner({
           <div className="flex rounded-xl bg-slate-800 p-1 text-xs">
             <button
               type="button"
-              onClick={() => setActiveTab("pos")}
-              className={`flex items-center gap-1.5 rounded-lg px-3 py-1 font-bold transition-all ${activeTab === "pos"
+              onClick={() => { setActiveTab("pos"); onOpenSales?.(); }}
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-1 font-bold transition-all ${!workspace && activeTab === "pos"
                 ? "bg-emerald-600 text-white shadow"
                 : "text-slate-400 hover:text-white"
                 }`}
@@ -616,15 +632,16 @@ function POSMonitorScreenInner({
             </button>
             <button
               type="button"
-              onClick={() => setActiveTab("history")}
-              className={`flex items-center gap-1.5 rounded-lg px-3 py-1 font-bold transition-all ${activeTab === "history"
+              onClick={() => onOpenOrders ? onOpenOrders() : setActiveTab("history")}
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-1 font-bold transition-all ${workspaceSection === "orders" || activeTab === "history"
                 ? "bg-sky-600 text-white shadow"
                 : "text-slate-400 hover:text-white"
                 }`}
             >
               <History className="h-3.5 w-3.5" />
-              Lịch Sử Đơn ({recentOrders.length})
+              {onOpenOrders ? "Đơn hàng" : `Lịch Sử Đơn (${recentOrders.length})`}
             </button>
+            {onOpenCustomers && <button type="button" onClick={onOpenCustomers} className={`flex items-center gap-1.5 rounded-lg px-3 py-1 font-bold transition-all ${workspaceSection === "customers" ? "bg-sky-600 text-white shadow" : "text-slate-400 hover:text-white"}`}><User className="h-3.5 w-3.5" />Khách hàng</button>}
           </div>
 
           <div className="font-mono text-xs font-semibold text-slate-300">
@@ -634,7 +651,7 @@ function POSMonitorScreenInner({
       </div>
 
       {/* ── 2. Nội dung Tab Lịch Sử ────────────────────────────────────── */}
-      {activeTab === "history" ? (
+      {workspace ? workspace : activeTab === "history" ? (
         <div className="flex-1 flex flex-col overflow-hidden bg-slate-900/40">
           <div className="flex-1 overflow-y-auto p-4 space-y-2.5 pos-screen">
             <div className="flex items-center justify-between pb-2 border-b border-white/10">
@@ -726,10 +743,10 @@ function POSMonitorScreenInner({
             <CheckCircle2 className="h-9 w-9" />
           </div>
           <h3 className="mt-3 text-xl font-black text-white">
-            ĐÃ THANH TOÁN THÀNH CÔNG!
+            {completedOrder.status === "draft" ? "ĐÃ LƯU ĐƠN NHÁP" : "ĐÃ THANH TOÁN THÀNH CÔNG!"}
           </h3>
           <p className="mt-1 text-xs text-slate-400">
-            Hóa đơn đã được lưu và trừ kho tự động
+            {completedOrder.status === "draft" ? "Đơn nháp đã được lưu. Mở Đơn hàng để xác nhận hoặc hủy." : "Hóa đơn đã được lưu và trừ kho tự động"}
           </p>
 
           <div className="mt-4 w-80 rounded-xl border border-white/10 bg-slate-800/80 p-3.5 text-xs text-left space-y-2">
@@ -756,6 +773,7 @@ function POSMonitorScreenInner({
           <div className="mt-5 flex items-center gap-3">
             <button
               type="button"
+              disabled={completedOrder.status === "draft"}
               onClick={() => handlePrint(completedOrder)}
               className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 px-5 py-2.5 text-xs font-bold text-white shadow hover:scale-105 transition-all"
             >
@@ -1360,6 +1378,11 @@ function POSMonitorScreenInner({
                 </div>
               )}
 
+              <label className="flex items-center gap-2 text-xs text-slate-400">Ghi chú
+                <input aria-label="Ghi chú đơn hàng" value={orderNote} onChange={event => setOrderNote(event.target.value)} placeholder="Ghi chú đơn…" className="min-w-0 flex-1 rounded-lg border border-white/10 bg-slate-800 px-2 py-1 text-white" />
+              </label>
+              <button type="button" onClick={() => handleCheckout("draft")} disabled={!orderLines.length || !!stockIssue || createOrderMutation.isPending || stripeModalOpen || !!stripeSession || (paymentMethod === "debt" && !selectedCustomerId)} className="w-full rounded-xl border border-white/20 bg-slate-800 py-2 text-xs font-bold text-slate-200 hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-40">Lưu đơn nháp</button>
+
               {/* Lỗi nếu có */}
               {(errorMessage || stockIssue) && (
                 <div className="rounded bg-red-500/20 border border-red-500/30 p-1 text-[10px] text-red-300">
@@ -1373,7 +1396,7 @@ function POSMonitorScreenInner({
                 onClick={
                   paymentMethod === "stripe" && !stripeStatus?.isPaid
                     ? handleOpenStripeModal
-                    : handleCheckout
+                    : () => handleCheckout()
                 }
                 disabled={
                   orderLines.length === 0 ||
@@ -1647,5 +1670,7 @@ function POSMonitorScreenInner({
         </div>
       )}
     </div>
+    </SpatialPortalContext.Provider>
+    </SpatialStoreContext.Provider>
   );
 }

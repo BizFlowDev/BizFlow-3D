@@ -5,8 +5,9 @@ import { useRef, useState } from "react";
 import { Text, Html } from "@react-three/drei";
 import * as THREE from "three";
 import { Door3D } from "./Door3D";
-import { type RoomId, ROOMS, type DoorId } from "./types";
+import { ROOMS, type DoorId } from "./types";
 import { SmartOcclusionGroup } from "./SmartOcclusion";
+import { RoomLighting } from "./RoomLighting";
 import type { StockLevelRow } from "@/hooks/useInventory";
 
 interface WarehouseSceneProps {
@@ -1402,18 +1403,18 @@ export function WarehouseScene({
       {/* Tường sau (z = -32) - Luôn hiển thị vì nằm sau hậu cảnh */}
       <mesh position={[CENTER_X, WAREHOUSE_HEIGHT / 2, -32]} receiveShadow>
         <boxGeometry args={[WAREHOUSE_WIDTH, WAREHOUSE_HEIGHT, WALL_THICKNESS]} />
-        <meshStandardMaterial color="#eeeae3" roughness={0.8} />
+        <meshStandardMaterial color="#eeeae3" roughness={0.75} />
       </mesh>
 
       {/* Tường trước (z = -18.1) — Tự động làm mờ/biến mất khi camera ở góc nhìn toàn cảnh phía trước */}
       <SmartOcclusionGroup checkOcclusion={(pos) => pos.z > -18.4}>
         <mesh position={[-9.75, WAREHOUSE_HEIGHT / 2, -18.1]}>
           <boxGeometry args={[11.5, WAREHOUSE_HEIGHT, WALL_THICKNESS]} />
-          <meshStandardMaterial color="#eeeae3" roughness={0.8} />
+          <meshStandardMaterial color="#eeeae3" roughness={0.75} />
         </mesh>
         <mesh position={[-1.45, WAREHOUSE_HEIGHT / 2, -18.1]}>
           <boxGeometry args={[1.9, WAREHOUSE_HEIGHT, WALL_THICKNESS]} />
-          <meshStandardMaterial color="#eeeae3" roughness={0.8} />
+          <meshStandardMaterial color="#eeeae3" roughness={0.75} />
         </mesh>
         {/* Mảng tường phía trên cửa ra hành lang */}
         <mesh
@@ -1424,7 +1425,7 @@ export function WarehouseScene({
           ]}
         >
           <boxGeometry args={[1.6, WAREHOUSE_HEIGHT - 2.8, WALL_THICKNESS]} />
-          <meshStandardMaterial color="#eeeae3" roughness={0.8} />
+          <meshStandardMaterial color="#eeeae3" roughness={0.75} />
         </mesh>
 
         {/* Cửa thông ra hành lang */}
@@ -1459,7 +1460,7 @@ export function WarehouseScene({
           rotation={[0, Math.PI / 2, 0]}
         >
           <boxGeometry args={[WAREHOUSE_DEPTH, WAREHOUSE_HEIGHT, WALL_THICKNESS]} />
-          <meshStandardMaterial color="#eeeae3" roughness={0.8} />
+          <meshStandardMaterial color="#eeeae3" roughness={0.75} />
         </mesh>
       </SmartOcclusionGroup>
 
@@ -1470,7 +1471,7 @@ export function WarehouseScene({
           rotation={[0, Math.PI / 2, 0]}
         >
           <boxGeometry args={[WAREHOUSE_DEPTH, WAREHOUSE_HEIGHT, WALL_THICKNESS]} />
-          <meshStandardMaterial color="#eeeae3" roughness={0.8} />
+          <meshStandardMaterial color="#eeeae3" roughness={0.75} />
         </mesh>
       </SmartOcclusionGroup>
 
@@ -1479,19 +1480,8 @@ export function WarehouseScene({
         <IndustrialRoofStructure />
       </SmartOcclusionGroup>
 
-      {/* Keep operational lighting active when the roof is cut away. */}
-      {[-12, -8, -4].flatMap(x => [-28, -22].map(z => (
-        <pointLight key={`warehouse-light-${x}-${z}`} position={[x, 4.7, z]} intensity={22.4} distance={9.5} color="#fef3c7" />
-      )))}
-      {/* Ánh sáng tổng thể phòng kho */}
-      <ambientLight intensity={0.64} color="#e2e8f0" />
-      <directionalLight
-        position={[-8, WAREHOUSE_HEIGHT - 0.5, -22]}
-        intensity={0.96}
-        color="#ffffff"
-        castShadow
-        shadow-mapSize={[1024, 1024]}
-      />
+      {/* Lighting stays active when the roof is cut away. */}
+      <RoomLighting center={[CENTER_X, 0, CENTER_Z]} height={WAREHOUSE_HEIGHT} depth={WAREHOUSE_DEPTH} />
 
       {/* ── 4. TRANG THIẾT BỊ & NỘI THẤT KHO THÔNG MINH ────────────────── */}
 

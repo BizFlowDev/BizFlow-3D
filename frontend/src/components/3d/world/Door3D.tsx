@@ -7,6 +7,7 @@ import * as THREE from "three";
 import { type RoomId, ROOMS, type DoorId } from "./types";
 
 interface Door3DProps {
+  locked?: boolean;
   /** Vị trí cửa */
   position: [number, number, number];
   /** Góc xoay cửa (rotation Y) */
@@ -138,6 +139,7 @@ export function Door3D({
   label,
   subLabel,
   isOpen = false,
+  locked = false,
   onEnter,
   accentColor,
 }: Door3DProps) {
@@ -151,7 +153,7 @@ export function Door3D({
   // Animation bản lề mở/đóng cửa êm ái, chuyển động đầm chắc tự nhiên (~0.65s)
   useRoomFrame((_, delta) => {
     if (!hingeRef.current) return;
-    const targetAngle = isOpen ? -Math.PI * 0.48 : 0; // Xoay ~86 độ
+    const targetAngle = isOpen && !locked ? -Math.PI * 0.48 : 0; // Xoay ~86 độ
     const step = Math.min(1, delta * 4.2);
     currentAngleRef.current = THREE.MathUtils.lerp(
       currentAngleRef.current,
@@ -272,7 +274,7 @@ export function Door3D({
             outlineOpacity={0.3}
             outlineBlur={0}
           >
-            {subLabel.toUpperCase()}
+            {locked ? "ĐÃ KHÓA · CHỦ CỬA HÀNG" : subLabel.toUpperCase()}
           </Text>
         )}
 
@@ -301,12 +303,12 @@ export function Door3D({
         position={[-DOOR_WIDTH / 2, 0, 0]}
         onPointerOver={(e) => {
           e.stopPropagation();
-          setHovered(true);
+          setHovered(!locked);
         }}
         onPointerOut={() => setHovered(false)}
         onClick={(e) => {
           e.stopPropagation();
-          onEnter(targetRoom);
+          if (!locked) onEnter(targetRoom);
         }}
       >
         {/* Cánh cửa dịch sang phải DOOR_WIDTH / 2 so với pivot */}

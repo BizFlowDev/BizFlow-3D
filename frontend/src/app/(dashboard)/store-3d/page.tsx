@@ -57,6 +57,10 @@ import { OrderSuccessModal } from "./_components/OrderSuccessModal";
 import { UpgradePlanModal } from "@/components/shared/UpgradePlanModal";
 import { useCurrentStore } from "@/hooks/useStore";
 import { useAuthStore } from "@/stores/auth-store";
+import { useAuth } from "@/hooks/useAuth";
+import { accessibleRooms, canUsePreset } from "@/components/3d/world/roomAccess";
+import { POSWorkspace, type POSSection } from "./_components/POSWorkspace";
+import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 
 // ── Lazy load 3D components ───────────────────────────────────────────────────
 
@@ -100,6 +104,22 @@ function SceneLoading() {
 export default function Store3DPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { logout } = useAuth();
+  const [logoutDialogOpen, setLogoutDialogOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const logoutPendingRef = useRef(false);
+  const handleConfirmLogout = async () => {
+    if (logoutPendingRef.current) return;
+    logoutPendingRef.current = true;
+    setIsLoggingOut(true);
+    try {
+      await logout();
+      setLogoutDialogOpen(false);
+    } finally {
+      logoutPendingRef.current = false;
+      setIsLoggingOut(false);
+    }
+  };
 
   // ── State ──────────────────────────────────────────────────
   const roomNavigationRef = useRef<((room: RoomId) => void) | null>(null);
@@ -116,6 +136,7 @@ export default function Store3DPage() {
   const [cameraPreset, setCameraPreset] = useState<CameraPreset>("showroomOverview");
   const [targetFocusPoint, setTargetFocusPoint] = useState<CameraFocusPoint | null>(null);
   const [isPOSActive, setIsPOSActive] = useState(false);
+  const [posSection, setPOSSection] = useState<POSSection | null>(null);
   // Trạng thái thu gọn các nút điều khiển (tự động bật khi vào màn hình máy tính POS)
   const [isHUDCollapsed, setIsHUDCollapsed] = useState(false);
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
@@ -156,6 +177,8 @@ export default function Store3DPage() {
 
   const { data: store } = useCurrentStore();
   const user = useAuthStore((state) => state.user);
+  const allowedRooms = accessibleRooms(user?.role);
+  const canManageWarehouse = user?.role === "owner";
 
   // Order Lines State (Các mặt hàng trong đơn)
   const [orderLines, setOrderLines] = useState<CartItem3D[]>([]);
@@ -811,11 +834,13 @@ export default function Store3DPage() {
   }, []);
 
   const handleToggle2D = useCallback(() => {
-    router.push("/");
-  }, [router]);
+    router.push(user?.role === "employee" ? "/orders/new" : "/");
+  }, [router, user?.role]);
 
   // ── Chuyển đổi Phòng & Thao Tác Module ──────────────────────
   const handleSelectRoom = useCallback((room: RoomId) => {
+    if (!allowedRooms.includes(room)) return;
+    setPOSSection(null);
     setOfficeSection(null);
     setTargetFocusPoint(null);
     setActiveRoom(room);
@@ -836,21 +861,23 @@ export default function Store3DPage() {
       setIsPOSActive(false);
       setIsHUDCollapsed(false);
     }
-  }, []);
+  }, [allowedRooms]);
 
   // ── Mở Bàn Kiểm Hàng QC & Soát Barcode 3D ───────────────────
   const handleOpenInspectionDesk = useCallback((productId?: string) => {
+    if (!canManageWarehouse) return;
     setTargetFocusPoint({
       target: [-12, 1.0, -22.8],
       position: [-12, 2.3, -19.5],
     });
     setImportStockProductId(productId);
     setWarehouseInspectionModalOpen(true);
-  }, []);
+  }, [canManageWarehouse]);
 
   // ── Mở Form Thêm / Sửa Sản Phẩm 3D Trên Bàn Kiểm Hàng ──────
   const handleOpenProductForm3D = useCallback(
     (productOrId?: Product | string | null) => {
+      if (!canManageWarehouse) return;
       setTargetFocusPoint({
         target: [-12, 1.0, -22.8],
         position: [-12, 2.3, -19.5],
@@ -863,7 +890,7 @@ export default function Store3DPage() {
       }
       setProductFormModal3DOpen(true);
     },
-    [productsData],
+    [productsData, canManageWarehouse],
   );
 
   const handleOpenProductForm = useCallback(() => {
@@ -872,26 +899,29 @@ export default function Store3DPage() {
 
   // ── Mở Trạm Tiếp Nhận & Nhập Kho Pallet 3D ───────────────────
   const handleOpenImportStock = useCallback((productId?: string) => {
+    if (!canManageWarehouse) return;
     setTargetFocusPoint({
       target: [-4.5, 0.8, -22.8],
       position: [-4.5, 2.3, -19.5],
     });
     setImportStockProductId(productId);
     setWarehouseImportModalOpen(true);
-  }, []);
+  }, [canManageWarehouse]);
 
   // ── Mở Bảng Quản Lý Danh Mục Kho 3D ──────────────────────────
   const handleOpenCategoryManage = useCallback(() => {
+    if (!canManageWarehouse) return;
     setTargetFocusPoint({
       target: [-9.9, 1.35, -23.3],
       position: [-9.9, 2.2, -19.3],
     });
     setCategoryManageModal3DOpen(true);
-  }, []);
+  }, [canManageWarehouse]);
 
   // ── Click trực tiếp vào Ô Kệ Kiện Hàng Trên Kệ 3D ──────────
   const handleSelectCargoItem = useCallback(
     (item: StockLevelRow, location: CargoLocationInfo) => {
+      if (!canManageWarehouse) return;
       const isAisleA = location.aisle === "DÃY KỆ A";
       setTargetFocusPoint({
         target: isAisleA ? [-12, 1.8, -28.2] : [-4, 1.8, -28.2],
@@ -901,7 +931,7 @@ export default function Store3DPage() {
       setSelectedCargoLocation(location);
       setCargoDetailModalOpen(true);
     },
-    [],
+    [canManageWarehouse],
   );
 
   const handleOpenSettings = useCallback(() => {
@@ -930,12 +960,14 @@ export default function Store3DPage() {
   }, []);
 
   const handleExitPOS = useCallback(() => {
+    setPOSSection(null);
     setCameraPreset("showroomOverview");
     setIsPOSActive(false);
     setIsHUDCollapsed(false);
   }, []);
 
   const handleSelectPreset = useCallback((preset: CameraPreset) => {
+    if (!canUsePreset(allowedRooms, preset)) return;
     setOfficeSection(null);
     setTargetFocusPoint(null);
     setCameraPreset(preset);
@@ -946,7 +978,7 @@ export default function Store3DPage() {
       setIsPOSActive(false);
       setIsHUDCollapsed(false);
     }
-  }, []);
+  }, [allowedRooms]);
 
   const isViewingShelf = [
     "shelfLeft",
@@ -993,8 +1025,8 @@ export default function Store3DPage() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        // Let Radix close only the topmost office dialog (including nested forms).
-        if (officeSection) return;
+        // Let Radix dismiss the dialog without changing the room or camera.
+        if (e.defaultPrevented || posSection || officeSection || logoutDialogOpen) return;
         const isAnyModalOpen = Boolean(
           selectedProductForDetail ||
           warehouseImportModalOpen ||
@@ -1045,6 +1077,8 @@ export default function Store3DPage() {
     cargoDetailModalOpen,
     officeSection,
     upgradeModalOpen,
+    logoutDialogOpen,
+    posSection,
     handleExitPOS,
     handleReturnToOverview,
     requestRoom,
@@ -1061,7 +1095,9 @@ export default function Store3DPage() {
     productFormModal3DOpen ||
     categoryManageModal3DOpen ||
     cargoDetailModalOpen ||
-    officeSection
+    officeSection ||
+    logoutDialogOpen ||
+    posSection
   );
 
   return (
@@ -1088,6 +1124,7 @@ export default function Store3DPage() {
         {/* ── 3D Multi-Room World Scene ────────────────── */}
         <Suspense fallback={<SceneLoading />}>
           <BizFlowWorld
+            allowedRooms={allowedRooms}
             activeRoom={activeRoom}
             onEnterRoom={handleSelectRoom}
             navigationRef={roomNavigationRef}
@@ -1097,6 +1134,7 @@ export default function Store3DPage() {
             quickNavigation={quickNavigation}
             isPOSActive={isPOSActive}
             isAnyModalOpen={isAnyModalOpen}
+            onRequestLogout={() => setLogoutDialogOpen(true)}
             targetFocusPoint={targetFocusPoint}
             stockItems={stockData || []}
             visibleStockItems={warehouseDisplay.items}
@@ -1192,7 +1230,11 @@ export default function Store3DPage() {
                   pendingCount={pendingCount}
                   recentTotal={todayRevenue}
                   onOpenPOS={handleOpenPOS}
-                  onOpenOrders={handleOpenPOS}
+                  onOpenOrders={() => { handleOpenPOS(); setPOSSection("orders"); }}
+                  onOpenCustomers={() => { handleOpenPOS(); setPOSSection("customers"); }}
+                  workspace={posSection && <POSWorkspace key={posSection} section={posSection} />}
+                  workspaceSection={posSection}
+                  onOpenSales={() => setPOSSection(null)}
                   queryClient={queryClient}
                   isPOSActive={isPOSActive}
                   onExitPOS={handleExitPOS}
@@ -1353,7 +1395,7 @@ export default function Store3DPage() {
                 </div>
 
                 {/* Nút Bật/Tắt Chế Độ Test Phân Trang (Demo 160 sản phẩm / 6 danh mục) */}
-                <button
+                {canManageWarehouse && <button
                   type="button"
                   onClick={() => {
                     setIsDemoMode((prev) => !prev);
@@ -1373,7 +1415,7 @@ export default function Store3DPage() {
                   <span className="hidden md:inline">
                     {isDemoMode ? "Đang Test (160 sp / 6 danh mục)" : "Test Phân Trang (160 sp)"}
                   </span>
-                </button>
+                </button>}
               </div>
 
               {/* Chính giữa: Thanh điều hướng phân trang (ngang hàng với thanh tìm kiếm) */}
@@ -1675,6 +1717,7 @@ export default function Store3DPage() {
               }`}
           >
             <RoomNavigationHUD
+              allowedRooms={allowedRooms}
               activeRoom={activeRoom}
               quickNavigation={quickNavigation}
               reducedMotion={!!prefersReducedMotion}
@@ -1690,6 +1733,21 @@ export default function Store3DPage() {
         </div>
 
         {/* ── Product Detail Modal 3D ─────────────────────── */}
+        <ConfirmDialog
+          open={logoutDialogOpen}
+          onOpenChange={(open) => {
+            if (!logoutPendingRef.current) setLogoutDialogOpen(open);
+          }}
+          title="Bạn muốn đăng xuất?"
+          description={orderLines.length > 0
+            ? "Đơn hàng đang chọn chưa được thanh toán. Đăng xuất sẽ kết thúc phiên làm việc và bạn cần đăng nhập lại để tiếp tục."
+            : "Phiên làm việc sẽ kết thúc. Bạn cần đăng nhập lại để tiếp tục."}
+          confirmText="Đăng xuất"
+          cancelText="Hủy"
+          loading={isLoggingOut}
+          onConfirm={() => void handleConfirmLogout()}
+        />
+
         <ProductDetailModal3D
           orderLines={orderLines}
           product={enrichedProducts.find(product => product.id === selectedProductForDetail?.id) ?? selectedProductForDetail}
@@ -1713,8 +1771,9 @@ export default function Store3DPage() {
         />
 
         {/* ── 1. Trạm Tiếp Nhận Nhập Kho 3D (Pallet Zone) ──── */}
+        {canManageWarehouse && <>
         <WarehouseImportModal3D
-          isOpen={warehouseImportModalOpen}
+          isOpen={canManageWarehouse && warehouseImportModalOpen}
           onClose={() => {
             setWarehouseImportModalOpen(false);
             setTargetFocusPoint(null);
@@ -1725,7 +1784,7 @@ export default function Store3DPage() {
 
         {/* ── 2. Trạm Bàn Kiểm Hàng QC & Soát Barcode 3D ───── */}
         <WarehouseInspectionModal3D
-          isOpen={warehouseInspectionModalOpen}
+          isOpen={canManageWarehouse && warehouseInspectionModalOpen}
           onClose={() => {
             setWarehouseInspectionModalOpen(false);
             setTargetFocusPoint(null);
@@ -1738,7 +1797,7 @@ export default function Store3DPage() {
 
         {/* ── 3. Bàn Thêm / Chỉnh Sửa Sản Phẩm 3D ──────────── */}
         <ProductFormModal3D
-          isOpen={productFormModal3DOpen}
+          isOpen={canManageWarehouse && productFormModal3DOpen}
           onClose={() => {
             setProductFormModal3DOpen(false);
             setTargetFocusPoint(null);
@@ -1749,7 +1808,7 @@ export default function Store3DPage() {
 
         {/* ── 4. Bảng Quản Lý Danh Mục Kho 3D ──────────────── */}
         <CategoryManageModal3D
-          isOpen={categoryManageModal3DOpen}
+          isOpen={canManageWarehouse && categoryManageModal3DOpen}
           onClose={() => {
             setCategoryManageModal3DOpen(false);
             setTargetFocusPoint(null);
@@ -1761,7 +1820,7 @@ export default function Store3DPage() {
 
         {/* ── 5. Chi Tiết Ô Kệ Kiện Hàng Trên Kệ 3D ────────── */}
         <WarehouseCargoDetailModal3D
-          isOpen={cargoDetailModalOpen}
+          isOpen={canManageWarehouse && cargoDetailModalOpen}
           onClose={() => {
             setCargoDetailModalOpen(false);
             setTargetFocusPoint(null);
@@ -1772,6 +1831,7 @@ export default function Store3DPage() {
           onRestock={(id) => { setCargoDetailModalOpen(false); handleOpenImportStock(id); }}
           onInspect={(id) => { setCargoDetailModalOpen(false); handleOpenInspectionDesk(id); }}
         />
+        </>}
 
 
 

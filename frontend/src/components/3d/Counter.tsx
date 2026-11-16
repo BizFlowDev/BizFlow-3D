@@ -37,6 +37,10 @@ export interface CounterProps {
   recentTotal: number;
   /** Callback khi click vào quầy — mở order summary */
   onOpenOrders?: () => void;
+  onOpenCustomers?: () => void;
+  workspace?: React.ReactNode;
+  workspaceSection?: "orders" | "customers" | null;
+  onOpenSales?: () => void;
   /** Callback khi click trực tiếp vào màn hình máy tính POS */
   onOpenPOS?: () => void;
   /** Vị trí trong scene */
@@ -77,6 +81,10 @@ export default function Counter({
   pendingCount,
   recentTotal,
   onOpenOrders,
+  onOpenCustomers,
+  workspace,
+  workspaceSection,
+  onOpenSales,
   onOpenPOS,
   position = [0, 0, 0],
   rotation = [0, 0, 0],
@@ -222,6 +230,7 @@ export default function Counter({
           {/* Giao diện UI màn hình máy tính 3D (POS nhúng trực tiếp chuẩn tỷ lệ modal 1200x750) */}
           <Html
             transform
+            wrapperClass="pos-monitor-portal"
             occlude
             distanceFactor={624 / screenWidth}
             position={[0, 0, 0.03]}
@@ -230,6 +239,11 @@ export default function Counter({
           >
             <QueryClientProvider client={queryClient || fallbackQueryClient}>
               <POSMonitorScreen
+                workspace={workspace}
+                workspaceSection={workspaceSection}
+                onOpenSales={onOpenSales}
+                onOpenOrders={onOpenOrders}
+                onOpenCustomers={onOpenCustomers}
                 screenWidth={screenWidth}
                 isActive={!!isPOSActive}
                 onActivate={() => onOpenPOS?.()}
