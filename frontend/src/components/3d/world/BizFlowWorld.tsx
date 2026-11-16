@@ -187,9 +187,9 @@ export function BizFlowWorld({
       <div
         className="pointer-events-none absolute inset-0 z-10 transition-opacity duration-700 ease-out"
         style={{
-          opacity: activeOpenDoor ? 0.38 : 0,
+          opacity: activeOpenDoor ? 0.18 : 0,
           background:
-            "radial-gradient(circle at center, transparent 55%, rgba(3, 7, 18, 0.65) 100%)",
+            "radial-gradient(circle at center, transparent 55%, rgba(100, 116, 139, 0.3) 100%)",
         }}
       />
 
@@ -207,14 +207,14 @@ export function BizFlowWorld({
           alpha: false,
         }}
         shadows
-        style={{ position: "absolute", inset: 0, background: "#070b14" }}
+        style={{ position: "absolute", inset: 0, background: "#5b6a73" }}
       >
-        <color attach="background" args={[activeRoom === "warehouse" ? "#101827" : "#070b14"]} />
+        <color attach="background" args={["#5b6a73"]} />
 
         {/* Môi trường chiếu sáng nhẹ & sương mù chiều sâu */}
-        <fog attach="fog" args={activeRoom === "warehouse" ? ["#070b14", 38, 90] : ["#070b14", 20, 48]} />
+        <fog attach="fog" args={activeRoom === "warehouse" ? ["#5b6a73", 38, 90] : ["#5b6a73", 20, 48]} />
         <Suspense fallback={<Html center><div role="status" className="whitespace-nowrap rounded-xl bg-slate-950/95 px-5 py-3 text-sm text-white">Đang tải không gian 3D…</div></Html>}>
-        <Environment preset="city" environmentIntensity={0.25} />
+        <Environment preset="city" environmentIntensity={0.32} />
 
         {/* ── BỘ ĐIỀU KHIỂN CAMERA ĐA PHÒNG & MOUSE PARALLAX ────────── */}
         <WorldCameraController

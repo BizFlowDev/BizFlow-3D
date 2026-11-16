@@ -27,9 +27,9 @@ function ShowroomFloor() {
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow>
         <planeGeometry args={[STORE_WIDTH, STORE_DEPTH]} />
         <meshStandardMaterial
-          color="#1e2433"
-          roughness={0.22}
-          metalness={0.18}
+          color="#dfc9a8"
+          roughness={0.3}
+          metalness={0.15}
         />
       </mesh>
 
@@ -37,7 +37,7 @@ function ShowroomFloor() {
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.003, 0]}>
         <planeGeometry args={[3.2, STORE_DEPTH - 0.5]} />
         <meshStandardMaterial
-          color="#161c28"
+          color="#aaa99f"
           roughness={0.45}
           metalness={0.08}
         />
@@ -74,8 +74,8 @@ function ShowroomWalls({
   onReturnToHallway?: () => void;
   openDoor?: DoorId | null;
 }) {
-  const wallBaseColor = "#0f172a";
-  const woodSlatColor = "#854d0e";
+  const wallBaseColor = "#eeeae3";
+  const woodSlatColor = "#c5ab87";
 
   return (
     <group>
@@ -207,15 +207,15 @@ function ShowroomWalls({
       <SmartOcclusionGroup preset="wall-front" threshold={6.2}>
         <mesh position={[0, STORE_HEIGHT - 0.2, STORE_DEPTH / 2]}>
           <boxGeometry args={[STORE_WIDTH, 0.4, 0.2]} />
-          <meshStandardMaterial color="#090d16" roughness={0.3} metalness={0.7} />
+          <meshStandardMaterial color="#94a3b8" roughness={0.3} metalness={0.7} />
         </mesh>
         <mesh position={[-STORE_WIDTH / 2 + 0.1, STORE_HEIGHT / 2, STORE_DEPTH / 2]}>
           <boxGeometry args={[0.2, STORE_HEIGHT, 0.2]} />
-          <meshStandardMaterial color="#090d16" roughness={0.3} metalness={0.7} />
+          <meshStandardMaterial color="#94a3b8" roughness={0.3} metalness={0.7} />
         </mesh>
         <mesh position={[STORE_WIDTH / 2 - 0.1, STORE_HEIGHT / 2, STORE_DEPTH / 2]}>
           <boxGeometry args={[0.2, STORE_HEIGHT, 0.2]} />
-          <meshStandardMaterial color="#090d16" roughness={0.3} metalness={0.7} />
+          <meshStandardMaterial color="#94a3b8" roughness={0.3} metalness={0.7} />
         </mesh>
       </SmartOcclusionGroup>
     </group>
@@ -232,7 +232,7 @@ function ShowroomCeilingAndLights() {
       <SmartOcclusionGroup preset="ceiling" threshold={4.8}>
         <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, STORE_HEIGHT, 0]}>
           <planeGeometry args={[STORE_WIDTH, STORE_DEPTH]} />
-          <meshStandardMaterial color="#0b0f19" roughness={0.9} side={2} />
+          <meshStandardMaterial color="#ece9e2" roughness={0.9} side={2} />
         </mesh>
 
         {/* Thanh ray đèn */}
@@ -265,10 +265,10 @@ function ShowroomCeilingAndLights() {
       </SmartOcclusionGroup>
 
       {/* Ánh sáng đa lớp */}
-      <ambientLight intensity={0.65} color="#e0e7ff" />
+      <ambientLight intensity={0.52} color="#ffffff" />
       <directionalLight
         position={[4, STORE_HEIGHT - 0.5, 4]}
-        intensity={1.1}
+        intensity={0.88}
         castShadow
         shadow-mapSize-width={1024}
         shadow-mapSize-height={1024}
@@ -276,53 +276,53 @@ function ShowroomCeilingAndLights() {
       />
       <directionalLight
         position={[-5, STORE_HEIGHT - 0.6, -3]}
-        intensity={0.55}
-        color="#93c5fd"
+        intensity={0.44}
+        color="#ffffff"
       />
 
       {/* Đèn điểm cho các khu vực kệ */}
       <pointLight
         position={[-3.5, STORE_HEIGHT - 0.5, -3.5]}
-        intensity={20}
+        intensity={16}
         distance={9}
-        color="#fffbeb"
+        color="#fff4e6"
       />
       <pointLight
         position={[3.5, STORE_HEIGHT - 0.5, -3.5]}
-        intensity={20}
+        intensity={16}
         distance={9}
-        color="#fffbeb"
+        color="#fff4e6"
       />
       <pointLight
         position={[-5.2, STORE_HEIGHT - 0.5, -0.5]}
-        intensity={20}
+        intensity={16}
         distance={9}
-        color="#fffbeb"
+        color="#fff4e6"
       />
       <pointLight
         position={[5.2, STORE_HEIGHT - 0.5, -0.5]}
-        intensity={20}
+        intensity={16}
         distance={9}
-        color="#fffbeb"
+        color="#fff4e6"
       />
       <pointLight
         position={[0, STORE_HEIGHT - 0.5, 2]}
-        intensity={18}
+        intensity={14.4}
         distance={8}
-        color="#f0f9ff"
+        color="#fff4e6"
       />
       <pointLight
         position={[0, STORE_HEIGHT - 1.2, -STORE_DEPTH / 2 + 1.2]}
-        intensity={14}
+        intensity={3.2}
         distance={6}
-        color="#c084fc"
+        color="#fff4e6"
       />
     </group>
   );
 }
 
 function ShowroomFloorTrim() {
-  const trimColor = "#334155";
+  const trimColor = "#94a3b8";
   const trimH = 0.14;
   return (
     <group>

@@ -470,7 +470,7 @@ export function OfficeScene({
       >
         <planeGeometry args={[OFFICE_WIDTH, OFFICE_DEPTH]} />
         <meshStandardMaterial
-          color="#695345"
+          color="#dfc9a8"
           roughness={0.3}
           metalness={0.15}
         />
@@ -492,18 +492,18 @@ export function OfficeScene({
       {/* Tường sau (z = -32) */}
       <mesh position={[CENTER_X, OFFICE_HEIGHT / 2, -32]}>
         <boxGeometry args={[OFFICE_WIDTH, OFFICE_HEIGHT, WALL_THICKNESS]} />
-        <meshStandardMaterial color="#253444" roughness={0.75} />
+        <meshStandardMaterial color="#eeeae3" roughness={0.75} />
       </mesh>
 
       {/* Tường trước giáp hành lang (z = -18.1) — Tự động làm mờ khi camera nhìn từ ngoài/hành lang */}
       <SmartOcclusionGroup preset="wall-front" threshold={-18.4}>
         <mesh position={[1.45, OFFICE_HEIGHT / 2, -18.1]}>
           <boxGeometry args={[1.9, OFFICE_HEIGHT, WALL_THICKNESS]} />
-          <meshStandardMaterial color="#253444" roughness={0.75} />
+          <meshStandardMaterial color="#eeeae3" roughness={0.75} />
         </mesh>
         <mesh position={[9.75, OFFICE_HEIGHT / 2, -18.1]}>
           <boxGeometry args={[11.5, OFFICE_HEIGHT, WALL_THICKNESS]} />
-          <meshStandardMaterial color="#253444" roughness={0.75} />
+          <meshStandardMaterial color="#eeeae3" roughness={0.75} />
         </mesh>
         {/* Mảng tường trên cửa ra hành lang */}
         <mesh
@@ -514,7 +514,7 @@ export function OfficeScene({
           ]}
         >
           <boxGeometry args={[1.6, OFFICE_HEIGHT - 2.8, WALL_THICKNESS]} />
-          <meshStandardMaterial color="#253444" roughness={0.75} />
+          <meshStandardMaterial color="#eeeae3" roughness={0.75} />
         </mesh>
 
         {/* ── CỬA THÔNG RA HÀNH LANG (x = 3.2, z = -18.1, quay mặt vào trong văn phòng) ── */}
@@ -538,7 +538,7 @@ export function OfficeScene({
           rotation={[0, Math.PI / 2, 0]}
         >
           <boxGeometry args={[OFFICE_DEPTH, OFFICE_HEIGHT, WALL_THICKNESS]} />
-          <meshStandardMaterial color="#253444" roughness={0.75} />
+          <meshStandardMaterial color="#eeeae3" roughness={0.75} />
         </mesh>
       </SmartOcclusionGroup>
 
@@ -549,7 +549,7 @@ export function OfficeScene({
           rotation={[0, Math.PI / 2, 0]}
         >
           <boxGeometry args={[OFFICE_DEPTH, OFFICE_HEIGHT, WALL_THICKNESS]} />
-          <meshStandardMaterial color="#253444" roughness={0.75} />
+          <meshStandardMaterial color="#eeeae3" roughness={0.75} />
         </mesh>
       </SmartOcclusionGroup>
 
@@ -560,21 +560,21 @@ export function OfficeScene({
           position={[CENTER_X, OFFICE_HEIGHT, CENTER_Z]}
         >
           <planeGeometry args={[OFFICE_WIDTH, OFFICE_DEPTH]} />
-          <meshStandardMaterial color="#0b0f19" roughness={0.9} side={2} />
+          <meshStandardMaterial color="#ece9e2" roughness={0.9} side={2} />
         </mesh>
       </SmartOcclusionGroup>
 
       {/* Đèn trần âm hiện đại */}
-      <ambientLight intensity={0.6} color="#f8fafc" />
+      <ambientLight intensity={0.48} color="#f8fafc" />
       <pointLight
         position={[CENTER_X, OFFICE_HEIGHT - 0.4, CENTER_Z]}
-        intensity={20}
+        intensity={16}
         distance={10}
         color="#fef3c7"
       />
       <pointLight
         position={[CENTER_X, OFFICE_HEIGHT - 0.4, -30]}
-        intensity={18}
+        intensity={14.4}
         distance={8}
         color="#bae6fd"
       />
@@ -648,8 +648,8 @@ export function OfficeScene({
 /** Low-poly architectural details; no additional lights or animation loops. */
 function OfficeFinishes() {
   return <group>
-    {Array.from({ length: 15 }, (_, i) => <mesh key={`floor-${i}`} position={[0.65 + i, 0.006, -25]} rotation={[-Math.PI / 2, 0, 0]}><planeGeometry args={[0.018, 13.8]} /><meshStandardMaterial color="#382c26" /></mesh>)}
-    {Array.from({ length: 19 }, (_, i) => <mesh key={`slat-${i}`} position={[4.3 + i * 0.41, 2.7, -31.84]}><boxGeometry args={[0.12, 5.1, 0.08]} /><meshStandardMaterial color="#83654c" roughness={0.65} /></mesh>)}
+    {Array.from({ length: 15 }, (_, i) => <mesh key={`floor-${i}`} position={[0.65 + i, 0.006, -25]} rotation={[-Math.PI / 2, 0, 0]}><planeGeometry args={[0.018, 13.8]} /><meshStandardMaterial color="#c4ac8c" /></mesh>)}
+    {Array.from({ length: 19 }, (_, i) => <mesh key={`slat-${i}`} position={[4.3 + i * 0.41, 2.7, -31.84]}><boxGeometry args={[0.12, 5.1, 0.08]} /><meshStandardMaterial color="#c5ab87" roughness={0.65} /></mesh>)}
     <mesh position={[8, 4.25, -31.72]}>
       <boxGeometry args={[7.2, 0.95, 0.1]} />
       <meshStandardMaterial color="#0f172a" roughness={0.7} />
@@ -662,6 +662,6 @@ function OfficeFinishes() {
       <mesh position={[0, 0.95, 0]}><cylinderGeometry args={[0.035, 0.05, 1.2, 6]} /><meshStandardMaterial color="#70553c" /></mesh>
       {[[-0.22, 1.1, 0], [0.2, 1.4, 0.05], [0, 1.7, 0]].map(([lx, ly, lz], i) => <mesh key={i} position={[lx, ly, lz]} scale={[0.45, 0.55, 0.35]} castShadow><icosahedronGeometry args={[0.8, 1]} /><meshStandardMaterial color={i % 2 ? "#527d52" : "#396849"} roughness={0.9} /></mesh>)}
     </group>)}
-    <mesh position={[11.5, 0.01, -20.5]} rotation={[-Math.PI / 2, 0, 0]}><planeGeometry args={[3.8, 3]} /><meshStandardMaterial color="#737c7c" roughness={1} /></mesh>
+    <mesh position={[11.5, 0.01, -20.5]} rotation={[-Math.PI / 2, 0, 0]}><planeGeometry args={[3.8, 3]} /><meshStandardMaterial color="#b9c9cc" roughness={1} /></mesh>
   </group>;
 }

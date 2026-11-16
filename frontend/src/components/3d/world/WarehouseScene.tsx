@@ -747,7 +747,7 @@ function WarehouseForklift3D({
             target-position={[x, 0, -3.5]}
             angle={0.4}
             penumbra={0.4}
-            intensity={4}
+            intensity={3.2}
             distance={5}
             color="#fef08a"
           />
@@ -1389,9 +1389,9 @@ export function WarehouseScene({
       >
         <planeGeometry args={[WAREHOUSE_WIDTH, WAREHOUSE_DEPTH]} />
         <meshStandardMaterial
-          color="#1e293b"
-          roughness={0.28}
-          metalness={0.35}
+          color="#dfc9a8"
+          roughness={0.3}
+          metalness={0.15}
         />
       </mesh>
 
@@ -1402,18 +1402,18 @@ export function WarehouseScene({
       {/* Tường sau (z = -32) - Luôn hiển thị vì nằm sau hậu cảnh */}
       <mesh position={[CENTER_X, WAREHOUSE_HEIGHT / 2, -32]} receiveShadow>
         <boxGeometry args={[WAREHOUSE_WIDTH, WAREHOUSE_HEIGHT, WALL_THICKNESS]} />
-        <meshStandardMaterial color="#0b1120" roughness={0.8} />
+        <meshStandardMaterial color="#eeeae3" roughness={0.8} />
       </mesh>
 
       {/* Tường trước (z = -18.1) — Tự động làm mờ/biến mất khi camera ở góc nhìn toàn cảnh phía trước */}
       <SmartOcclusionGroup checkOcclusion={(pos) => pos.z > -18.4}>
         <mesh position={[-9.75, WAREHOUSE_HEIGHT / 2, -18.1]}>
           <boxGeometry args={[11.5, WAREHOUSE_HEIGHT, WALL_THICKNESS]} />
-          <meshStandardMaterial color="#0b1120" roughness={0.8} />
+          <meshStandardMaterial color="#eeeae3" roughness={0.8} />
         </mesh>
         <mesh position={[-1.45, WAREHOUSE_HEIGHT / 2, -18.1]}>
           <boxGeometry args={[1.9, WAREHOUSE_HEIGHT, WALL_THICKNESS]} />
-          <meshStandardMaterial color="#0b1120" roughness={0.8} />
+          <meshStandardMaterial color="#eeeae3" roughness={0.8} />
         </mesh>
         {/* Mảng tường phía trên cửa ra hành lang */}
         <mesh
@@ -1424,7 +1424,7 @@ export function WarehouseScene({
           ]}
         >
           <boxGeometry args={[1.6, WAREHOUSE_HEIGHT - 2.8, WALL_THICKNESS]} />
-          <meshStandardMaterial color="#0b1120" roughness={0.8} />
+          <meshStandardMaterial color="#eeeae3" roughness={0.8} />
         </mesh>
 
         {/* Cửa thông ra hành lang */}
@@ -1448,7 +1448,7 @@ export function WarehouseScene({
           position={[CENTER_X, WAREHOUSE_HEIGHT, CENTER_Z]}
         >
           <planeGeometry args={[WAREHOUSE_WIDTH, WAREHOUSE_DEPTH]} />
-          <meshStandardMaterial color="#050811" roughness={0.9} side={2} />
+          <meshStandardMaterial color="#ece9e2" roughness={0.9} side={2} />
         </mesh>
       </SmartOcclusionGroup>
 
@@ -1459,7 +1459,7 @@ export function WarehouseScene({
           rotation={[0, Math.PI / 2, 0]}
         >
           <boxGeometry args={[WAREHOUSE_DEPTH, WAREHOUSE_HEIGHT, WALL_THICKNESS]} />
-          <meshStandardMaterial color="#0b1120" roughness={0.8} />
+          <meshStandardMaterial color="#eeeae3" roughness={0.8} />
         </mesh>
       </SmartOcclusionGroup>
 
@@ -1470,7 +1470,7 @@ export function WarehouseScene({
           rotation={[0, Math.PI / 2, 0]}
         >
           <boxGeometry args={[WAREHOUSE_DEPTH, WAREHOUSE_HEIGHT, WALL_THICKNESS]} />
-          <meshStandardMaterial color="#0b1120" roughness={0.8} />
+          <meshStandardMaterial color="#eeeae3" roughness={0.8} />
         </mesh>
       </SmartOcclusionGroup>
 
@@ -1481,13 +1481,13 @@ export function WarehouseScene({
 
       {/* Keep operational lighting active when the roof is cut away. */}
       {[-12, -8, -4].flatMap(x => [-28, -22].map(z => (
-        <pointLight key={`warehouse-light-${x}-${z}`} position={[x, 4.7, z]} intensity={28} distance={9.5} color="#fef3c7" />
+        <pointLight key={`warehouse-light-${x}-${z}`} position={[x, 4.7, z]} intensity={22.4} distance={9.5} color="#fef3c7" />
       )))}
       {/* Ánh sáng tổng thể phòng kho */}
-      <ambientLight intensity={0.8} color="#e2e8f0" />
+      <ambientLight intensity={0.64} color="#e2e8f0" />
       <directionalLight
         position={[-8, WAREHOUSE_HEIGHT - 0.5, -22]}
-        intensity={1.2}
+        intensity={0.96}
         color="#ffffff"
         castShadow
         shadow-mapSize={[1024, 1024]}

@@ -28,8 +28,8 @@ export function HallwayScene({
   onEnterRoom,
   openDoor = null,
 }: HallwaySceneProps) {
-  const wallBaseColor = "#151d2f";
-  const woodSlatColor = "#78350f";
+  const wallBaseColor = "#b7b6b0";
+  const woodSlatColor = "#c5ab87";
 
   return (
     <group position={[0, 0, 0]}>
@@ -41,9 +41,9 @@ export function HallwayScene({
       >
         <planeGeometry args={[HALLWAY_WIDTH, HALLWAY_DEPTH]} />
         <meshStandardMaterial
-          color="#0f172a"
-          roughness={0.2}
-          metalness={0.25}
+          color="#dfc9a8"
+          roughness={0.3}
+          metalness={0.15}
         />
       </mesh>
 
@@ -54,7 +54,7 @@ export function HallwayScene({
       >
         <planeGeometry args={[16, 2.4]} />
         <meshStandardMaterial
-          color="#090d16"
+          color="#788890"
           roughness={0.5}
         />
       </mesh>
@@ -66,7 +66,7 @@ export function HallwayScene({
       >
         <planeGeometry args={[2.4, 4]} />
         <meshStandardMaterial
-          color="#090d16"
+          color="#788890"
           roughness={0.5}
         />
       </mesh>
@@ -269,7 +269,7 @@ export function HallwayScene({
           position={[0, HALLWAY_HEIGHT, CENTER_Z]}
         >
           <planeGeometry args={[HALLWAY_WIDTH, HALLWAY_DEPTH]} />
-          <meshStandardMaterial color="#070b14" roughness={0.9} side={2} />
+          <meshStandardMaterial color="#ece9e2" roughness={0.9} side={2} />
         </mesh>
 
         {/* Đèn ray LED tuyến tính dài dọc trần */}
@@ -287,37 +287,37 @@ export function HallwayScene({
       {/* Đèn trên Cửa A */}
       <pointLight
         position={[0, HALLWAY_HEIGHT - 0.4, -10.8]}
-        intensity={22}
+        intensity={11.2}
         distance={9}
-        color="#818cf8"
+        color="#fff4e6"
       />
       {/* Đèn trên Cửa B */}
       <pointLight
         position={[-3.2, HALLWAY_HEIGHT - 0.4, -17.2]}
-        intensity={22}
+        intensity={11.2}
         distance={9}
-        color="#fbbf24"
+        color="#fff4e6"
       />
       {/* Đèn trên Cửa C */}
       <pointLight
         position={[3.2, HALLWAY_HEIGHT - 0.4, -17.2]}
-        intensity={22}
+        intensity={11.2}
         distance={9}
-        color="#34d399"
+        color="#fff4e6"
       />
       {/* Đèn trung tâm Hub */}
       <pointLight
         position={[0, HALLWAY_HEIGHT - 0.4, CENTER_Z]}
-        intensity={20}
+        intensity={16}
         distance={10}
-        color="#bae6fd"
+        color="#fff4e6"
       />
 
       {/* Ánh sáng ambient và directional cho chiều sâu kiến trúc hành lang */}
-      <ambientLight intensity={0.8} color="#e2e8f0" />
+      <ambientLight intensity={0.64} color="#ffffff" />
       <directionalLight
         position={[0, HALLWAY_HEIGHT - 0.5, -14]}
-        intensity={0.6}
+        intensity={0.48}
         color="#ffffff"
       />
 
