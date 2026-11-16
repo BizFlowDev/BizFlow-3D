@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { motion } from "motion/react";
 import {
   Building2,
@@ -9,6 +10,7 @@ import {
   CreditCard,
   ExternalLink,
   Info,
+  KeyRound,
   Loader2,
   Lock,
   Save,
@@ -40,6 +42,7 @@ import {
 import { useCurrentStore, useUpdateStoreBankInfo, useUpdateStoreProfile } from "@/hooks/useStore";
 
 export default function SettingsPage() {
+  const router = useRouter();
   const { data: store, isLoading } = useCurrentStore();
   const updateBankInfo = useUpdateStoreBankInfo();
   const updateProfile = useUpdateStoreProfile();
@@ -352,6 +355,40 @@ export default function SettingsPage() {
                     </Button>
                   </div>
                 </form>
+              </CardContent>
+            </Card>
+
+            {/* ── 3. Bảo mật & Mật khẩu tài khoản ── */}
+            <Card className="border-border/60 shadow-sm">
+              <CardHeader className="border-b bg-muted/20 pb-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <KeyRound className="h-4 w-4 text-emerald-600" />
+                    <CardTitle className="text-base font-semibold">Bảo mật & Mật khẩu</CardTitle>
+                  </div>
+                  <Badge variant="outline" className="text-[11px] font-normal">
+                    Tài khoản cá nhân
+                  </Badge>
+                </div>
+                <CardDescription className="text-xs">
+                  Cập nhật mật khẩu đăng nhập định kỳ để tăng cường an toàn cho tài khoản
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Khuyến nghị sử dụng mật khẩu mạnh kết hợp chữ hoa, chữ số và ký tự đặc biệt.
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => router.push("/change-password")}
+                    className="gap-2 shrink-0 font-medium border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10 dark:text-emerald-400"
+                  >
+                    <KeyRound className="h-4 w-4" />
+                    Đổi mật khẩu ngay
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           </div>

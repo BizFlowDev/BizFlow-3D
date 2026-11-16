@@ -145,10 +145,14 @@ export function useAuth() {
 
   /** POST /auth/change-password — đổi mật khẩu */
   const changePassword = useCallback(
-    async (currentPassword: string, newPassword: string) => {
+    async (currentPassword: string, newPassword: string, confirmPassword?: string) => {
       const { data: res } = await apiClient.post<ApiResponseData<null>>(
         "/auth/change-password",
-        { currentPassword, newPassword },
+        {
+          currentPassword,
+          newPassword,
+          confirmPassword: confirmPassword ?? newPassword,
+        },
       );
       return res;
     },

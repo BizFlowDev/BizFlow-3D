@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Bell, Boxes, CheckCheck, Crown, LogOut, Settings, User, X, AlertTriangle } from "lucide-react";
+import { Bell, Boxes, CheckCheck, Crown, KeyRound, LogOut, Settings, User, X, AlertTriangle } from "lucide-react";
 import type { UserRole } from "@/config/navigation";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -264,6 +264,10 @@ export function Header({ role }: HeaderProps) {
                 </DropdownMenuItem>
               </>
             )}
+            <DropdownMenuItem onClick={() => router.push("/change-password")}>
+              <KeyRound className="mr-2 h-4 w-4 text-emerald-600" />
+              Đổi mật khẩu
+            </DropdownMenuItem>
             <DropdownMenuItem
               className="text-destructive focus:text-destructive"
               onClick={() => void logout()}
