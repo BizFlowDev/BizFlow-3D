@@ -55,6 +55,9 @@ export interface LoginOutput {
     fullName: string;
     email: string;
     role: string;
+    isSubscriptionExpired?: boolean;
+    subscriptionExpiresAt?: string | null;
+    subscriptionPlan?: string | null;
   };
 }
 
@@ -89,7 +92,9 @@ export class LoginUseCase {
 
     // 3. Check active status
     if (!user.isActive) {
-      throw new AuthenticationError('Tài khoản đã bị vô hiệu hóa');
+      throw new AuthenticationError(
+        'Tài khoản của bạn đã bị khóa do cửa hàng hết hạn gói dịch vụ hoặc bị vô hiệu hóa bởi Quản trị viên. Vui lòng liên hệ Quản trị viên để được mở khóa.',
+      );
     }
 
     // 4. Verify password with bcryptjs
@@ -100,9 +105,21 @@ export class LoginUseCase {
 
     // 5. Fetch store info if user belongs to a store
     let storeName: string | null = null;
+    let isSubscriptionExpired = false;
+    let subscriptionExpiresAt: string | null = null;
+    let subscriptionPlan: string | null = null;
+
     if (user.storeId) {
       const store = await this.storeRepo.findById(user.storeId);
-      storeName = store?.name ?? null;
+      if (store) {
+        storeName = store.name;
+        subscriptionExpiresAt = store.subscriptionExpiresAt ? store.subscriptionExpiresAt.toISOString() : null;
+        subscriptionPlan = store.subscriptionPlan;
+
+        isSubscriptionExpired =
+          store.subscriptionStatus === 'expired' ||
+          (store.subscriptionExpiresAt !== null && new Date(store.subscriptionExpiresAt).getTime() < Date.now());
+      }
     }
 
     // 6. Update last login timestamp
@@ -126,6 +143,9 @@ export class LoginUseCase {
         fullName: user.fullName,
         email: user.email,
         role: user.role,
+        isSubscriptionExpired,
+        subscriptionExpiresAt,
+        subscriptionPlan,
       },
     };
   }

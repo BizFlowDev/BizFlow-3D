@@ -227,8 +227,8 @@ const generateFinancialReportUseCase = new GenerateFinancialReportUseCase(
   accountingRepo,
 );
 
-const manageStoreSubscriptionUseCase = new ManageStoreSubscriptionUseCase(storeRepo);
-const toggleStoreStatusUseCase = new ToggleStoreStatusUseCase(storeRepo);
+const manageStoreSubscriptionUseCase = new ManageStoreSubscriptionUseCase(storeRepo, userRepo);
+const toggleStoreStatusUseCase = new ToggleStoreStatusUseCase(storeRepo, userRepo, refreshTokenStore);
 const listStoresUseCase = new ListStoresUseCase(storeRepo);
 const getStoreDetailUseCase = new GetStoreDetailUseCase(storeRepo, orderRepo);
 const createStoreUseCase = new CreateStoreUseCase(storeRepo, userRepo, passwordService);

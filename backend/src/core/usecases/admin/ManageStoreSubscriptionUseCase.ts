@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { Store } from '../../entities/Store.js';
 import { IStoreRepository } from '../../repositories/IStoreRepository.js';
+import { IUserRepository } from '../../repositories/IUserRepository.js';
 import { NotFoundError } from '../../errors/NotFoundError.js';
 import { ValidationError } from '../../errors/ValidationError.js';
 
@@ -18,7 +19,10 @@ export type ManageSubscriptionInput = z.infer<typeof ManageSubscriptionInputSche
  * Computes the new expiry date from the requested duration.
  */
 export class ManageStoreSubscriptionUseCase {
-  constructor(private readonly storeRepo: IStoreRepository) {}
+  constructor(
+    private readonly storeRepo: IStoreRepository,
+    private readonly userRepo?: IUserRepository,
+  ) {}
 
   async execute(input: ManageSubscriptionInput): Promise<Store> {
     const parsed = ManageSubscriptionInputSchema.safeParse(input);
@@ -62,10 +66,17 @@ export class ManageStoreSubscriptionUseCase {
       expiresAt.setMonth(expiresAt.getMonth() + durationMonths);
     }
 
-    return this.storeRepo.updateSubscription(storeId, {
+    const updatedStore = await this.storeRepo.updateSubscription(storeId, {
       subscriptionPlan: plan,
       subscriptionStatus: 'active',
       subscriptionExpiresAt: expiresAt,
     });
+
+    // Nếu trước đó tài khoản của cửa hàng đang bị khóa, thanh toán/gia hạn thành công sẽ tự động mở khóa
+    if (this.userRepo) {
+      await this.userRepo.updateStatusByStoreId(storeId, true);
+    }
+
+    return updatedStore;
   }
 }

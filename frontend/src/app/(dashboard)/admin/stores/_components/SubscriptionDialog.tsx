@@ -195,22 +195,43 @@ export function SubscriptionDialog({
               </div>
             </div>
             <div className="text-right">
-              <Badge
-                variant="default"
-                className={
-                  store.subscriptionStatus === "active"
-                    ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
-                    : store.subscriptionStatus === "trial"
-                    ? "bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400"
-                    : "bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-400"
-                }
-              >
-                {store.subscriptionStatus === "active"
-                  ? "Đang hoạt động"
-                  : store.subscriptionStatus === "trial"
-                  ? "Dùng thử"
-                  : "Hết hạn"}
-              </Badge>
+              {store.isLocked ? (
+                <Badge
+                  variant="default"
+                  className="bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400 border border-rose-300 dark:border-rose-800"
+                >
+                  Đã khóa
+                </Badge>
+              ) : (
+                (() => {
+                  const isExpired =
+                    store.subscriptionStatus === "expired" ||
+                    (store.subscriptionExpiresAt &&
+                      new Date(store.subscriptionExpiresAt).getTime() < Date.now());
+                  const effStatus = isExpired
+                    ? "expired"
+                    : (store.subscriptionStatus as "active" | "trial" | "expired");
+
+                  return (
+                    <Badge
+                      variant="default"
+                      className={
+                        effStatus === "active"
+                          ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
+                          : effStatus === "trial"
+                          ? "bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400"
+                          : "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400"
+                      }
+                    >
+                      {effStatus === "active"
+                        ? "Đang hoạt động"
+                        : effStatus === "trial"
+                        ? "Dùng thử"
+                        : "Hết hạn"}
+                    </Badge>
+                  );
+                })()
+              )}
               <p className="mt-1 text-xs text-muted-foreground">
                 Hết hạn: {formatDate(store.subscriptionExpiresAt)}
               </p>

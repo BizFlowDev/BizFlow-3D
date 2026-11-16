@@ -14,6 +14,7 @@ export interface AdminStoreRow {
   subscriptionExpiresAt: string | null;
   ownerName: string | null;
   ownerEmail: string | null;
+  isLocked: boolean;
   employeeCount: number;
   totalOrders: number;
   totalRevenue: number;
@@ -23,7 +24,7 @@ export interface AdminStoreRow {
 
 export interface AdminStoreFilter {
   search?: string;
-  status?: 'active' | 'expired' | 'trial';
+  status?: 'active' | 'expired' | 'trial' | 'locked';
   plan?: string;
   page?: number;
   limit?: number;
