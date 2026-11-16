@@ -104,7 +104,12 @@ function RealisticCargoItem({
           <ringGeometry args={[0.44, 0.5, 24]} />
           <meshBasicMaterial color={statusColor} transparent opacity={0.8} side={THREE.DoubleSide} />
         </mesh>
-        <Text position={[0, 0.85, 0.4]} fontSize={0.11} maxWidth={1.1} textAlign="center" color={statusColor} anchorX="center" anchorY="bottom">{`${item.code}\n${item.currentStock <= 0 ? "Hết hàng" : `Còn ${item.currentStock} ${item.unitName}`}`}</Text>
+        {/* Mount the warning on the front beam, clear of cargo and the shelf above. */}
+        <mesh position={[0, -0.07, 0.56]}>
+          <planeGeometry args={[1.08, 0.26]} />
+          <meshBasicMaterial color="#0f172a" />
+        </mesh>
+        <Text position={[0, -0.07, 0.57]} fontSize={0.075} maxWidth={1} textAlign="center" color={statusColor} anchorX="center" anchorY="middle">{`${item.code}\n${item.currentStock <= 0 ? "Hết hàng" : `Còn ${item.currentStock} ${item.unitName}`}`}</Text>
       </>}
       {/* ── LOẠI 1: THÙNG CARTON LOGISTICS TIÊU CHUẨN ── */}
       {type === "carton" && (

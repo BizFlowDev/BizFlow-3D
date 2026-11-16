@@ -205,6 +205,8 @@ export class AdminController {
       // ngoại trừ chính admin đã phát hành thông báo.
       const adminUserId = req.user?.userId;
       const payload = {
+        id: result.id,
+        createdAt: result.createdAt,
         type: 'announcement',
         title,
         message: content,

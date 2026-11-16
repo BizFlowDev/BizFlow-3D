@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import apiClient from "@/lib/api-client";
 import type { ApiResponseData } from "@/lib/api-client";
+import { refreshProductQueries } from "@/lib/product-realtime";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -261,9 +262,7 @@ export function useUpdateProduct() {
       if (!res.data) throw new Error("Không thể cập nhật sản phẩm");
       return res.data.product;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["products"] });
-    },
+    onSuccess: () => refreshProductQueries(queryClient),
   });
 }
 
@@ -279,9 +278,7 @@ export function useToggleProductStatus() {
       if (!res.data) throw new Error("Không thể cập nhật trạng thái");
       return res.data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["products"] });
-    },
+    onSuccess: () => refreshProductQueries(queryClient),
   });
 }
 

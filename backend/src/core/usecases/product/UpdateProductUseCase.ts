@@ -5,6 +5,7 @@ import { NotFoundError } from '../../errors/NotFoundError.js';
 import { ConflictError } from '../../errors/ConflictError.js';
 import { ValidationError } from '../../errors/ValidationError.js';
 import { cloudinaryService } from '../../../frameworks/services/CloudinaryService.js';
+import { appEventEmitter } from '../../../frameworks/websocket/eventEmitter.js';
 
 export interface UpdateProductUnitInput {
   id?: string;
@@ -100,6 +101,12 @@ export class UpdateProductUseCase {
 
     // Attach units to product for consistency
     updatedProduct.units = units;
+
+    // Notify only after both product details and units have been saved.
+    appEventEmitter.emit('product:updated', {
+      storeId: updatedProduct.storeId,
+      productId: updatedProduct.id,
+    });
 
     // 7. Cleanup old Cloudinary image (non-blocking)
     if (isImageChanging && oldImageUrl) {

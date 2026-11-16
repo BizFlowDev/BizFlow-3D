@@ -23,6 +23,11 @@ export interface LowStockEvent {
   currentStock: number;
 }
 
+export interface ProductUpdatedEvent {
+  storeId: string;
+  productId: string;
+}
+
 export interface GeneralNotificationEvent {
   storeId?: string;
   userId?: string;
@@ -42,6 +47,7 @@ export interface SubscriptionUpgradedEvent {
 
 /** Map of all application event names to their payload types. */
 export interface AppEventMap {
+  'product:updated': ProductUpdatedEvent;
   'order:confirmed': OrderConfirmedEvent;
   'order:created': OrderCreatedEvent;
   'inventory:low_stock': LowStockEvent;
@@ -77,6 +83,10 @@ export const appEventEmitter = new AppEventEmitter();
  * Call this once after `initSocketServer()` during server bootstrap.
  */
 export function initEventListeners(): void {
+  appEventEmitter.on('product:updated', ({ storeId, productId }) => {
+    emitToStore(storeId, 'product_updated', { productId });
+  });
+
   // Order confirmed
   appEventEmitter.on('order:confirmed', (data) => {
     emitToStore(data.storeId, 'order_confirmed', {

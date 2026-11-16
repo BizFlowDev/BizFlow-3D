@@ -40,6 +40,8 @@ export interface LowStockAlertPayload {
 
 /** Payload sự kiện `notification` */
 export interface NotificationPayload {
+  id?: string;
+  createdAt?: string;
   type: string;
   title: string;
   message: string;
@@ -117,10 +119,11 @@ export const useSocketStore = create<SocketEventState & SocketEventActions>()(
 
       setStatus: (status) => set({ status }),
       pushNotification: (item) =>
-        set((s) => ({
-          notifications: [item, ...s.notifications].slice(0, 50),
-          unreadCount: s.unreadCount + 1,
-        })),
+        set((s) => {
+          if (s.deletedIds.includes(item.id) || s.notifications.some((n) => n.id === item.id)) return s;
+          const notifications = [item, ...s.notifications].slice(0, 50);
+          return { notifications, unreadCount: notifications.filter((n) => !n.read).length };
+        }),
       markNotificationsRead: () =>
         set((s) => ({
           notifications: s.notifications.map((n) =>
@@ -139,23 +142,30 @@ export const useSocketStore = create<SocketEventState & SocketEventActions>()(
           ].slice(-200),
         })),
       removeNotification: (id) =>
-        set((s) => ({
-          notifications: s.notifications.filter((n) => n.id !== id),
-          deletedIds: [...s.deletedIds, id].slice(-200),
-        })),
+        set((s) => {
+          const notifications = s.notifications.filter((n) => n.id !== id);
+          return {
+            notifications,
+            unreadCount: notifications.filter((n) => !n.read).length,
+            deletedIds: [...new Set([...s.deletedIds, id])].slice(-200),
+          };
+        }),
       resetNotifications: () =>
         set({ notifications: [], unreadCount: 0, deletedIds: [] }),
       mergeAnnouncements: (items) =>
         set((s) => {
           const existingIds = new Set(s.notifications.map((n) => n.id));
           const deleted = new Set(s.deletedIds);
-          const fresh = items.filter(
-            (i) => !existingIds.has(i.id) && !deleted.has(i.id),
-          );
+          const fresh = items.filter((i) => {
+            if (existingIds.has(i.id) || deleted.has(i.id)) return false;
+            existingIds.add(i.id);
+            return true;
+          });
           if (fresh.length === 0) return s;
+          const notifications = [...fresh, ...s.notifications].slice(0, 50);
           return {
-            notifications: [...fresh, ...s.notifications].slice(0, 50),
-            unreadCount: s.unreadCount + fresh.length,
+            notifications,
+            unreadCount: notifications.filter((n) => !n.read).length,
           };
         }),
     }),
@@ -231,13 +241,13 @@ function getAccessToken(): string | null {
   return localStorage.getItem("bizflow.accessToken");
 }
 
-function makeNotification(
-  partial: Pick<NotificationItem, "type" | "title" | "message">,
+export function makeNotification(
+  partial: Pick<NotificationItem, "type" | "title" | "message"> & Partial<Pick<NotificationItem, "id" | "createdAt">>,
 ): NotificationItem {
   return {
     ...partial,
-    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    createdAt: new Date().toISOString(),
+    id: partial.id ?? `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    createdAt: partial.createdAt ?? new Date().toISOString(),
     read: false,
   };
 }
@@ -330,6 +340,8 @@ function createSocket(url: string): Socket {
   socket.on("notification", (data: NotificationPayload) => {
     useSocketStore.getState().pushNotification(
       makeNotification({
+        id: data.id,
+        createdAt: data.createdAt,
         type: data.type,
         title: data.title,
         message: data.message,

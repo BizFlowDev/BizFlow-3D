@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast, ToastViewport } from "@/components/ui/toast";
+import { refreshProductQueries } from "@/lib/product-realtime";
 import {
   useSocket,
   formatVND,
@@ -18,6 +19,7 @@ import {
  * - order_confirmed / new_order → toast + refresh danh sách đơn
  * - low_stock_alert → toast + refresh badge tồn kho
  * - notification → chuông thông báo (header) xử lý, không toast ở đây
+ * - product_updated / connect → refresh sản phẩm và kho, kể cả sau reconnect
  */
 export function SocketProvider() {
   const queryClient = useQueryClient();
@@ -25,6 +27,7 @@ export function SocketProvider() {
   const { toasts, showToast, dismiss } = useToast();
 
   useEffect(() => {
+    const handleProductUpdated = () => { void refreshProductQueries(queryClient); };
     const handleOrderConfirmed = (data: OrderConfirmedPayload) => {
       showToast("success", "Đơn đã xác nhận", `Mã đơn ${data.orderCode}`);
       queryClient.invalidateQueries({ queryKey: ["orders"] });
@@ -53,11 +56,17 @@ export function SocketProvider() {
     on("order_confirmed", handleOrderConfirmed);
     on("new_order", handleNewOrder);
     on("low_stock_alert", handleLowStock);
+    on("product_updated", handleProductUpdated);
+    on("connect", handleProductUpdated);
+    // Covers a shared socket that connected before this provider mounted.
+    handleProductUpdated();
 
     return () => {
       off("order_confirmed", handleOrderConfirmed as (...args: unknown[]) => void);
       off("new_order", handleNewOrder as (...args: unknown[]) => void);
       off("low_stock_alert", handleLowStock as (...args: unknown[]) => void);
+      off("product_updated", handleProductUpdated);
+      off("connect", handleProductUpdated);
     };
   }, [on, off, showToast, queryClient]);
 

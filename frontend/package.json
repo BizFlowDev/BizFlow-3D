@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "tsx --test src/components/3d/*.test.ts src/components/3d/world/*.test.ts",
+    "test": "tsx --test src/components/3d/*.test.ts src/components/3d/world/*.test.ts src/hooks/*.test.ts src/lib/*.test.ts",
     "typecheck": "tsc --noEmit --incremental false"
   },
   "dependencies": {
