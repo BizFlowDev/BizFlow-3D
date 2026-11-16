@@ -1,5 +1,7 @@
 "use client";
 
+import { useAuthStore } from "@/stores/auth-store";
+import { validReportPeriod } from "@/lib/accounting-period";
 import { useQuery } from "@tanstack/react-query";
 import apiClient from "@/lib/api-client";
 import type { ApiResponseData } from "@/lib/api-client";
@@ -17,6 +19,7 @@ interface ReportBase {
   storeId: string;
   period: { from: string; to: string };
   generatedAt: string;
+  warnings: { code: string; severity: "warning" | "error"; message: string; count: number }[];
 }
 
 // a. Sổ cái doanh thu chi tiết
@@ -42,7 +45,7 @@ export interface DebtReportRow {
   accrued: number;
   collected: number;
   closingDebt: number;
-  isOverdue: boolean;
+  balanceStatus: "receivable" | "settled" | "credit";
 }
 
 export interface DebtReport extends ReportBase {
@@ -52,7 +55,8 @@ export interface DebtReport extends ReportBase {
   totalAccrued: number;
   totalCollected: number;
   totalClosingDebt: number;
-  overdueDebt: number;
+  totalReceivable: number;
+  totalCreditBalance: number;
 }
 
 // c. Kết quả hoạt động kinh doanh
@@ -89,6 +93,8 @@ export interface TrialBalanceRow {
 export interface TrialBalanceReport extends ReportBase {
   type: "trial_balance";
   rows: TrialBalanceRow[];
+  totals: Pick<TrialBalanceRow, "openingDebit" | "openingCredit" | "debit" | "credit" | "closingDebit" | "closingCredit">;
+  differences: { opening: number; movement: number; closing: number };
 }
 
 export type FinancialReportOutput =
@@ -117,8 +123,9 @@ export function useFinancialReport(
   fromDate: string,
   toDate: string,
 ) {
+  const storeId = useAuthStore(state => state.user?.storeId);
   return useQuery({
-    queryKey: accountingKeys.financialReport(reportType, fromDate, toDate),
+    queryKey: [...accountingKeys.financialReport(reportType, fromDate, toDate), storeId],
     queryFn: async (): Promise<FinancialReportOutput> => {
       const { data } = await apiClient.get<ApiResponseData<FinancialReportOutput>>(
         "/accounting/financial-report",
@@ -131,7 +138,7 @@ export function useFinancialReport(
     },
     staleTime: 60_000,
     retry: 1,
-    enabled: Boolean(fromDate && toDate),
+    enabled: Boolean(storeId && validReportPeriod(fromDate, toDate)),
   });
 }
 

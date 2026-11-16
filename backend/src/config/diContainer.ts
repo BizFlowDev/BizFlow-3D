@@ -1,3 +1,4 @@
+import { PostgresUnitOfWork } from '../frameworks/database/PostgresUnitOfWork.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import env from './index.js';
@@ -207,25 +208,23 @@ const listCustomersUseCase = new ListCustomersUseCase(customerRepo);
 const getCustomerDebtUseCase = new GetCustomerDebtUseCase(customerRepo, debtPaymentRepo, orderRepo);
 
 const createOrderUseCase = new CreateOrderUseCase(orderRepo, productRepo, inventoryRepo, customerRepo);
+const accountingUnitOfWork = new PostgresUnitOfWork();
 const autoPostingUseCase = new AutoPostingUseCase(accountingRepo);
-const confirmOrderUseCase = new ConfirmOrderUseCase(orderRepo, inventoryRepo, customerRepo, autoPostingUseCase, productRepo);
+const confirmOrderUseCase = new ConfirmOrderUseCase(orderRepo, inventoryRepo, customerRepo, autoPostingUseCase, accountingUnitOfWork, productRepo);
 const listOrdersUseCase = new ListOrdersUseCase(orderRepo);
 const getOrderDetailUseCase = new GetOrderDetailUseCase(orderRepo);
 
-const importStockUseCase = new ImportStockUseCase(inventoryRepo, productRepo, autoPostingUseCase);
+const importStockUseCase = new ImportStockUseCase(inventoryRepo, productRepo, autoPostingUseCase, accountingUnitOfWork);
 const getInventoryLevelUseCase = new GetInventoryLevelUseCase(inventoryRepo);
 
-const recordDebtPaymentUseCase = new RecordDebtPaymentUseCase(debtPaymentRepo, customerRepo, autoPostingUseCase);
+const recordDebtPaymentUseCase = new RecordDebtPaymentUseCase(debtPaymentRepo, customerRepo, autoPostingUseCase, accountingUnitOfWork, orderRepo);
 
 const getDailyRevenueUseCase = new GetDailyRevenueUseCase(orderRepo);
 const getTopProductsUseCase = new GetTopProductsUseCase(orderRepo);
 const getDebtSummaryUseCase = new GetDebtSummaryUseCase(debtPaymentRepo);
 const getRevenueByCategoryUseCase = new GetRevenueByCategoryUseCase(orderRepo);
 
-const generateFinancialReportUseCase = new GenerateFinancialReportUseCase(
-  orderRepo,
-  accountingRepo,
-);
+const generateFinancialReportUseCase = new GenerateFinancialReportUseCase(accountingRepo);
 
 const manageStoreSubscriptionUseCase = new ManageStoreSubscriptionUseCase(storeRepo, userRepo);
 const toggleStoreStatusUseCase = new ToggleStoreStatusUseCase(storeRepo, userRepo, refreshTokenStore);

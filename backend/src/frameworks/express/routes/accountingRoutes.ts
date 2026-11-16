@@ -12,5 +12,7 @@ router.use(authMiddleware);
 router.use(allowRoles('owner', 'manager'));
 
 router.get('/financial-report', accountingController.getFinancialReport);
+router.get('/reconciliation', accountingController.previewReconciliation);
+router.post('/reconciliation', accountingController.applyReconciliation);
 
 export default router;

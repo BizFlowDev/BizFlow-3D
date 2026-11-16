@@ -204,7 +204,7 @@ export default function EmployeesPage() {
     store?.subscriptionStatus === "expired" ||
     Boolean(
       store?.subscriptionExpiresAt &&
-        new Date(store.subscriptionExpiresAt) < new Date()
+      new Date(store.subscriptionExpiresAt) < new Date()
     );
 
   const toggleStatusMutation = useToggleEmployeeStatus();
@@ -267,13 +267,12 @@ export default function EmployeesPage() {
             <Badge
               variant="outline"
               onClick={() => setUpgradeModalOpen(true)}
-              className={`cursor-pointer transition-all hover:scale-102 gap-1.5 py-0.5 px-2 text-xs font-medium ${
-                isExpired
+              className={`cursor-pointer transition-all hover:scale-102 gap-1.5 py-0.5 px-2 text-xs font-medium ${isExpired
                   ? "border-red-500/40 bg-red-500/10 text-red-600 dark:text-red-400"
                   : isLimitReached
-                  ? "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300"
-                  : "border-border/60 bg-muted/40"
-              }`}
+                    ? "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300"
+                    : "border-border/60 bg-muted/40"
+                }`}
               title="Nhấp để nâng cấp gói dịch vụ"
             >
               <Crown className={`h-3 w-3 ${isLimitReached || isExpired ? "text-amber-500 animate-pulse" : "text-muted-foreground"}`} />
@@ -424,22 +423,20 @@ export default function EmployeesPage() {
                       initial={{ opacity: 0, x: -10 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: index * 0.04 }}
-                      className={`group border-b transition-colors hover:bg-muted/40 data-[state=selected]:bg-muted ${
-                        auditEmployeeId === employee.id
+                      className={`group border-b transition-colors hover:bg-muted/40 data-[state=selected]:bg-muted ${auditEmployeeId === employee.id
                           ? "bg-blue-50/50 dark:bg-blue-950/20"
                           : ""
-                      }`}
+                        }`}
                     >
                       {/* Employee Name + Avatar + Email */}
                       <TableCell>
                         <div className="flex items-center gap-3">
                           <Avatar className="h-9 w-9 transition-transform group-hover:scale-105">
                             <AvatarFallback
-                              className={`text-xs font-bold text-white ${
-                                employee.isActive
+                              className={`text-xs font-bold text-white ${employee.isActive
                                   ? "bg-gradient-to-br from-violet-500 to-indigo-500"
                                   : "bg-gradient-to-br from-gray-400 to-gray-500"
-                              }`}
+                                }`}
                             >
                               {getInitials(employee.fullName)}
                             </AvatarFallback>

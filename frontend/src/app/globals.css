@@ -196,12 +196,13 @@
 }
 
 @keyframes storeSpatialDialogIn {
-  from { opacity: 0; transform: translate(-50%, -47%) perspective(1600px) rotateX(-8deg) rotateY(6deg) scale(.9); }
-  to { opacity: 1; transform: translate(-50%, -50%) perspective(1600px) rotateX(-1deg) rotateY(-1.4deg) scale(1); }
+  /* Tailwind's translate property already centers the dialog. */
+  from { opacity: 0; transform: perspective(1600px) translateY(3%) rotateX(-8deg) rotateY(6deg) scale(.9); }
+  to { opacity: 1; transform: perspective(1600px) rotateX(-1deg) rotateY(-1.4deg) scale(1); }
 }
 @keyframes storeSpatialDialogOut {
-  from { opacity: 1; transform: translate(-50%, -50%) perspective(1600px) scale(1); }
-  to { opacity: 0; transform: translate(-50%, -47%) perspective(1600px) rotateY(5deg) scale(.92); }
+  from { opacity: 1; transform: perspective(1600px) scale(1); }
+  to { opacity: 0; transform: perspective(1600px) translateY(3%) rotateY(5deg) scale(.92); }
 }
 [data-store-spatial] {
   border: 1px solid #6ee7b766; border-radius: 12px;

@@ -60,8 +60,7 @@ const importStockSchema = z.object({
     .positive("Số lượng phải lớn hơn 0"),
   unitCost: z
     .number({ error: "Đơn giá nhập không hợp lệ" })
-    .min(0, "Đơn giá nhập không được âm")
-    .optional(),
+    .min(0, "Đơn giá nhập không được âm"),
   note: z.string().max(500, "Ghi chú không quá 500 ký tự").optional(),
 });
 
@@ -149,7 +148,7 @@ export function ImportStockDialog({
             product.units.find((u) => u.isDefault) ?? product.units[0];
           setValue("productId", product.id);
           setValue("productUnitId", defaultUnit?.id ?? "");
-          setValue("unitCost", defaultUnit?.price ?? 0);
+          setValue("unitCost", Number.NaN);
         }
       }
     }
@@ -186,7 +185,7 @@ export function ImportStockDialog({
       product.units.find((u) => u.isDefault) ?? product.units[0];
     setValue("productId", product.id);
     setValue("productUnitId", defaultUnit?.id ?? "");
-    setValue("unitCost", defaultUnit?.price ?? 0);
+    setValue("unitCost", Number.NaN);
     setProductQuery("");
     setListOpen(false);
     void trigger(["productId", "productUnitId", "unitCost"]);
@@ -195,7 +194,7 @@ export function ImportStockDialog({
   const handleClearProduct = () => {
     setValue("productId", "");
     setValue("productUnitId", "");
-    setValue("unitCost", undefined);
+    setValue("unitCost", Number.NaN);
   };
 
   const onSubmit = async (data: ImportStockFormValues) => {
@@ -411,7 +410,7 @@ export function ImportStockDialog({
                           setValue("productUnitId", v);
                           const unit = selectedProduct.units.find((u) => u.id === v);
                           if (unit) {
-                            setValue("unitCost", unit.price);
+                            setValue("unitCost", Number.NaN);
                           }
                           void trigger(["productUnitId", "unitCost"]);
                         }}

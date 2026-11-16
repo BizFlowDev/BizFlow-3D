@@ -1,5 +1,9 @@
 import { Pool, PoolConfig, QueryResult, QueryResultRow } from 'pg';
 import env from '../../config';
+import { AsyncLocalStorage } from 'node:async_hooks';
+import type { PoolClient } from 'pg';
+
+const transactionClient = new AsyncLocalStorage<PoolClient>();
 
 let pool: Pool | null = null;
 
@@ -31,6 +35,8 @@ export async function query<T extends QueryResultRow = QueryResultRow>(
   text: string,
   params?: any[]
 ): Promise<QueryResult<T>> {
+  const active = transactionClient.getStore();
+  if (active) return active.query<T>(text, params);
   const client = await getPool().connect();
   try {
     return await client.query<T>(text, params);
@@ -42,10 +48,12 @@ export async function query<T extends QueryResultRow = QueryResultRow>(
 export async function transaction<T>(
   fn: (query: (text: string, params?: any[]) => Promise<QueryResult>) => Promise<T>
 ): Promise<T> {
+  const active = transactionClient.getStore();
+  if (active) return fn((text, params) => active.query(text, params));
   const client = await getPool().connect();
   try {
     await client.query('BEGIN');
-    const result = await fn((text, params) => client.query(text, params));
+    const result = await transactionClient.run(client, () => fn((text, params) => client.query(text, params)));
     await client.query('COMMIT');
     return result;
   } catch (error) {

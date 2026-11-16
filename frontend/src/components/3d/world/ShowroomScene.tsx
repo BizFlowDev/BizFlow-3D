@@ -118,49 +118,38 @@ function ShowroomWalls({
           ),
         )}
 
-        {/* Tấm phông trung tâm màu navy sậm cho biển hiệu */}
+        {/* Khung mảnh và mặt biển hiệu navy mờ */}
         <mesh position={[0, STORE_HEIGHT - 0.8, -STORE_DEPTH / 2 + 0.12]}>
           <boxGeometry args={[2.2, 1, 0.08]} />
-          <meshStandardMaterial color="#1e1b4b" roughness={0.4} metalness={0.2} />
+          <meshStandardMaterial color="#475569" roughness={0.8} metalness={0.1} />
         </mesh>
 
-        {/* Viền LED phát sáng quanh bảng hiệu */}
         <mesh position={[0, STORE_HEIGHT - 0.8, -STORE_DEPTH / 2 + 0.17]}>
-          <boxGeometry args={[2.26, 1, 0.02]} />
-          <meshStandardMaterial
-            color="#6366f1"
-            emissive="#818cf8"
-            emissiveIntensity={0.9}
-          />
+          <boxGeometry args={[2.14, 0.94, 0.02]} />
+          <meshBasicMaterial color="#0f172a" />
         </mesh>
 
-        {/* Biển hiệu 3D LED "BIZFLOW 3D STORE" */}
-        <group position={[0, STORE_HEIGHT - 1.15, -STORE_DEPTH / 2 + 0.19]}>
+        {/* Chữ phẳng, sắc nét với hai cấp kích thước */}
+        <group position={[0, STORE_HEIGHT - 0.8, -STORE_DEPTH / 2 + 0.19]}>
           <Text
-            position={[0, 0.5, 0]}
-            fontSize={0.2}
-            color="#1b0505"
+            position={[0, 0.14, 0]}
+            font="/fonts/Roboto-Bold.ttf"
+            fontSize={0.28}
+            color="#f8fafc"
             anchorX="center"
             anchorY="middle"
             letterSpacing={0.06}
-            outlineWidth={0.02}
-            outlineColor="#3d3d3d"
-            outlineOpacity={0.2}
-            outlineBlur={0.08}
           >
             BIZFLOW 3D
           </Text>
           <Text
-            position={[0, 0.22, 0]}
-            fontSize={0.2}
-            color="#1b0505"
+            position={[0, -0.2, 0]}
+            font="/fonts/Roboto-Regular.ttf"
+            fontSize={0.18}
+            color="#cbd5e1"
             anchorX="center"
             anchorY="middle"
-            letterSpacing={0.06}
-            outlineWidth={0.02}
-            outlineColor="#3d3d3d"
-            outlineOpacity={0.2}
-            outlineBlur={0.08}
+            letterSpacing={0.22}
           >
             STORE
           </Text>

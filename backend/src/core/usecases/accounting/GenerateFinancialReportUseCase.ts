@@ -1,15 +1,16 @@
-import { IOrderRepository, DailyRevenueRow } from '../../repositories/IOrderRepository.js';
-import { IAccountingRepository, TrialBalanceRow, DebtMovementRow, BusinessResultRow } from '../../repositories/IAccountingRepository.js';
+import { DailyRevenueRow } from '../../repositories/IOrderRepository.js';
+import { IAccountingRepository, TrialBalanceRow, DebtMovementRow, BusinessResultRow, ReportWarning } from '../../repositories/IAccountingRepository.js';
 import { ValidationError } from '../../errors/ValidationError.js';
 
 export type ReportType = 'revenue_ledger' | 'debt_report' | 'business_result' | 'trial_balance';
 
-/** Khung chung cho mọi báo cáo theo Thông tư 88/2021/TT-BTC. */
+/** Khung chung cho mọi báo cáo nội bộ. */
 interface ReportBase {
   type: ReportType;
   storeId: string;
   period: { from: Date; to: Date };
   generatedAt: Date;
+  warnings: ReportWarning[];
 }
 
 export interface RevenueLedgerReport extends ReportBase {
@@ -20,7 +21,7 @@ export interface RevenueLedgerReport extends ReportBase {
 }
 
 export interface DebtReportRow extends DebtMovementRow {
-  isOverdue: boolean;
+  balanceStatus: 'receivable' | 'settled' | 'credit';
 }
 
 export interface DebtReport extends ReportBase {
@@ -30,7 +31,8 @@ export interface DebtReport extends ReportBase {
   totalAccrued: number;
   totalCollected: number;
   totalClosingDebt: number;
-  overdueDebt: number;
+  totalReceivable: number;
+  totalCreditBalance: number;
 }
 
 export interface BusinessResultReport extends ReportBase {
@@ -46,6 +48,8 @@ export interface BusinessResultReport extends ReportBase {
 export interface TrialBalanceReport extends ReportBase {
   type: 'trial_balance';
   rows: TrialBalanceRow[];
+  totals: { openingDebit: number; openingCredit: number; debit: number; credit: number; closingDebit: number; closingCredit: number };
+  differences: { opening: number; movement: number; closing: number };
 }
 
 export type FinancialReportOutput =
@@ -57,13 +61,12 @@ export type FinancialReportOutput =
 /**
  * GenerateFinancialReportUseCase
  *
- * Sinh báo cáo tài chính theo mẫu Thông tư 88/2021/TT-BTC (rút gọn cho hộ kinh doanh).
+ * Sinh báo cáo tài chính nội bộ theo kỳ.
  * Dữ liệu lấy từ bảng accounting_entries (sổ cái hạch toán) + các view nghiệp vụ.
  * Kết quả luôn ở dạng bảng text/JSON để hiển thị an toàn, KHÔNG phụ thuộc 3D.
  */
 export class GenerateFinancialReportUseCase {
   constructor(
-    private readonly orderRepo: IOrderRepository,
     private readonly accountingRepo: IAccountingRepository,
   ) { }
 
@@ -73,7 +76,10 @@ export class GenerateFinancialReportUseCase {
     fromDate: Date,
     toDate: Date,
   ): Promise<FinancialReportOutput> {
-    if (fromDate > toDate) {
+    if (!Number.isFinite(fromDate.getTime()) || !Number.isFinite(toDate.getTime())) {
+      throw new ValidationError('Ngày báo cáo không hợp lệ');
+    }
+    if (fromDate >= toDate) {
       throw new ValidationError('Ngày bắt đầu phải trước hoặc bằng ngày kết thúc');
     }
     const base: ReportBase = {
@@ -81,6 +87,7 @@ export class GenerateFinancialReportUseCase {
       storeId,
       period: { from: fromDate, to: toDate },
       generatedAt: new Date(),
+      warnings: await this.accountingRepo.getReportWarnings(storeId, fromDate, toDate),
     };
 
     switch (reportType) {
@@ -103,7 +110,7 @@ export class GenerateFinancialReportUseCase {
     fromDate: Date,
     toDate: Date,
   ): Promise<RevenueLedgerReport> {
-    const rows = await this.orderRepo.getDailyRevenue(base.storeId, fromDate, toDate);
+    const rows = await this.accountingRepo.getRevenueLedger(base.storeId, fromDate, toDate);
     const totalRevenue = rows.reduce((sum, r) => sum + r.totalRevenue, 0);
     const totalOrders = rows.reduce((sum, r) => sum + r.orderCount, 0);
     return {
@@ -121,14 +128,15 @@ export class GenerateFinancialReportUseCase {
     const movement = await this.accountingRepo.getDebtMovement(base.storeId, fromDate, toDate);
     const rows: DebtReportRow[] = movement.map((m) => ({
       ...m,
-      isOverdue: m.closingDebt > 0,
+      balanceStatus: m.closingDebt > 0 ? 'receivable' : m.closingDebt < 0 ? 'credit' : 'settled',
     }));
 
     const totalOpeningDebt = rows.reduce((s, r) => s + r.openingDebt, 0);
     const totalAccrued = rows.reduce((s, r) => s + r.accrued, 0);
     const totalCollected = rows.reduce((s, r) => s + r.collected, 0);
     const totalClosingDebt = rows.reduce((s, r) => s + r.closingDebt, 0);
-    const overdueDebt = rows.filter((r) => r.isOverdue).reduce((s, r) => s + r.closingDebt, 0);
+    const totalReceivable = rows.reduce((s,r) => s + Math.max(r.closingDebt,0),0);
+    const totalCreditBalance = rows.reduce((s,r) => s + Math.max(-r.closingDebt,0),0);
 
     return {
       ...base, type: 'debt_report',
@@ -137,7 +145,7 @@ export class GenerateFinancialReportUseCase {
       totalAccrued,
       totalCollected,
       totalClosingDebt,
-      overdueDebt,
+      totalReceivable, totalCreditBalance,
     };
   }
 
@@ -152,11 +160,11 @@ export class GenerateFinancialReportUseCase {
     const row511 = rows.find((r) => r.accountCode === '511');
     const row632 = rows.find((r) => r.accountCode === '632');
 
-    const totalRevenue = row511 ? row511.credit : 0;
-    const costOfGoods = row632 ? row632.debit : 0;
+    const totalRevenue = row511 ? row511.credit - row511.debit : 0;
+    const costOfGoods = row632 ? row632.debit - row632.credit : 0;
     const operatingExpenses = rows
       .filter((r) => ['641', '642'].includes(r.accountCode))
-      .reduce((s, r) => s + r.debit, 0);
+      .reduce((s, r) => s + r.debit - r.credit, 0);
 
     const grossProfit = totalRevenue - costOfGoods;
     const netProfit = grossProfit - operatingExpenses;
@@ -179,6 +187,11 @@ export class GenerateFinancialReportUseCase {
     toDate: Date,
   ): Promise<TrialBalanceReport> {
     const rows = await this.accountingRepo.getTrialBalance(base.storeId, fromDate, toDate);
-    return { ...base, type: 'trial_balance', rows };
+    const totals = rows.reduce((sum,r) => ({ openingDebit: sum.openingDebit+r.openingDebit, openingCredit: sum.openingCredit+r.openingCredit,
+      debit: sum.debit+r.debit, credit: sum.credit+r.credit, closingDebit: sum.closingDebit+r.closingDebit, closingCredit: sum.closingCredit+r.closingCredit }),
+      { openingDebit:0,openingCredit:0,debit:0,credit:0,closingDebit:0,closingCredit:0 });
+    const differences = { opening:totals.openingDebit-totals.openingCredit, movement:totals.debit-totals.credit, closing:totals.closingDebit-totals.closingCredit };
+    if (Object.values(differences).some(n => n !== 0)) base.warnings.push({ code:'TRIAL_BALANCE_MISMATCH',severity:'error',count:1,message:'Bảng cân đối còn chênh lệch; cần đối soát dữ liệu nguồn.' });
+    return { ...base, type: 'trial_balance', rows, totals, differences };
   }
 }

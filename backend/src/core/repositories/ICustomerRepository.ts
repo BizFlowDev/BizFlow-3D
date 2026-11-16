@@ -27,8 +27,8 @@ export interface ICustomerRepository {
   ): Promise<Customer>;
   delete(id: string): Promise<void>;
 
-  /** Update debt balance directly (triggered by DB trigger, but available for use case logic). */
-  updateDebtBalance(id: string, amount: number): Promise<Customer>;
+  /** Add a debt delta to the existing balance. Debt-payment reductions are handled by the DB trigger. */
+  updateDebtBalance(id: string, delta: number): Promise<Customer>;
 
   /** Search customers with pagination. */
   search(filter: CustomerFilter): Promise<PaginatedResult<Customer>>;

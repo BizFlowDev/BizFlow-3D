@@ -11,7 +11,9 @@
     "test:realtime": "tsx --test tests/*.test.ts",
     "test:watch": "jest --watch",
     "migrate": "tsx src/frameworks/database/migrate.ts",
-    "seed": "tsx src/frameworks/database/seed.ts"
+    "seed": "tsx src/frameworks/database/seed.ts",
+    "accounting:reconcile": "tsx src/frameworks/database/reconcileAccounting.ts",
+    "test:accounting": "tsx --test tests/accounting-*.test.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

@@ -304,26 +304,6 @@ export default function Counter({
       </group>
 
 
-      {/* ── Badge cảnh báo đơn chờ duyệt ───────────────────────────── */}
-      {hasPending && (
-        <Html
-          occlude
-          position={[0.55, COUNTER_H + 0.95, 0]}
-          center
-          distanceFactor={5.2}
-          zIndexRange={[45, 25]}
-          style={{ pointerEvents: "none" }}
-        >
-          <div className="animate-bounce flex items-center gap-1.5 rounded-full border border-red-400/40 bg-red-600 px-3 py-1 text-xs font-bold text-white shadow-xl shadow-red-500/40">
-            <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-75" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-white" />
-            </span>
-            {pendingCount} đơn hàng chờ xử lý
-          </div>
-        </Html>
-      )}
-
       {/* ── Biển chỉ dẫn quầy dưới chân bằng 3D Text (không bị đè layer) ── */}
       <Text
         position={[0, 0.15, COUNTER_D / 2 + 0.02]}

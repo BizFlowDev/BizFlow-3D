@@ -26,9 +26,9 @@ export class InventoryController {
       if (!storeId) throw new AuthenticationError('Store không xác định');
 
       const result = await this.importStockUseCase.execute({
+        ...req.body,
         storeId,
         createdBy: req.user?.userId,
-        ...req.body,
       });
 
       const response = ApiResponse.created(result, 'Nhập kho thành công');

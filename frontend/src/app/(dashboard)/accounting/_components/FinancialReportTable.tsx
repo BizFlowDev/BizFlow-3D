@@ -250,7 +250,7 @@ function DebtReportTable({ data }: { data: DebtReport }) {
                 )}
               </TableCell>
               <TableCell className="text-right tabular-nums font-semibold">
-                {row.closingDebt > 0 ? (
+                {row.closingDebt !== 0 ? (
                   <span className="text-red-600 dark:text-red-400">
                     {formatCurrency(row.closingDebt)}
                   </span>
@@ -261,7 +261,7 @@ function DebtReportTable({ data }: { data: DebtReport }) {
                 )}
               </TableCell>
               <TableCell className="text-center">
-                {row.isOverdue ? (
+                {row.balanceStatus === "receivable" ? (
                   <Badge
                     variant="secondary"
                     className="gap-1 bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-400"
@@ -274,7 +274,7 @@ function DebtReportTable({ data }: { data: DebtReport }) {
                     variant="secondary"
                     className="bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
                   >
-                    Đã thanh toán
+                    {row.balanceStatus === "credit" ? "Dư âm — cần đối soát" : "Đã thanh toán"}
                   </Badge>
                 )}
               </TableCell>
@@ -307,8 +307,8 @@ function DebtReportTable({ data }: { data: DebtReport }) {
             <TableCell />
           </motion.tr>
 
-          {/* Nợ quá hạn */}
-          {data.overdueDebt > 0 && (
+          {/* Tổng còn phải thu */}
+          {data.totalReceivable > 0 && (
             <motion.tr
               variants={rowVariants}
               initial="hidden"
@@ -317,14 +317,15 @@ function DebtReportTable({ data }: { data: DebtReport }) {
               className="bg-red-50/50 dark:bg-red-950/10"
             >
               <TableCell colSpan={6} className="text-right font-semibold text-red-700 dark:text-red-400">
-                Trong đó nợ quá hạn:
+                Tổng còn phải thu:
               </TableCell>
               <TableCell className="text-right tabular-nums font-bold text-red-700 dark:text-red-400">
-                {formatCurrency(data.overdueDebt)}
+                {formatCurrency(data.totalReceivable)}
               </TableCell>
               <TableCell />
             </motion.tr>
           )}
+          {data.totalCreditBalance > 0 && <TableRow><TableCell colSpan={6} className="text-right font-medium">Tổng dư âm cần đối soát:</TableCell><TableCell className="text-right tabular-nums">{formatCurrency(-data.totalCreditBalance)}</TableCell><TableCell /></TableRow>}
         </TableBody>
       </Table>
     </div>
@@ -347,8 +348,8 @@ function BusinessResultTable({ data }: { data: BusinessResultReport }) {
     { stt: 1, indicator: "Doanh thu bán hàng và cung cấp dịch vụ", code: "01", amount: data.totalRevenue, isHighlight: false, isPositive: true },
     { stt: 2, indicator: "Giá vốn hàng bán", code: "11", amount: data.costOfGoods, isHighlight: false, isPositive: false },
     { stt: 3, indicator: "Lợi nhuận gộp (01 - 11)", code: "20", amount: data.grossProfit, isHighlight: true, isPositive: data.grossProfit >= 0 },
-    { stt: 4, indicator: "Chi phí bán hàng", code: "24", amount: data.rows.find((r) => r.accountCode === "641")?.debit ?? 0, isHighlight: false, isPositive: false },
-    { stt: 5, indicator: "Chi phí quản lý doanh nghiệp", code: "25", amount: data.rows.find((r) => r.accountCode === "642")?.debit ?? 0, isHighlight: false, isPositive: false },
+    { stt: 4, indicator: "Chi phí bán hàng", code: "24", amount: (data.rows.find((r) => r.accountCode === "641")?.debit ?? 0) - (data.rows.find((r) => r.accountCode === "641")?.credit ?? 0), isHighlight: false, isPositive: false },
+    { stt: 5, indicator: "Chi phí quản lý doanh nghiệp", code: "25", amount: (data.rows.find((r) => r.accountCode === "642")?.debit ?? 0) - (data.rows.find((r) => r.accountCode === "642")?.credit ?? 0), isHighlight: false, isPositive: false },
     { stt: 6, indicator: "Tổng chi phí hoạt động", code: "30", amount: data.operatingExpenses, isHighlight: false, isPositive: false },
     { stt: 7, indicator: "Lợi nhuận thuần từ hoạt động kinh doanh", code: "50", amount: data.netProfit, isHighlight: true, isPositive: data.netProfit >= 0 },
   ];
@@ -555,6 +556,11 @@ function TrialBalanceTable({ data }: { data: TrialBalanceReport }) {
               {formatCurrency(totals.closingCredit)}
             </TableCell>
           </motion.tr>
+          <TableRow><TableCell colSpan={4} className="font-semibold">CHÊNH LỆCH NỢ − CÓ</TableCell>
+            <TableCell colSpan={2} className="text-right tabular-nums">{formatCurrency(data.differences.opening)}</TableCell>
+            <TableCell colSpan={2} className="text-right tabular-nums">{formatCurrency(data.differences.movement)}</TableCell>
+            <TableCell colSpan={2} className="text-right tabular-nums">{formatCurrency(data.differences.closing)}</TableCell>
+          </TableRow>
         </TableBody>
       </Table>
     </div>

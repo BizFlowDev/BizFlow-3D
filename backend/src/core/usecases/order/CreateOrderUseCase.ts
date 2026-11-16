@@ -62,7 +62,7 @@ export class CreateOrderUseCase {
     // 2. Verify all products exist and are active
     for (const item of data.items) {
       const product = await this.productRepo.findById(item.productId);
-      if (!product) {
+      if (!product || product.storeId !== data.storeId) {
         throw new NotFoundError('Sản phẩm', `Sản phẩm ${item.productId} không tìm thấy`);
       }
       if (!product.isActive) {
@@ -74,6 +74,8 @@ export class CreateOrderUseCase {
     const totalAmount = data.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
     const finalAmount = totalAmount - data.discountAmount;
 
+    if (finalAmount < 0 || data.debtAmount > finalAmount) throw new ValidationError('Giảm giá hoặc số nợ vượt tổng đơn hàng');
+
     // 3.5. Verify customer credit limit if order incurs debt
     if (data.debtAmount > 0) {
       if (!data.customerId) {
@@ -81,7 +83,7 @@ export class CreateOrderUseCase {
       }
       if (this.customerRepo) {
         const customer = await this.customerRepo.findById(data.customerId);
-        if (!customer) {
+        if (!customer || customer.storeId !== data.storeId) {
           throw new NotFoundError('Khách hàng', 'Không tìm thấy thông tin khách hàng');
         }
         if (!customer.isActive) {

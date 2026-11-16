@@ -1,3 +1,4 @@
+import { ValidationError } from '../../../core/errors/ValidationError.js';
 import { Order } from '../../../core/entities/Order.js';
 import { OrderItem } from '../../../core/entities/OrderItem.js';
 import { IOrderRepository, OrderFilter, PaginatedResult, DailyRevenueRow, TopProductRow, CategoryRevenueRow } from '../../../core/repositories/IOrderRepository.js';
@@ -141,13 +142,13 @@ export class PostgresOrderRepository implements IOrderRepository {
     const text = `
       UPDATE orders
       SET ${fields.join(', ')}
-      WHERE id = $${idx}
+      WHERE id = $${idx}${data.status === 'cancelled' ? " AND status = 'draft'" : ''}
       RETURNING *
     `;
     values.push(id);
 
     const res = await query(text, values);
-    if (res.rowCount === 0) throw new Error('Order not found');
+    if (res.rowCount === 0) throw new ValidationError('Đơn hàng không tồn tại hoặc trạng thái đã thay đổi');
     const order = await this.findById(id);
     if (!order) throw new Error('Order not found');
     return order;

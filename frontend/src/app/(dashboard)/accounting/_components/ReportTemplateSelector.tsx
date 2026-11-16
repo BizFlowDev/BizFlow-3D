@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/select";
 import type { ReportType } from "@/hooks/useAccounting";
 
-// ── Report template options (Thông tư 88/2021/TT-BTC) ────────────────────────
+// ── Report template options (báo cáo nội bộ) ────────────────────────
 
 interface ReportTemplate {
   value: ReportType;
@@ -28,25 +28,25 @@ const REPORT_TEMPLATES: ReportTemplate[] = [
   {
     value: "revenue_ledger",
     label: "Sổ cái doanh thu chi tiết",
-    description: "Mẫu S01-HKD: Chi tiết doanh thu theo ngày",
+    description: "Chi tiết doanh thu theo ngày",
     icon: BookOpen,
   },
   {
     value: "debt_report",
     label: "Báo cáo nợ chưa thanh toán",
-    description: "Mẫu S02-HKD: Công nợ phải thu theo khách hàng",
+    description: "Công nợ phải thu theo khách hàng",
     icon: AlertTriangle,
   },
   {
     value: "business_result",
     label: "Kết quả hoạt động kinh doanh",
-    description: "Mẫu B02-HKD: Báo cáo lãi/lỗ theo kỳ",
+    description: "Báo cáo lãi/lỗ theo kỳ",
     icon: TrendingUp,
   },
   {
     value: "trial_balance",
     label: "Bảng cân đối phát sinh",
-    description: "Mẫu F01-HKD: Cân đối tài khoản đầu kỳ/cuối kỳ",
+    description: "Cân đối tài khoản đầu kỳ/cuối kỳ",
     icon: Scale,
   },
 ];
@@ -67,7 +67,7 @@ export default function ReportTemplateSelector({
   const selected = REPORT_TEMPLATES.find((t) => t.value === value);
 
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className="flex min-w-0 max-w-full flex-col gap-1.5">
       <label className="text-xs font-medium text-muted-foreground">
         Mẫu báo cáo
       </label>
@@ -76,13 +76,13 @@ export default function ReportTemplateSelector({
         onValueChange={(v) => onValueChange(v as ReportType)}
       >
         <SelectTrigger
-          className="w-[340px] h-auto min-h-[56px] px-3.5 py-2.5 text-left [&>span]:line-clamp-none hover:bg-muted/30 transition-colors"
+          className="w-full max-w-full sm:w-[340px] h-auto min-h-[56px] px-3.5 py-2.5 text-left [&>span]:line-clamp-none hover:bg-muted/30 transition-colors"
           aria-label="Chọn mẫu báo cáo"
           id="report-template-selector"
         >
           <SelectValue placeholder="Chọn mẫu báo cáo" />
         </SelectTrigger>
-        <SelectContent className="w-[360px] p-1.5">
+        <SelectContent className="max-w-[calc(100vw-2rem)] w-[360px] p-1.5">
           {REPORT_TEMPLATES.map((template) => (
             <SelectItem
               key={template.value}

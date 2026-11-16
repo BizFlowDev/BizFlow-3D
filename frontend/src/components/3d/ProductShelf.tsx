@@ -531,7 +531,7 @@ function ShelfFrame({
           />
         </mesh>
 
-        {/* Biển hiệu LED 3D cố định trên mặt biển hiệu (transform), không xoay theo camera, chữ có viền đen */}
+        {/* Chữ danh mục phẳng, không viền, cố định theo mặt biển hiệu */}
         <Html
           occlude
           transform
@@ -542,29 +542,24 @@ function ShelfFrame({
           style={{ pointerEvents: "none", userSelect: "none" }}
         >
           <div
-            className="flex select-none items-center justify-center gap-2.5 px-3 py-1 font-black"
+            className="flex select-none items-center justify-center gap-2.5 px-3 py-1"
             style={{
               whiteSpace: "nowrap",
               color: "#ffffff",
-              WebkitTextStroke: "0.4px #000000",
             }}
           >
-            <span className="text-sm font-black tracking-wider text-white">
+            <span className="text-sm font-semibold tracking-[0.1em] text-white">
               {title}
             </span>
             {shelfTotalPages && shelfTotalPages > 1 && (
               <span
-                className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-black shadow-md border ${isFocused
+                className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium border ${isFocused
                   ? "border-amber-300 bg-amber-500/90 text-white ring-2 ring-amber-400"
                   : "border-white/30 bg-slate-900/85 text-amber-300"
                   }`}
-                style={{
-                  WebkitTextStroke: "0.6px #000000",
-                  textShadow: "1px 1px 0 #000, -1px -1px 0 #000",
-                }}
               >
                 <span>Trang</span>
-                <span className="text-white font-black">{shelfCurrentPage}</span>
+                <span className="text-white font-semibold">{shelfCurrentPage}</span>
                 <span>/</span>
                 <span>{shelfTotalPages}</span>
               </span>

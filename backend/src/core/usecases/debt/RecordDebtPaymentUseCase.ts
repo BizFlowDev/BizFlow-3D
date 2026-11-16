@@ -1,3 +1,5 @@
+import type { IUnitOfWork } from '../../repositories/IUnitOfWork.js';
+import type { IOrderRepository } from '../../repositories/IOrderRepository.js';
 import { z } from 'zod';
 import { DebtPayment } from '../../entities/DebtPayment.js';
 import { IDebtPaymentRepository } from '../../repositories/IDebtPaymentRepository.js';
@@ -23,6 +25,8 @@ export class RecordDebtPaymentUseCase {
     private readonly debtPaymentRepo: IDebtPaymentRepository,
     private readonly customerRepo: ICustomerRepository,
     private readonly autoPosting: AutoPostingUseCase,
+    private readonly uow: IUnitOfWork,
+    private readonly orderRepo: IOrderRepository,
   ) {}
 
   async execute(input: RecordDebtPaymentInput): Promise<DebtPayment> {
@@ -37,35 +41,42 @@ export class RecordDebtPaymentUseCase {
     }
     const data = parsed.data;
 
-    // 2. Verify customer exists
-    const customer = await this.customerRepo.findById(data.customerId);
-    if (!customer) {
-      throw new NotFoundError('Khách hàng');
-    }
+    return this.uow.run(async () => {
+      if (!await this.uow.lock('customer', data.customerId, data.storeId)) throw new NotFoundError('Khách hàng');
+      // 2. Verify customer exists
+      const customer = await this.customerRepo.findById(data.customerId);
+      if (!customer || customer.storeId !== data.storeId) {
+        throw new NotFoundError('Khách hàng');
+      }
 
-    // 3. Validate payment amount doesn't exceed debt
-    if (data.amount > customer.debtBalance) {
-      throw new ValidationError(
-        `Số tiền thanh toán (${data.amount}) vượt quá số nợ hiện tại (${customer.debtBalance})`,
-      );
-    }
+      if (data.orderId) {
+        const order = await this.orderRepo.findById(data.orderId);
+        if (!order || order.storeId !== data.storeId || order.customerId !== data.customerId || order.status !== 'confirmed') throw new ValidationError('Đơn hàng không thuộc công nợ khách hàng');
+      }
+      // 3. Validate payment amount doesn't exceed debt
+      if (data.amount > customer.debtBalance) {
+        throw new ValidationError(
+          `Số tiền thanh toán (${data.amount}) vượt quá số nợ hiện tại (${customer.debtBalance})`,
+        );
+      }
 
-    // 4. Create payment (DB trigger will auto-update customer.debt_balance)
-    const payment = DebtPayment.create({
-      storeId: data.storeId,
-      customerId: data.customerId,
-      orderId: data.orderId,
-      amount: data.amount,
-      paymentMethod: data.paymentMethod,
-      note: data.note,
-      createdBy: data.createdBy,
+      // 4. Create payment (DB trigger will auto-update customer.debt_balance)
+      const payment = DebtPayment.create({
+        storeId: data.storeId,
+        customerId: data.customerId,
+        orderId: data.orderId,
+        amount: data.amount,
+        paymentMethod: data.paymentMethod,
+        note: data.note,
+        createdBy: data.createdBy,
+      });
+
+      const created = await this.debtPaymentRepo.create(payment);
+
+      // 6. Hạch toán tự động: giảm phải thu, tăng tiền mặt (Dr 111/112 / Cr 131)
+      await this.autoPosting.postDebtPayment(created);
+
+      return created;
     });
-
-    const created = await this.debtPaymentRepo.create(payment);
-
-    // 6. Hạch toán tự động: giảm phải thu, tăng tiền mặt (Dr 111/112 / Cr 131)
-    await this.autoPosting.postDebtPayment(created);
-
-    return created;
   }
 }

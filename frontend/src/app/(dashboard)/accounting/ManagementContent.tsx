@@ -1,5 +1,8 @@
 "use client";
 
+import { buildExportSections } from "@/lib/accounting-export";
+
+import { validReportPeriod } from "@/lib/accounting-period";
 import { useState, useMemo } from "react";
 import { motion } from "motion/react";
 import {
@@ -14,7 +17,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Card,
@@ -23,19 +25,13 @@ import {
   CardDescription,
   CardContent,
 } from "@/components/ui/card";
-import ExportButton, {
-  type ExportSection,
-} from "@/components/shared/ExportButton";
+import ExportButton from "@/components/shared/ExportButton";
+import AccountingReconciliation from "./_components/AccountingReconciliation";
 import FinancialReportTable from "./_components/FinancialReportTable";
 import ReportTemplateSelector from "./_components/ReportTemplateSelector";
 import {
   useFinancialReport,
   type ReportType,
-  type FinancialReportOutput,
-  type RevenueLedgerReport,
-  type DebtReport,
-  type BusinessResultReport,
-  type TrialBalanceReport,
 } from "@/hooks/useAccounting";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -45,14 +41,6 @@ function toISODate(d: Date): string {
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
-}
-
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("vi-VN", {
-    style: "currency",
-    currency: "VND",
-    maximumFractionDigits: 0,
-  }).format(amount);
 }
 
 function formatDateVN(dateStr: string): string {
@@ -126,145 +114,6 @@ const itemVariants = {
 
 // ── Export helpers ─────────────────────────────────────────────────────────────
 
-function buildExportSections(
-  data: FinancialReportOutput | undefined,
-  reportType: ReportType,
-): ExportSection[] {
-  if (!data) return [];
-
-  switch (reportType) {
-    case "revenue_ledger": {
-      const d = data as RevenueLedgerReport;
-      return [
-        {
-          title: "Sổ cái doanh thu chi tiết",
-          columns: ["STT", "Ngày", "Số đơn hàng", "Doanh thu (VND)", "Ghi chú"],
-          rows: [
-            ...d.rows.map((r, i) => [
-              i + 1,
-              r.date,
-              r.orderCount,
-              r.totalRevenue,
-              "",
-            ]),
-            ["", "TỔNG CỘNG", d.totalOrders, d.totalRevenue, ""],
-          ],
-        },
-      ];
-    }
-    case "debt_report": {
-      const d = data as DebtReport;
-      return [
-        {
-          title: "Báo cáo nợ chưa thanh toán",
-          columns: [
-            "STT",
-            "Khách hàng",
-            "SĐT",
-            "Nợ đầu kỳ",
-            "Phát sinh",
-            "Đã thu",
-            "Nợ cuối kỳ",
-            "Trạng thái",
-          ],
-          rows: [
-            ...d.rows.map((r, i) => [
-              i + 1,
-              r.customerName,
-              r.customerPhone ?? "",
-              r.openingDebt,
-              r.accrued,
-              r.collected,
-              r.closingDebt,
-              r.isOverdue ? "Còn nợ" : "Đã TT",
-            ]),
-            [
-              "",
-              "TỔNG CỘNG",
-              "",
-              d.totalOpeningDebt,
-              d.totalAccrued,
-              d.totalCollected,
-              d.totalClosingDebt,
-              "",
-            ],
-          ],
-        },
-      ];
-    }
-    case "business_result": {
-      const d = data as BusinessResultReport;
-      return [
-        {
-          title: "Báo cáo kết quả hoạt động kinh doanh",
-          columns: ["STT", "Chỉ tiêu", "Mã số", "Số tiền (VND)", "Ghi chú"],
-          rows: [
-            [1, "Doanh thu bán hàng và cung cấp dịch vụ", "01", d.totalRevenue, ""],
-            [2, "Giá vốn hàng bán", "11", d.costOfGoods, ""],
-            [3, "Lợi nhuận gộp", "20", d.grossProfit, d.grossProfit >= 0 ? "Lãi" : "Lỗ"],
-            [
-              4,
-              "Chi phí bán hàng",
-              "24",
-              d.rows.find((r) => r.accountCode === "641")?.debit ?? 0,
-              "",
-            ],
-            [
-              5,
-              "Chi phí quản lý doanh nghiệp",
-              "25",
-              d.rows.find((r) => r.accountCode === "642")?.debit ?? 0,
-              "",
-            ],
-            [6, "Tổng chi phí hoạt động", "30", d.operatingExpenses, ""],
-            [
-              7,
-              "Lợi nhuận thuần từ HĐKD",
-              "50",
-              d.netProfit,
-              d.netProfit >= 0 ? "Lãi" : "Lỗ",
-            ],
-          ],
-        },
-      ];
-    }
-    case "trial_balance": {
-      const d = data as TrialBalanceReport;
-      return [
-        {
-          title: "Bảng cân đối phát sinh",
-          columns: [
-            "STT",
-            "Tài khoản",
-            "Mã TK",
-            "Loại",
-            "Nợ đầu kỳ",
-            "Có đầu kỳ",
-            "Nợ phát sinh",
-            "Có phát sinh",
-            "Nợ cuối kỳ",
-            "Có cuối kỳ",
-          ],
-          rows: d.rows.map((r, i) => [
-            i + 1,
-            r.accountName,
-            r.accountCode,
-            r.accountType,
-            r.openingDebit,
-            r.openingCredit,
-            r.debit,
-            r.credit,
-            r.closingDebit,
-            r.closingCredit,
-          ]),
-        },
-      ];
-    }
-    default:
-      return [];
-  }
-}
-
 // ── Page Component ────────────────────────────────────────────────────────────
 
 export default function AccountingPage() {
@@ -275,6 +124,8 @@ export default function AccountingPage() {
     toISODate(new Date(now.getFullYear(), now.getMonth(), 1)),
   );
   const [toDate, setToDate] = useState(() => toISODate(now));
+
+  const validPeriod = validReportPeriod(fromDate, toDate);
 
   // ── Query ──
   const { data, isLoading, error, refetch, isFetching } = useFinancialReport(
@@ -297,7 +148,7 @@ export default function AccountingPage() {
       variants={containerVariants}
       initial="hidden"
       animate="show"
-      className="space-y-6"
+      className="min-w-0 space-y-6"
     >
       {/* ── Header ── */}
       <motion.div
@@ -322,7 +173,7 @@ export default function AccountingPage() {
         </div>
 
         {/* ── Tools ── */}
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+        <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
           <ReportTemplateSelector
             value={activeTab}
             onValueChange={(v) => setActiveTab(v)}
@@ -332,7 +183,7 @@ export default function AccountingPage() {
               variant="outline"
               size="icon"
               onClick={() => refetch()}
-              disabled={isFetching}
+              disabled={isFetching || !validPeriod}
               aria-label="Tải lại"
               id="accounting-refresh-btn"
             >
@@ -345,15 +196,19 @@ export default function AccountingPage() {
               subtitle={`Kỳ báo cáo: ${periodLabel}`}
               filename={`ke-toan-${activeTab}-${fromDate}-${toDate}`}
               sections={exportSections}
+              disabled={!validPeriod || isLoading || isFetching || !!error || !data}
+              warnings={(data?.warnings ?? []).map(w => `${w.message} (${w.count})`)}
+              orientation={activeTab === "trial_balance" ? "landscape" : "portrait"}
             />
           </div>
+          <AccountingReconciliation />
         </div>
       </motion.div>
 
       {/* ── Date Range Selector ── */}
       <motion.div
         variants={itemVariants}
-        className="flex flex-col gap-3 sm:flex-row sm:items-center"
+        className="flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center"
       >
         <div className="flex items-center gap-2">
           <CalendarDays className="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -361,14 +216,14 @@ export default function AccountingPage() {
             Kỳ báo cáo:
           </span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 w-full items-center gap-2 sm:w-auto">
           <Input
             type="date"
             value={fromDate}
             max={toDate || undefined}
             onChange={(e) => setFromDate(e.target.value)}
             aria-label="Từ ngày"
-            className="w-[160px]"
+            className="min-w-0 w-full sm:w-[160px]"
             id="accounting-from-date"
           />
           <span className="text-muted-foreground" aria-hidden="true">
@@ -380,7 +235,7 @@ export default function AccountingPage() {
             min={fromDate || undefined}
             onChange={(e) => setToDate(e.target.value)}
             aria-label="Đến ngày"
-            className="w-[160px]"
+            className="min-w-0 w-full sm:w-[160px]"
             id="accounting-to-date"
           />
         </div>
@@ -423,6 +278,8 @@ export default function AccountingPage() {
           ))}
         </div>
       </motion.div>
+
+      {!validPeriod && <p role="alert" className="text-sm text-red-600">Vui lòng chọn ngày hợp lệ; từ ngày phải trước hoặc bằng đến ngày.</p>}
 
       {/* ── Tab Navigation ── */}
       <motion.div variants={itemVariants}>
@@ -480,7 +337,7 @@ export default function AccountingPage() {
                   {activeTab === tab.value && (
                     <FinancialReportTable
                       reportType={tab.value}
-                      data={data}
+                      data={validPeriod ? data : undefined}
                       isLoading={isLoading}
                       error={error}
                       onRetry={() => refetch()}
@@ -500,9 +357,7 @@ export default function AccountingPage() {
       >
         <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs text-muted-foreground">
-            Báo cáo tài chính được lập theo mẫu rút gọn dành cho hộ kinh doanh
-            . Số liệu được tính từ sổ cái hạch toán
-            tự động.
+            Báo cáo quản trị nội bộ. Doanh thu và công nợ ghi nhận theo ngày xác nhận đơn; đối chiếu với sổ cái tự động. Giá vốn bình quân lịch sử nhập là ước tính.
           </p>
           <p className="text-xs text-muted-foreground whitespace-nowrap">
             {data && (

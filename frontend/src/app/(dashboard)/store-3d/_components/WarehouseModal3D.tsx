@@ -70,7 +70,7 @@ export function WarehouseModal3D({
   const [selectedProductId, setSelectedProductId] = useState<string>("");
   const [selectedUnitId, setSelectedUnitId] = useState<string>("");
   const [quantity, setQuantity] = useState<number>(10);
-  const [unitCost, setUnitCost] = useState<number>(0);
+  const [unitCost, setUnitCost] = useState<number | "">("");
   const [note, setNote] = useState<string>("");
   const [showSuccess, setShowSuccess] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -104,10 +104,10 @@ export function WarehouseModal3D({
     if (currentProduct?.units && currentProduct.units.length > 0) {
       const def = currentProduct.units.find((u) => u.isDefault) || currentProduct.units[0];
       setSelectedUnitId(def.id);
-      setUnitCost(def.price ? Math.round(def.price * 0.7) : 50000); // Gợi ý giá vốn nhập kho
+      setUnitCost("");
     } else {
       setSelectedUnitId("");
-      setUnitCost(50000);
+      setUnitCost("");
     }
     setQuantity(10);
   }, [currentProduct]);
@@ -139,14 +139,14 @@ export function WarehouseModal3D({
 
   const handleConfirmImport = async () => {
     if (!currentProduct || !activeUnit) return;
-    if (quantity <= 0) return;
+    if (!Number.isFinite(quantity) || quantity <= 0 || unitCost === "" || !Number.isFinite(unitCost) || unitCost < 0) return;
 
     try {
       await importMutation.mutateAsync({
         productId: currentProduct.id,
         productUnitId: activeUnit.id,
         quantity,
-        unitCost: unitCost > 0 ? unitCost : undefined,
+        unitCost,
         note: note.trim() || `Nhập hàng 3D WMS lúc ${new Date().toLocaleTimeString("vi-VN")}`,
       });
 
@@ -456,7 +456,7 @@ export function WarehouseModal3D({
                           min={0}
                           step={1000}
                           value={unitCost}
-                          onChange={(e) => setUnitCost(Math.max(0, parseInt(e.target.value) || 0))}
+                          onChange={(e) => setUnitCost(e.target.value === "" ? "" : Number(e.target.value))}
                           className="w-36 rounded-lg border border-white/10 bg-slate-950 px-2.5 py-1 text-right text-xs text-white font-mono focus:border-amber-400 focus:outline-none"
                         />
                       </div>
@@ -484,7 +484,7 @@ export function WarehouseModal3D({
                     {/* Nút thực hiện Nhập kho Hologram */}
                     <button
                       type="button"
-                      disabled={importMutation.isPending || !currentProduct}
+                      disabled={importMutation.isPending || !currentProduct || unitCost === "" || !Number.isFinite(unitCost) || unitCost < 0}
                       onClick={handleConfirmImport}
                       className="w-full relative group overflow-hidden rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 p-3 text-center font-bold text-slate-950 shadow-lg shadow-amber-500/25 transition-all hover:brightness-110 active:scale-[0.98] disabled:opacity-50"
                     >

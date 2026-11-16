@@ -1,4 +1,17 @@
 import { AccountingEntry } from '../entities/AccountingEntry.js';
+import type { DailyRevenueRow } from './IOrderRepository.js';
+
+export interface ReportWarning {
+  code: string;
+  severity: 'warning' | 'error';
+  message: string;
+  count: number;
+}
+export interface AccountingPosting {
+  entries: AccountingEntry[];
+  costStatus: 'complete' | 'estimated' | 'missing';
+  missingProductIds: string[];
+}
 
 /** Dòng trên bảng cân đối phát sinh (theo tài khoản). */
 export interface TrialBalanceRow {
@@ -33,6 +46,9 @@ export interface DebtMovementRow {
 }
 
 export interface IAccountingRepository {
+  postBalanced(posting: AccountingPosting): Promise<void>;
+  getReportWarnings(storeId: string, fromDate: Date, toDate: Date): Promise<ReportWarning[]>;
+  getRevenueLedger(storeId: string, fromDate: Date, toDate: Date): Promise<DailyRevenueRow[]>;
   /** Tạo đồng loạt nhiều bút toán (một nghiệp vụ = nhiều dòng). */
   createMany(entries: AccountingEntry[]): Promise<AccountingEntry[]>;
 
@@ -59,7 +75,7 @@ export interface IAccountingRepository {
   getDebtMovement(storeId: string, fromDate: Date, toDate: Date): Promise<DebtMovementRow[]>;
 
   /** Đơn giá vốn bình quân gia quyền (theo base unit) cho danh sách sản phẩm. */
-  getProductAverageCosts(storeId: string, productIds: string[]): Promise<Map<string, number>>;
+  getProductAverageCosts(storeId: string, productIds: string[], asOf: Date): Promise<Map<string, number>>;
 
   /** Hệ số quy đổi đơn vị (conversion_factor) cho danh sách đơn vị quy đổi. */
   getUnitConversionFactors(unitIds: string[]): Promise<Map<string, number>>;

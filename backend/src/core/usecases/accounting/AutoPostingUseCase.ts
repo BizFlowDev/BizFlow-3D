@@ -12,7 +12,7 @@ import { IAccountingRepository } from '../../repositories/IAccountingRepository.
  * Mỗi nghiệp vụ tạo 1 nhóm bút toán được cân đối (tổng Nợ = tổng Có),
  * gắn reference_type + reference_id để tránh hạch toán trùng (idempotent).
  *
- * Danh mục tài khoản theo Thông tư 88/2021/TT-BTC (rút gọn cho hộ kinh doanh):
+ * Danh mục tài khoản nội bộ:
  *   111 Tiền mặt · 131 Phải thu khách hàng · 156 Hàng hóa · 331 Phải trả người bán
  *   511 Doanh thu bán hàng · 632 Giá vốn hàng bán
  */
@@ -44,15 +44,6 @@ export class AutoPostingUseCase {
     });
   }
 
-  /** Từ chối hạch toán trùng trên cùng reference. */
-  private async isAlreadyPosted(
-    type: 'order' | 'inventory_import' | 'debt_payment',
-    referenceId: string,
-  ): Promise<boolean> {
-    const existing = await this.accountingRepo.findByReference(type, referenceId);
-    return existing.length > 0;
-  }
-
   // ── 1. Order confirmed ───────────────────────────────────────────────────
   /**
    * Ghi nhận doanh thu + giá vốn khi đơn confirmed.
@@ -61,12 +52,13 @@ export class AutoPostingUseCase {
    * - Giá vốn: Dr 632 Giá vốn hàng bán / Cr 156 Hàng hóa
    */
   async postOrderConfirmed(order: Order, items: OrderItem[]): Promise<void> {
-    if (await this.isAlreadyPosted('order', order.id)) return;
+    const entries: AccountingEntry[] = [];
+    const missingProductIds: string[] = [];
 
     const entryDate = order.confirmedAt ?? order.updatedAt;
     const cashAmount = order.finalAmount - order.debtAmount;
 
-    // 1a) Doanh thu (khống nhất theo T88: doanh thu chưa thuế).
+    // Revenue recognition, independent of the estimated cost of goods.
     if (cashAmount > 0) {
       // Chọn tài khoản theo phương thức thanh toán
       const isElectronic = order.paymentMethod === 'stripe' || order.paymentMethod === 'qr_code';
@@ -78,34 +70,34 @@ export class AutoPostingUseCase {
         ? 'Doanh thu bán hàng thu bằng chuyển khoản QR'
         : 'Doanh thu bán hàng thu bằng tiền mặt';
 
-      await this.accountingRepo.createMany([
+      entries.push(
         this.entry({
           storeId: order.storeId, entryDate,
           accountCode: cashAccountCode, accountName: cashAccountName,
           debit: cashAmount, referenceType: 'order', referenceId: order.id,
           description: cashDescription,
         }),
-      ]);
+      );
     }
     if (order.debtAmount > 0) {
-      await this.accountingRepo.createMany([
+      entries.push(
         this.entry({
           storeId: order.storeId, entryDate,
           accountCode: '131', accountName: 'Phải thu của khách hàng',
           debit: order.debtAmount, referenceType: 'order', referenceId: order.id,
           description: 'Phải thu khách hàng (bán chịu)',
         }),
-      ]);
+      );
     }
     // Cr. Doanh thu bán hàng
-    await this.accountingRepo.createMany([
+    entries.push(
       this.entry({
         storeId: order.storeId, entryDate,
         accountCode: '511', accountName: 'Doanh thu bán hàng và cung cấp dịch vụ',
         credit: order.finalAmount, referenceType: 'order', referenceId: order.id,
         description: 'Ghi nhận doanh thu bán hàng',
       }),
-    ]);
+    );
 
     // 1b) Ghi nhận giá vốn theo phương pháp Bình quân gia quyền (Weighted Average Cost)
     const productIds = [...new Set(items.map((it) => it.productId))];
@@ -113,7 +105,7 @@ export class AutoPostingUseCase {
       .map((it) => it.productUnitId)
       .filter((id): id is string => Boolean(id));
 
-    const avgCostMap = await this.accountingRepo.getProductAverageCosts(order.storeId, productIds);
+    const avgCostMap = await this.accountingRepo.getProductAverageCosts(order.storeId, productIds, entryDate);
     const unitFactors = await this.accountingRepo.getUnitConversionFactors(unitIds);
 
     let goodsValue = 0;
@@ -122,16 +114,15 @@ export class AutoPostingUseCase {
       const baseQty = item.quantity * conversionFactor;
       const avgUnitCost = avgCostMap.get(item.productId);
 
-      if (avgUnitCost !== undefined && avgUnitCost > 0) {
+      if (avgUnitCost !== undefined && avgUnitCost >= 0) {
         goodsValue += Math.round(baseQty * avgUnitCost);
       } else {
-        // Fallback: nếu chưa từng có chứng từ nhập kho, tạm tính theo giá bán
-        goodsValue += item.totalPrice;
+        missingProductIds.push(item.productId);
       }
     }
 
     if (goodsValue > 0) {
-      await this.accountingRepo.createMany([
+      entries.push(
         this.entry({
           storeId: order.storeId, entryDate,
           accountCode: '632', accountName: 'Giá vốn hàng bán',
@@ -144,8 +135,12 @@ export class AutoPostingUseCase {
           credit: goodsValue, referenceType: 'order', referenceId: order.id,
           description: 'Xuất kho hàng hóa',
         }),
-      ]);
+      );
     }
+    await this.accountingRepo.postBalanced({
+      entries, costStatus: !items.length || missingProductIds.length ? 'missing' : 'estimated',
+      missingProductIds: [...new Set(missingProductIds)],
+    });
   }
 
   // ── 2. Inventory import ──────────────────────────────────────────────────
@@ -155,10 +150,9 @@ export class AutoPostingUseCase {
    * Giá trị nhập = quantity × unit cost do caller truyền vào (value).
    */
   async postInventoryImport(txn: InventoryTransaction, value: number): Promise<void> {
-    if (await this.isAlreadyPosted('inventory_import', txn.id)) return;
-    if (value <= 0) return;
+    const entries: AccountingEntry[] = [];
 
-    await this.accountingRepo.createMany([
+    entries.push(
       this.entry({
         storeId: txn.storeId, entryDate: txn.createdAt,
         accountCode: '156', accountName: 'Hàng hóa',
@@ -171,7 +165,8 @@ export class AutoPostingUseCase {
         credit: value, referenceType: 'inventory_import', referenceId: txn.id,
         description: 'Công nợ người bán khi nhập kho',
       }),
-    ]);
+    );
+    await this.accountingRepo.postBalanced({ entries, costStatus: 'complete', missingProductIds: [] });
   }
 
   // ── 3. Debt payment (Thu nợ) ─────────────────────────────────────────────
@@ -180,7 +175,7 @@ export class AutoPostingUseCase {
    * Dr. 111 Tiền mặt / Cr. 131 Phải thu khách hàng
    */
   async postDebtPayment(payment: DebtPayment): Promise<void> {
-    if (await this.isAlreadyPosted('debt_payment', payment.id)) return;
+    const entries: AccountingEntry[] = [];
 
     const isBankOrStripe = payment.paymentMethod === 'transfer' || payment.paymentMethod === 'stripe';
     const cashAccount = isBankOrStripe ? '112' : '111';
@@ -198,7 +193,7 @@ export class AutoPostingUseCase {
           ? 'chuyển khoản'
           : 'tiền mặt';
 
-    await this.accountingRepo.createMany([
+    entries.push(
       this.entry({
         storeId: payment.storeId, entryDate: payment.createdAt,
         accountCode: cashAccount, accountName: cashAccountName,
@@ -211,6 +206,7 @@ export class AutoPostingUseCase {
         credit: payment.amount, referenceType: 'debt_payment', referenceId: payment.id,
         description: 'Giảm công nợ phải thu',
       }),
-    ]);
+    );
+    await this.accountingRepo.postBalanced({ entries, costStatus: 'complete', missingProductIds: [] });
   }
 }

@@ -5,6 +5,7 @@ import db from '../database/connection.js';
 import { getRedisClient } from '../redis/redisClient.js';
 import { initSocketServer } from '../websocket/socketServer.js';
 import { initEventListeners } from '../websocket/eventEmitter.js';
+import { listen } from './listen.js';
 
 async function startServer() {
   try {
@@ -26,13 +27,16 @@ async function startServer() {
     initEventListeners();
 
     // 6. Start listening
-    httpServer.listen(env.PORT, () => {
-      console.log(`Server listening on port ${env.PORT} in ${env.NODE_ENV} mode`);
-      console.log(`WebSocket ready on port ${env.PORT}`);
-    });
+    await listen(httpServer, env.PORT);
+    console.log(`Server listening on port ${env.PORT} in ${env.NODE_ENV} mode`);
+    console.log(`WebSocket ready on port ${env.PORT}`);
 
   } catch (error) {
-    console.error('Failed to start server:', error);
+    if ((error as NodeJS.ErrnoException).code === 'EADDRINUSE') {
+      console.error(`Port ${env.PORT} is already in use. Stop the other backend instance or set PORT to an available port before restarting.`);
+    } else {
+      console.error('Failed to start server:', error);
+    }
     process.exit(1);
   }
 }

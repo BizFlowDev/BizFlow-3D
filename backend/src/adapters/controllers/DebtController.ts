@@ -24,9 +24,9 @@ export class DebtController {
       if (!storeId) throw new AuthenticationError('Store không xác định');
 
       const result = await this.recordDebtPaymentUseCase.execute({
+        ...req.body,
         storeId,
         createdBy: req.user?.userId,
-        ...req.body,
       });
 
       const response = ApiResponse.created(result, 'Ghi nhận thanh toán công nợ thành công');

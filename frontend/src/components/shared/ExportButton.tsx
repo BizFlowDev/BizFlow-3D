@@ -21,6 +21,9 @@ interface ExportButtonProps {
   subtitle?: string;
   sections: ExportSection[];
   filename?: string;
+  disabled?: boolean;
+  warnings?: string[];
+  orientation?: "portrait" | "landscape";
   /**
    * Chụp snapshot Canvas 3D hiện tại (dataURL PNG) nếu widget đang ở chế độ 3D
    * — ghép ảnh + bảng số liệu 2D vào file PDF.
@@ -45,7 +48,12 @@ export default function ExportButton({
   sections,
   filename = "bao-cao-kinh-doanh",
   getSnapshot,
+  disabled = false,
+  warnings = [],
+  orientation = "portrait",
 }: ExportButtonProps) {
+  const [exportError, setExportError] = useState<string | null>(null);
+  const reportSections = warnings.length ? [...sections, { title: "Lưu ý và đối soát", columns: ["Nội dung"], rows: warnings.map(w => [w]) }] : sections;
   const [busy, setBusy] = useState<BusyKind>(null);
   const busyRef = useRef<BusyKind>(null);
   busyRef.current = busy;
@@ -64,13 +72,25 @@ export default function ExportButton({
   };
 
   const exportPDF = async () => {
-    if (busyRef.current) return;
+    if (disabled || busyRef.current) return;
+    setExportError(null);
+    busyRef.current = "pdf";
     setBusy("pdf");
     try {
       const { jsPDF } = await import("jspdf");
       const { default: autoTable } = await import("jspdf-autotable");
 
-      const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const doc = new jsPDF({ orientation, unit: "mm", format: "a4" });
+      for (const [style, file] of [["normal", "Roboto-Regular.ttf"], ["bold", "Roboto-Bold.ttf"]] as const) {
+        const response = await fetch(`/fonts/${file}`);
+        if (!response.ok) throw new Error("Không tải được font tiếng Việt");
+        const bytes = new Uint8Array(await response.arrayBuffer());
+        let binary = "";
+        for (let i = 0; i < bytes.length; i += 8192) binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
+        doc.addFileToVFS(file, btoa(binary));
+        doc.addFont(file, "Roboto", style);
+      }
+      doc.setFont("Roboto", "normal");
       const pageW = doc.internal.pageSize.getWidth();
       const margin = 14;
       let y = 20;
@@ -117,9 +137,13 @@ export default function ExportButton({
 
       // ── Các bảng số liệu 2D ──
       let startY = y;
-      for (const section of sections) {
+      for (const section of reportSections) {
         doc.setFontSize(11.5);
         doc.setTextColor(20, 30, 60);
+        if (startY + 20 > doc.internal.pageSize.getHeight() - margin) {
+          doc.addPage();
+          startY = margin + 6;
+        }
         const sectionTitleY = Math.max(startY, margin + 6);
         doc.text(section.title, margin, sectionTitleY);
 
@@ -128,7 +152,7 @@ export default function ExportButton({
           head: [section.columns],
           body: section.rows,
           margin: { left: margin, right: margin },
-          styles: { fontSize: 8.5, cellPadding: 2.4, textColor: [40, 45, 60] },
+          styles: { font: "Roboto", fontSize: 8.5, cellPadding: 2.4, textColor: [40, 45, 60] },
           headStyles: {
             fillColor: [37, 99, 235],
             textColor: [255, 255, 255],
@@ -146,18 +170,22 @@ export default function ExportButton({
       doc.save(`${sanitizeFilename()}.pdf`);
     } catch (error) {
       console.error("[ExportButton] Xuất PDF thất bại:", error);
+      setExportError("Không thể xuất PDF. Vui lòng thử lại.");
     } finally {
+      busyRef.current = null;
       setBusy(null);
     }
   };
 
   const exportExcel = async () => {
-    if (busyRef.current) return;
+    if (disabled || busyRef.current) return;
+    setExportError(null);
+    busyRef.current = "excel";
     setBusy("excel");
     try {
       const XLSX = await import("xlsx");
       const wb = XLSX.utils.book_new();
-      for (const section of sections) {
+      for (const section of reportSections) {
         const rows = [section.columns, ...section.rows];
         const ws = XLSX.utils.aoa_to_sheet(rows);
         ws["!cols"] = section.columns.map((_, i) => ({
@@ -174,6 +202,7 @@ export default function ExportButton({
       console.warn("[ExportButton] Không tải được thư viện Excel, fallback CSV:", error);
       exportCSV();
     } finally {
+      busyRef.current = null;
       setBusy(null);
     }
   };
@@ -183,7 +212,7 @@ export default function ExportButton({
 
   const exportCSV = () => {
     const lines: string[] = [];
-    for (const section of sections) {
+    for (const section of reportSections) {
       lines.push(csvCell(section.title));
       lines.push(section.columns.map(csvCell).join(","));
       for (const r of section.rows) lines.push(r.map(csvCell).join(","));
@@ -196,9 +225,10 @@ export default function ExportButton({
   };
 
   return (
+    <>
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" disabled={busy !== null}>
+        <Button variant="outline" disabled={disabled || busy !== null}>
           {busy ? (
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
@@ -222,5 +252,7 @@ export default function ExportButton({
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+    {exportError && <span role="alert" className="text-xs text-red-600">{exportError}</span>}
+    </>
   );
 }

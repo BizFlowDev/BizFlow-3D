@@ -123,7 +123,9 @@ export class OrderController {
       const userId = req.user?.userId;
       if (!userId) throw new AuthenticationError('Yêu cầu xác thực');
 
-      const result = await this.confirmOrderUseCase.execute(req.params.id as string, userId);
+      const storeId = req.user?.storeId;
+      if (!storeId) throw new AuthenticationError('Store không xác định');
+      const result = await this.confirmOrderUseCase.execute(req.params.id as string, userId, storeId);
 
       const response = ApiResponse.success(result, 'Xác nhận đơn hàng thành công');
       res.status(response.statusCode).json(response.toJSON());
@@ -140,7 +142,7 @@ export class OrderController {
     try {
       // 1. Find order
       const order = await this.orderRepo.findById(req.params.id as string);
-      if (!order) {
+      if (!order || order.storeId !== req.user?.storeId) {
         throw new NotFoundError('Đơn hàng');
       }
 

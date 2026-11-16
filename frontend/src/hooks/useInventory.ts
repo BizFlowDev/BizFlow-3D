@@ -376,7 +376,7 @@ export function useImportStock() {
       productId: string;
       productUnitId: string;
       quantity: number;
-      unitCost?: number;
+      unitCost: number;
       note?: string;
     }): Promise<InventoryTransaction> => {
       const { data } = await apiClient.post<ApiResponseData<InventoryTransaction>>(

@@ -21,20 +21,24 @@ const SheetPortal = ({ children, ...props }: React.ComponentPropsWithoutRef<type
 const SheetOverlay = React.forwardRef<
   React.ComponentRef<typeof SheetPrimitive.Overlay>,
   React.ComponentPropsWithoutRef<typeof SheetPrimitive.Overlay>
->(({ className, ...props }, ref) => (
+>(({ className, ...props }, ref) => {
+  const container = React.useContext(SpatialPortalContext);
+  return (
   <SheetPrimitive.Overlay
     className={cn(
       "fixed inset-0 z-50 bg-black/80 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+      container && "absolute",
       className
     )}
     {...props}
     ref={ref}
   />
-));
+  );
+});
 SheetOverlay.displayName = SheetPrimitive.Overlay.displayName;
 
 const sheetVariants = cva(
-  "fixed z-50 gap-4 bg-background p-6 shadow-lg transition ease-in-out data-[state=closed]:duration-300 data-[state=open]:duration-500 data-[state=open]:animate-in data-[state=closed]:animate-out",
+  "fixed z-50 gap-4 bg-background text-foreground p-6 shadow-lg transition ease-in-out data-[state=closed]:duration-300 data-[state=open]:duration-500 data-[state=open]:animate-in data-[state=closed]:animate-out",
   {
     variants: {
       side: {
@@ -61,13 +65,14 @@ const SheetContent = React.forwardRef<
   SheetContentProps
 >(({ side = "right", className, children, ...props }, ref) => {
   const spatial = React.useContext(SpatialStoreContext);
+  const container = React.useContext(SpatialPortalContext);
   return (
   <SheetPortal>
     <SheetOverlay />
     <SheetPrimitive.Content
       data-spatial-sheet={spatial || undefined}
       ref={ref}
-      className={cn(sheetVariants({ side }), className)}
+      className={cn(sheetVariants({ side }), className, container && "absolute max-h-full overflow-y-auto")}
       {...props}
     >
       {children}
